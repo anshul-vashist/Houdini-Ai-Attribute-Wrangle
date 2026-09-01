@@ -46,19 +46,19 @@ def get_recommended_gpu_layers(model_size_gb: float = 8.3) -> int:
 
 
 class EngineManager:
-    """Starts llama-server with ephemeral in-memory API key and zero persistent disk cache."""
+    """Starts llama-server for local Houdini inference with zero persistent disk cache."""
 
     def __init__(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT):
         self.host = host
         self.port = port
         self.base_url = f"http://{host}:{port}"
-        self.api_key = secrets.token_urlsafe(32)
+        self.api_key = None
         self.process = None
         self._staging_dir = None
         self._staging_model_path = None
         self.last_error = ""
 
-    def get_api_key(self) -> str:
+    def get_api_key(self) -> str | None:
         return self.api_key
 
     def is_port_open(self, timeout: float = 0.5) -> bool:
@@ -75,15 +75,12 @@ class EngineManager:
         if not self.is_port_open():
             return False
         try:
-            request = urllib.request.Request(
-                f"{self.base_url}/health",
-                headers={"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-            )
+            headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+            request = urllib.request.Request(f"{self.base_url}/health", headers=headers)
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
             with opener.open(request, timeout=1.0) as response:
                 return json.loads(response.read().decode("utf-8")).get("status") == "ok"
-        except urllib.error.HTTPError as e:
-            # If server is starting up, 503 means it's loading
+        except urllib.error.HTTPError:
             return False
         except Exception:
             return False
@@ -157,9 +154,12 @@ class EngineManager:
         command = [
             engine_bin_path, "--model", resolved_model_path, "--port", str(self.port),
             "--host", self.host, "--ctx-size", "2048", "--n-gpu-layers",
-            gpu_layers, "--no-mmap",
-            "--api-key", self.api_key,
+            gpu_layers,
         ]
+        if resolved_model_path.endswith(".dat"):
+            command.append("--no-mmap")
+        if self.api_key:
+            command.extend(["--api-key", self.api_key])
         try:
             creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             self.process = subprocess.Popen(
