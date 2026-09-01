@@ -47,7 +47,9 @@ TURBO_SYSTEM_PROMPT = (
     "  5. In while or half-edge loops, always use bounded for-loops (e.g. for (int step=0; step<64 && h!=-1; step++)) to prevent infinite cycles.\n"
     "  6. Always declare vector4 for quaternions (vector4 q = quaternion(...)), never 'quaternion q'.\n"
     "  7. Always access geometry attributes with the '@' prefix (e.g. @P, @N, @v, @Cd, @ptnum, @primnum).\n"
-    "  8. nearpoints() and pcfind() on input 0 ALWAYS include the query point itself (@ptnum). An isolated/lonely point with zero other neighbors has len(nearpoints(0, @P, radius)) <= 1 (count <= 1). To delete lonely particles, use: if (len(nearpoints(0, @P, radius, 2)) <= 1) removepoint(0, @ptnum);"
+    "  8. nearpoints() and pcfind() on input 0 ALWAYS include the query point itself (@ptnum). An isolated/lonely point with zero other neighbors has len(nearpoints(0, @P, radius)) <= 1 (count <= 1). To delete lonely particles, use: if (len(nearpoints(0, @P, radius, 2)) <= 1) removepoint(0, @ptnum);\n"
+    "  9. Surface projection: vector p = minpos(1, @P); To sample attributes at closest point: int prim; vector uv; float d = xyzdist(1, @P, prim, uv); vector p = primuv(1, 'P', prim, uv);\n"
+    "  10. To close a polyline curve in a Detail Wrangle: setprimintrinsic(0, 'closed', poly, 1);"
 )
 
 REASONING_SYSTEM_PROMPT = (
@@ -55,7 +57,7 @@ REASONING_SYSTEM_PROMPT = (
     "When presented with a task, FIRST think through the problem in an explicit <think>...</think> block:\n"
     "  1. Analyze input geometry, vector spaces, and physical/mathematical equations.\n"
     "  2. Outline algorithmic steps and procedural logic (loops, spatial lookups, matrix transforms).\n"
-    "  3. Check edge cases: division by zero, normalization of zero vectors, channel hoisting outside loops, nearpoints/pcfind self-indexing where lonely points have count <= 1, and only using valid SideFX VEX standard functions (no hallucinated functions like isprime).\n"
+    "  3. Check edge cases: division by zero, normalization of zero vectors, channel hoisting outside loops, nearpoints/pcfind self-indexing where lonely points have count <= 1, surface projection functions (minpos vs xyzdist/primuv), and only using valid SideFX VEX standard functions (no hallucinated functions like isprime).\n"
     "AFTER the </think> tag, output ONLY the 100% verified, pure Houdini VEX code."
 )
 
@@ -249,6 +251,12 @@ def sanitize_vex_syntax(code: str) -> str:
         c = re.sub(r"if\s*\(\s*([a-zA-Z0-9_]+)\s*<=\s*0\s*\)\s*removepoint", r"if (\1 <= 1) removepoint", c)
         c = re.sub(r"if\s*\(\s*len\s*\(\s*([a-zA-Z0-9_]+)\s*\)\s*==\s*0\s*\)\s*removepoint", r"if (len(\1) <= 1) removepoint", c)
         c = re.sub(r"if\s*\(\s*len\s*\(\s*([a-zA-Z0-9_]+)\s*\)\s*<=\s*0\s*\)\s*removepoint", r"if (len(\1) <= 1) removepoint", c)
+
+    # 8. Modernize legacy and foreign array length calls: arraylength(a) / sizeof(a) -> len(a)
+    c = re.sub(r"\b(?:arraylength|sizeof)\s*\(", "len(", c)
+
+    # 9. Math shortcuts: sqr(x) -> pow(x, 2) or (x * x)
+    c = re.sub(r"\bsqr\s*\(\s*([^)]+)\s*\)", r"((\1) * (\1))", c)
 
     return c
 
