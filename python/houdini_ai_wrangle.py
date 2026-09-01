@@ -625,12 +625,15 @@ def parse_vex_channels(vex_code: str) -> dict[str, str]:
 
 def sync_spare_parameters(node: hou.Node, vex_code: str):
     channels = parse_vex_channels(vex_code)
-    if not channels:
-        return
-
     ptg = node.parmTemplateGroup()
     folder_name = "ai_spare_parms"
     folder = ptg.find(folder_name)
+
+    if not channels:
+        if folder is not None:
+            ptg.remove(folder_name)
+            node.setParmTemplateGroup(ptg)
+        return
 
     if folder is None:
         folder = hou.FolderParmTemplate(folder_name, "Generated UI Parameters", folder_type=hou.folderType.Simple)
@@ -654,25 +657,30 @@ def sync_spare_parameters(node: hou.Node, vex_code: str):
         else:
             ptg.append(folder)
     else:
+        existing_templates = {pt.name(): pt for pt in folder.parmTemplates()}
+        new_folder = hou.FolderParmTemplate(folder_name, "Generated UI Parameters", folder_type=hou.folderType.Simple)
+        
         for name, p_type in channels.items():
-            if ptg.find(name) is not None:
-                continue
-            label = name.replace("_", " ").title()
-            tooltip = f"Auto-generated interactive {p_type} control for VEX channel '{name}'."
-            if p_type == "float":
-                new_parm = hou.FloatParmTemplate(name, label, 1, default_value=(1.0,), min=0.0, max=10.0, min_is_strict=False, max_is_strict=False, help=tooltip)
-            elif p_type == "int":
-                new_parm = hou.IntParmTemplate(name, label, 1, default_value=(1,), min=0, max=100, min_is_strict=False, max_is_strict=False, help=tooltip)
-            elif p_type == "vector":
-                new_parm = hou.FloatParmTemplate(name, label, 3, default_value=(0.0, 1.0, 0.0), look=hou.parmLook.Vector, help=tooltip)
-            elif p_type == "string":
-                new_parm = hou.StringParmTemplate(name, label, 1, default_value=("",), help=tooltip)
-            elif p_type == "ramp":
-                new_parm = hou.RampParmTemplate(name, label, hou.rampParmType.Color, help=tooltip)
+            if name in existing_templates:
+                new_folder.addParmTemplate(existing_templates[name])
             else:
-                new_parm = hou.FloatParmTemplate(name, label, 1, default_value=(1.0,), min=0.0, max=10.0, min_is_strict=False, max_is_strict=False, help=tooltip)
-            folder.addParmTemplate(new_parm)
-        ptg.replace(folder_name, folder)
+                label = name.replace("_", " ").title()
+                tooltip = f"Auto-generated interactive {p_type} control for VEX channel '{name}'."
+                if p_type == "float":
+                    new_parm = hou.FloatParmTemplate(name, label, 1, default_value=(1.0,), min=0.0, max=10.0, min_is_strict=False, max_is_strict=False, help=tooltip)
+                elif p_type == "int":
+                    new_parm = hou.IntParmTemplate(name, label, 1, default_value=(1,), min=0, max=100, min_is_strict=False, max_is_strict=False, help=tooltip)
+                elif p_type == "vector":
+                    new_parm = hou.FloatParmTemplate(name, label, 3, default_value=(0.0, 1.0, 0.0), look=hou.parmLook.Vector, help=tooltip)
+                elif p_type == "string":
+                    new_parm = hou.StringParmTemplate(name, label, 1, default_value=("",), help=tooltip)
+                elif p_type == "ramp":
+                    new_parm = hou.RampParmTemplate(name, label, hou.rampParmType.Color, help=tooltip)
+                else:
+                    new_parm = hou.FloatParmTemplate(name, label, 1, default_value=(1.0,), min=0.0, max=10.0, min_is_strict=False, max_is_strict=False, help=tooltip)
+                new_folder.addParmTemplate(new_parm)
+        
+        ptg.replace(folder_name, new_folder)
 
     node.setParmTemplateGroup(ptg)
     
