@@ -95,15 +95,21 @@ def ensure_embedded_engine() -> bool:
     if _engine_singleton and _engine_singleton.is_healthy():
         return True
     try:
+        pkg_root = _package_root()
+        import sys
+        for p in [pkg_root, os.path.join(pkg_root, "python"), os.path.join(pkg_root, "commercial_build")]:
+            if os.path.isdir(p) and p not in sys.path:
+                sys.path.insert(0, p)
+
         try:
             from engine_manager import EngineManager
         except ImportError:
             try:
                 from .engine_manager import EngineManager
-            except ImportError:
-                return
+            except ImportError as err:
+                _engine_error = f"Cannot import engine_manager: {err}"
+                return False
 
-        pkg_root = _package_root()
         engine_bin = os.path.join(pkg_root, "bin", "llama-server.exe")
         model_path = os.path.join(pkg_root, "models", "qwen3-vex.gguf")
 
@@ -269,7 +275,12 @@ def sanitize_vex_syntax(code: str) -> str:
 
     # 12. Pseudo-container loop normalization: foreach (pt; points(0)) -> for (int pt = 0; pt < npoints(0); pt++)
     c = re.sub(r'\bforeach\s*\(\s*(?:int\s+)?([a-zA-Z0-9_]+)\s*;\s*points\s*\(\s*([0-9]+)\s*\)\s*\)', r'for (int \1 = 0; \1 < npoints(\2); \1++)', c)
-    c = re.sub(r'\bforeach\s*\(\s*(?:int\s+)?([a-zA-Z0-9_]+)\s*;\s*prims\s*\(\s*([0-9]+)\s*\)\s*\)', r'for (int \1 = 0; \1 < nprims(\2); \1++)', c)
+    c = re.sub(r'\bforeach\s*\(\s*(?:int\s+)?([a-zA-Z0-9_]+)\s*;\s*prims\s*\(\s*([0-9]+)\s*\)\s*\)', r'for (int \1 = 0; \1 < nprimitives(\2); \1++)', c)
+
+    # 13. Geometry count function normalization: nprims() -> nprimitives(), npts() -> npoints()
+    c = re.sub(r'\bnprims\s*\(', 'nprimitives(', c)
+    c = re.sub(r'\bnpts\s*\(', 'npoints(', c)
+    c = re.sub(r'\bnvtxs\s*\(', 'nvertices(', c)
 
     return c
 
@@ -557,8 +568,20 @@ def explain_and_document_vex(existing_code: str, context: str = "point wrangle")
 # History Stack & Time Machine
 # ---------------------------------------------------------------------------
 
+def _get_status_parm(node: hou.Node):
+    return node.parm("ai_status") or node.parm("last_error") if node else None
+
+
+def _get_info_parm(node: hou.Node):
+    return node.parm("ai_version_info") or node.parm("ai_history_label") if node else None
+
+
+def _get_history_parm(node: hou.Node):
+    return node.parm("ai_history_json") or node.parm("ai_history") if node else None
+
+
 def get_history_stack(node: hou.Node) -> list[dict]:
-    parm = node.parm("ai_history_json")
+    parm = _get_history_parm(node)
     if not parm or not parm.eval().strip():
         return []
     try:
@@ -568,8 +591,8 @@ def get_history_stack(node: hou.Node) -> list[dict]:
 
 
 def push_to_history_stack(node: hou.Node, prompt: str, code: str, context_str: str, cook_ms: float = 0.0, thought: str = ""):
-    parm = node.parm("ai_history_json")
-    info_parm = node.parm("ai_version_info")
+    parm = _get_history_parm(node)
+    info_parm = _get_info_parm(node)
     if not parm:
         return
 
@@ -627,8 +650,8 @@ def navigate_history_version(node: hou.Node, direction: int):
     except Exception:
         pass
 
-    info_parm = node.parm("ai_version_info")
-    status_parm = node.parm("ai_status")
+    info_parm = _get_info_parm(node)
+    status_parm = _get_status_parm(node)
     if info_parm:
         info_parm.set(f"v{target_entry['version']} / {len(history)} ({target_entry['timestamp']})")
     if status_parm:
@@ -813,10 +836,21 @@ def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "s
     force_refresh_wrangle(node)
 
     vop = node.node("attribvop1") if (node.type().name().startswith("attrib") or node.type().name().startswith("ai_")) else None
-    vop_errs = vop.errors() if vop else ()
-    node_errs = node.errors()
-    if node_errs or vop_errs:
-        err_msg = "\n".join(list(node_errs) + list(vop_errs) + list(node.warnings()))
+    raw_vop_errs = vop.errors() if vop else ()
+    raw_node_errs = node.errors()
+    
+    # Filter out benign 'invalid source' messages when input 0 is simply not yet wired
+    vop_errs = [e for e in raw_vop_errs if "invalid source" not in e.lower()]
+    node_errs = [e for e in raw_node_errs if "invalid source" not in e.lower()]
+
+    has_real_error = False
+    for e in list(raw_node_errs) + list(raw_vop_errs):
+        if any(k in e.lower() for k in ["syntax error", "undefined", "no matching function", "ambiguous", "cannot convert", "type mismatch", "undeclared", "call to undefined"]):
+            has_real_error = True
+            break
+
+    if has_real_error:
+        err_msg = "\n".join(list(raw_node_errs) + list(raw_vop_errs) + list(node.warnings()))
         parm.set(previous_value)
         node.setParmTemplateGroup(previous_ptg)
         force_refresh_wrangle(node)
@@ -1005,7 +1039,7 @@ def on_generate_clicked(kwargs):
     autodetect_parm = node.parm("ai_autodetect")
     reasoning_parm = node.parm("ai_reasoning_mode")
     thought_parm = node.parm("ai_thought_trace")
-    status_parm = node.parm("ai_status")
+    status_parm = _get_status_parm(node)
     perf_parm = node.parm("ai_perf")
     class_parm = node.parm("class")
     snippet_parm = node.parm("snippet")
@@ -1081,6 +1115,11 @@ def on_generate_clicked(kwargs):
                 if repaired_code:
                     vex_code = sanitize_vex_syntax(repaired_code)
 
+        # Re-fetch parm references after try_apply_snippet may have updated the PTG
+        status_parm = _get_status_parm(node)
+        perf_parm = node.parm("ai_perf")
+        snippet_parm = node.parm("snippet")
+
         if success:
             cook_ms, npts, throughput = profile_node_cook(node)
             push_to_history_stack(node, task, vex_code, context_str, cook_ms=cook_ms, thought=thought_trace)
@@ -1109,7 +1148,7 @@ def on_refine_clicked(kwargs):
     autodetect_parm = node.parm("ai_autodetect")
     reasoning_parm = node.parm("ai_reasoning_mode")
     thought_parm = node.parm("ai_thought_trace")
-    status_parm = node.parm("ai_status")
+    status_parm = _get_status_parm(node)
     perf_parm = node.parm("ai_perf")
     class_parm = node.parm("class")
     snippet_parm = node.parm("snippet")
@@ -1168,6 +1207,11 @@ def on_refine_clicked(kwargs):
                 if repaired_code:
                     vex_code = sanitize_vex_syntax(repaired_code)
 
+        # Re-fetch parm references after try_apply_snippet may have updated the PTG
+        status_parm = _get_status_parm(node)
+        perf_parm = node.parm("ai_perf")
+        snippet_parm = node.parm("snippet")
+
         if success:
             cook_ms, npts, throughput = profile_node_cook(node)
             push_to_history_stack(node, refinement_task, vex_code, context_str, cook_ms=cook_ms, thought=thought_trace)
@@ -1190,7 +1234,7 @@ def on_refine_clicked(kwargs):
 def on_optimize_clicked(kwargs):
     node = kwargs["node"]
     snippet_parm = node.parm("snippet")
-    status_parm = node.parm("ai_status")
+    status_parm = _get_status_parm(node)
     perf_parm = node.parm("ai_perf")
     class_parm = node.parm("class")
 
@@ -1215,6 +1259,11 @@ def on_optimize_clicked(kwargs):
                 return
 
         success, error = try_apply_snippet(node, optimized_code)
+        
+        # Re-fetch parm references
+        status_parm = _get_status_parm(node)
+        perf_parm = node.parm("ai_perf")
+        
         if success:
             cook_ms, npts, throughput = profile_node_cook(node)
             push_to_history_stack(node, "SIMD Optimized", optimized_code, context_str, cook_ms=cook_ms)
@@ -1230,7 +1279,7 @@ def on_optimize_clicked(kwargs):
 def on_explain_clicked(kwargs):
     node = kwargs["node"]
     snippet_parm = node.parm("snippet")
-    status_parm = node.parm("ai_status")
+    status_parm = _get_status_parm(node)
     class_parm = node.parm("class")
 
     existing_code = snippet_parm.eval().strip() if snippet_parm else ""
