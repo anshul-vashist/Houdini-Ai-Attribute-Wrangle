@@ -45,11 +45,13 @@ TURBO_SYSTEM_PROMPT = (
     "  3. In detail wrangles with loops, always hoist parameter channel calls (chf, chi, chv, chramp) outside the loop.\n"
     "  4. Array functions like sort(), reverse(), and resize() operate in place and do not return values.\n"
     "  5. In while or half-edge loops, always use bounded for-loops (e.g. for (int step=0; step<64 && h!=-1; step++)) to prevent infinite cycles.\n"
-    "  6. Always declare vector4 for quaternions (vector4 q = quaternion(...)), never 'quaternion q'.\n"
+    "  6. Always declare vector4 for quaternions (vector4 q = quaternion(matrix3_m) or vector4 q = dihedral(from_v, to_v)).\n"
     "  7. Always access geometry attributes with the '@' prefix (e.g. @P, @N, @v, @Cd, @ptnum, @primnum).\n"
     "  8. nearpoints() and pcfind() on input 0 ALWAYS include the query point itself (@ptnum). An isolated/lonely point with zero other neighbors has len(nearpoints(0, @P, radius)) <= 1 (count <= 1). To delete lonely particles, use: if (len(nearpoints(0, @P, radius, 2)) <= 1) removepoint(0, @ptnum);\n"
     "  9. Surface projection: vector p = minpos(1, @P); To sample attributes at closest point: int prim; vector uv; float d = xyzdist(1, @P, prim, uv); vector p = primuv(1, 'P', prim, uv);\n"
-    "  10. To close a polyline curve in a Detail Wrangle: setprimintrinsic(0, 'closed', poly, 1);"
+    "  10. To close a polyline curve in a Detail Wrangle: setprimintrinsic(0, 'closed', poly, 1);\n"
+    "  11. To align orientation quaternion @orient from velocity @v: vector4 q = dihedral(set(0, 0, 1), normalize(@v)); or matrix3 m = set(side, up, normalize(@v)); vector4 q = quaternion(m); @orient = q;\n"
+    "  12. In loops over point/prim counts (npoints/nprims), always use standard C-style loops: for (int i = 0; i < npoints(0); i++)."
 )
 
 REASONING_SYSTEM_PROMPT = (
@@ -220,6 +222,7 @@ def sanitize_vex_syntax(code: str) -> str:
 
     # 2. Quaternion declaration & argument order
     c = re.sub(r"\bquaternion\s+([a-zA-Z0-9_]+)\s*=", r"vector4 \1 =", c)
+    c = re.sub(r"\bquaternion\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\)", r"set(\1, \2, \3, \4)", c)
     c = re.sub(r"quaternion\s*\(\s*([a-zA-Z0-9_@]+)\s*,\s*([0-9.]+)\s*\)", r"quaternion(\2, \1)", c)
 
     # 3. In-place array assignments: arr = sort(arr); -> sort(arr);
@@ -257,6 +260,16 @@ def sanitize_vex_syntax(code: str) -> str:
 
     # 9. Math shortcuts: sqr(x) -> pow(x, 2) or (x * x)
     c = re.sub(r"\bsqr\s*\(\s*([^)]+)\s*\)", r"((\1) * (\1))", c)
+
+    # 10. pcfind signature normalization: pcfind(0, @P, radius, maxpts) -> pcfind(0, "P", @P, radius, maxpts)
+    c = re.sub(r'\bpcfind\s*\(\s*([0-9]+)\s*,\s*(@?P|[a-zA-Z0-9_]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\)', r'pcfind(\1, "P", \2, \3, \4)', c)
+
+    # 11. Range loop normalization: foreach (int i; 0..n-1) -> for (int i = 0; i <= n-1; i++)
+    c = re.sub(r'\bforeach\s*\(\s*(?:int\s+)?([a-zA-Z0-9_]+)\s*;\s*([0-9]+)\s*\.\.\s*([^)]+)\s*\)', r'for (int \1 = \2; \1 <= \3; \1++)', c)
+
+    # 12. Pseudo-container loop normalization: foreach (pt; points(0)) -> for (int pt = 0; pt < npoints(0); pt++)
+    c = re.sub(r'\bforeach\s*\(\s*(?:int\s+)?([a-zA-Z0-9_]+)\s*;\s*points\s*\(\s*([0-9]+)\s*\)\s*\)', r'for (int \1 = 0; \1 < npoints(\2); \1++)', c)
+    c = re.sub(r'\bforeach\s*\(\s*(?:int\s+)?([a-zA-Z0-9_]+)\s*;\s*prims\s*\(\s*([0-9]+)\s*\)\s*\)', r'for (int \1 = 0; \1 < nprims(\2); \1++)', c)
 
     return c
 
