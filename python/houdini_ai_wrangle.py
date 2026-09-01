@@ -51,7 +51,8 @@ TURBO_SYSTEM_PROMPT = (
     "  9. Surface projection: vector p = minpos(1, @P); To sample attributes at closest point: int prim; vector uv; float d = xyzdist(1, @P, prim, uv); vector p = primuv(1, 'P', prim, uv);\n"
     "  10. To close a polyline curve in a Detail Wrangle: setprimintrinsic(0, 'closed', poly, 1);\n"
     "  11. To align orientation quaternion @orient from velocity @v: vector4 q = dihedral(set(0, 0, 1), normalize(@v)); or matrix3 m = set(side, up, normalize(@v)); vector4 q = quaternion(m); @orient = q;\n"
-    "  12. In loops over point/prim counts (npoints/nprims), always use standard C-style loops: for (int i = 0; i < npoints(0); i++)."
+    "  12. In loops over point/prim counts (npoints/nprims), always use standard C-style loops: for (int i = 0; i < npoints(0); i++).\n"
+    "  13. Primitive center: vector center = primuv(0, 'P', @primnum, set(0.5, 0.5, 0.0)); or average vertex points. Do NOT use undefined 'primcenter'."
 )
 
 REASONING_SYSTEM_PROMPT = (
@@ -281,6 +282,14 @@ def sanitize_vex_syntax(code: str) -> str:
     c = re.sub(r'\bnprims\s*\(', 'nprimitives(', c)
     c = re.sub(r'\bnpts\s*\(', 'npoints(', c)
     c = re.sub(r'\bnvtxs\s*\(', 'nvertices(', c)
+
+    # 14. HScript/Foreign alias normalization
+    c = re.sub(r'\bprimcenter\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)', r'primuv(\1, "P", \2, set(0.5, 0.5, 0.0))', c)
+    c = re.sub(r'\bprimarea\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)', r'primintrinsic(\1, "measuredarea", \2)', c)
+    c = re.sub(r'\bprimperimeter\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)', r'primintrinsic(\1, "measuredperimeter", \2)', c)
+    c = re.sub(r'\b(?:dist|pointdistance)\s*\(', 'distance(', c)
+    c = re.sub(r'\bmag\s*\(', 'length(', c)
+    c = re.sub(r'\bnorm\s*\(', 'normalize(', c)
 
     return c
 
