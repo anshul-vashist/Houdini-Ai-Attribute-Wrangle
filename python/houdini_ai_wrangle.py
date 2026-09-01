@@ -100,11 +100,14 @@ def ensure_embedded_engine() -> bool:
 
         pkg_root = _package_root()
         engine_bin = os.path.join(pkg_root, "bin", "llama-server.exe")
-        model_path = os.path.join(pkg_root, "models", "vex_brain.dat")
+        model_path = os.path.join(pkg_root, "models", "qwen3-vex.gguf")
 
-        # Fall back to unencrypted .gguf if .dat doesn't exist
+        if not os.path.exists(model_path):
+            model_path = os.path.join(pkg_root, "models", "vex_brain.dat")
         if not os.path.exists(model_path):
             model_path = os.path.join(pkg_root, "models", "vex_brain.gguf")
+        if not os.path.exists(model_path):
+            model_path = os.path.join(pkg_root, "qwen3-vex.gguf")
 
         if not os.path.exists(engine_bin):
             _engine_error = f"Bundled inference executable is missing: {engine_bin}"

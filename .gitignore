@@ -43,3 +43,4 @@ _qa_houdini_pref/
 .idea/
 backup/
 *.hda.bak*
+bin/
