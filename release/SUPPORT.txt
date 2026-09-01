@@ -1,0 +1,12 @@
+RELEASE SUPPORT CHECKLIST
+
+Before opening a support request, run the installer from the extracted product
+folder, restart Houdini, and confirm ai_wrangle.lic is in the license folder.
+Provide: package version, manifest.json SHA-256 entry for the HDA, Houdini
+version/build, Windows version, GPU/driver, and the full Status field text.
+
+To uninstall, delete ai_attribwrangle.json from the Houdini 21.0 packages
+folder created by the installer, then restart Houdini. The extracted product
+folder and temporary runtime staging directory can then be removed according to
+local policy. The product normally removes its own staging data immediately
+after the model finishes loading.

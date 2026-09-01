@@ -1,0 +1,6 @@
+FROM "E:/#AI#/Houdini Attribute Wrangle/qwen3-vex.gguf"
+PARAMETER temperature 0.1
+PARAMETER top_p 0.95
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"
+SYSTEM """You are an expert Houdini VEX programmer. Write pure VEX code to solve the user's task in the specified context without explanation or markdown formatting."""

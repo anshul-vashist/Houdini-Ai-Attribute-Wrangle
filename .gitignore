@@ -1,0 +1,45 @@
+# =============================================================================
+# Git Ignore: AI Attribute Wrangle for SideFX Houdini
+# =============================================================================
+
+# Large Model Weights (Hosted on Hugging Face: anshulVashist/Qwen3-Houdini-Vex)
+*.gguf
+*.dat
+*.bin
+*.safetensors
+qwen3-vex*
+models/
+
+# Training Data, Datasets, Checkpoints & Notebooks (Private)
+*.ipynb
+*.jsonl
+*dataset*
+*checkpoint*
+*lora*
+houdini_vex_project/
+COMMERCIAL_READINESS_BLUEPRINT.md
+commercial_build/developer_tools/
+llama.cpp/
+
+# Build & Dist Outputs
+dist/
+_cython_build/
+*.obj
+*.exp
+*.lib
+*.pyd
+*.c
+
+# Python & Environment Caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.log
+.DS_Store
+Thumbs.db
+_qa_houdini_pref/
+.vscode/
+.idea/
+backup/
+*.hda.bak*

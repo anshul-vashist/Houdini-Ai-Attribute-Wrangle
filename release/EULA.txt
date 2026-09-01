@@ -1,0 +1,20 @@
+AI ATTRIBUTE WRANGLE END-USER LICENSE AGREEMENT - DRAFT
+
+This draft must be reviewed and approved by qualified legal counsel before a
+commercial sale. It is included so the release archive is never silently sold
+without license terms.
+
+The software is licensed, not sold. Subject to payment and the accompanying
+customer license file, the licensee may install and use one copy on the
+licensed machine. The software, model weights, documentation, and associated
+intellectual property may not be redistributed, rented, sublicensed, or used
+to provide a competing product, except where mandatory law says otherwise.
+
+The software produces suggestions. Licensee is responsible for reviewing all
+generated VEX and for backups, scene safety, and use in production. To the
+maximum extent permitted by law, the software is provided without warranties
+and the developer is not liable for indirect, incidental, special, or
+consequential damages.
+
+This draft does not replace required third-party license notices or rights
+granted under applicable open-source licenses.

@@ -1,0 +1,16 @@
+PRIVACY AND DATA HANDLING
+
+Normal operation sends prompt text and a compact geometry schema only to a
+local loopback server (127.0.0.1). It does not intentionally transmit prompts,
+geometry, machine identifiers, or licenses to the developer or a cloud service.
+
+The product reads Windows hardware identifiers locally to validate a
+node-locked license. During startup it creates a randomly named, short-lived
+plaintext staging file only long enough for the local inference engine to load
+the model with memory mapping disabled. It then removes that staging directory;
+no reusable plaintext model cache is retained. Users on managed systems should
+ensure their temporary directory is protected and cleared according to studio
+policy.
+
+If AI_WRANGLE_ALLOW_OLLAMA_FALLBACK=1 is set by a user or administrator, data
+handling is governed by that separately installed service and its configuration.
