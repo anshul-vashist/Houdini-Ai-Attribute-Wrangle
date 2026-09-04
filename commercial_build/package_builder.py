@@ -262,6 +262,15 @@ def build(args: argparse.Namespace) -> None:
         )
         (PACKAGE_DIR / "license" / "ai_wrangle.lic").write_text(customer_license_content, encoding="utf-8")
 
+    # Package fine-tuned LoRA adapters if present in models directory
+    master_models_dir = PROJECT_ROOT / "models"
+    for lora_name in ["qwen3-vex-v10-lora.gguf", "qwen3-vex-v9-lora.gguf", "qwen3-vex-v8-lora.gguf", "qwen3-vex-lora.gguf"]:
+        src_lora = master_models_dir / lora_name
+        if src_lora.is_file():
+            print(f"Packaging fine-tuned LoRA adapter: {lora_name}")
+            copy_required(src_lora, PACKAGE_DIR / "models" / lora_name)
+            break
+
     for destination_name, source in RELEASE_FILES.items():
         copy_required(source, PACKAGE_DIR / destination_name)
     write_installer(PACKAGE_DIR / "Install_AI_Wrangle.bat")

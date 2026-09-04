@@ -17,6 +17,8 @@ models/
 *checkpoint*
 *lora*
 houdini_vex_project/
+ai_model_training/
+houdini_hda_package/
 COMMERCIAL_READINESS_BLUEPRINT.md
 commercial_build/developer_tools/
 llama.cpp/

@@ -57,6 +57,15 @@ class EngineManager:
         self._staging_dir = None
         self._staging_model_path = None
         self.last_error = ""
+        self.active_model_name = ""
+        self.active_lora_name = None
+        self.active_gpu_layers = 0
+
+    def get_model_info_string(self) -> str:
+        model = self.active_model_name or "qwen3-vex.gguf"
+        if self.active_lora_name:
+            return f"{model} + LoRA: {self.active_lora_name}"
+        return f"{model} (Base)"
 
     def get_api_key(self) -> str | None:
         return self.api_key
@@ -151,11 +160,30 @@ class EngineManager:
             return False
 
         gpu_layers = str(get_recommended_gpu_layers())
+        self.active_gpu_layers = int(gpu_layers)
+        self.active_model_name = os.path.basename(vault_model_path)
+        self.active_lora_name = None
+
         command = [
             engine_bin_path, "--model", resolved_model_path, "--port", str(self.port),
             "--host", self.host, "--ctx-size", "2048", "--n-gpu-layers",
             gpu_layers,
         ]
+        # Check for fine-tuned LoRA adapter
+        model_dir = os.path.dirname(vault_model_path)
+        lora_candidates = [
+            os.path.join(model_dir, "qwen3-vex-v10-lora.gguf"),
+            os.path.join(model_dir, "qwen3-vex-v9-lora.gguf"),
+            os.path.join(model_dir, "qwen3-vex-v8-lora.gguf"),
+            os.path.join(model_dir, "qwen3-vex-v5-lora.gguf"),
+            os.path.join(model_dir, "qwen3-vex-lora.gguf"),
+            os.path.join(model_dir, "lora.gguf"),
+        ]
+        for lora_path in lora_candidates:
+            if os.path.isfile(lora_path):
+                command.extend(["--lora", lora_path])
+                self.active_lora_name = os.path.basename(lora_path)
+                break
         if resolved_model_path.endswith(".dat"):
             command.append("--no-mmap")
         if self.api_key:

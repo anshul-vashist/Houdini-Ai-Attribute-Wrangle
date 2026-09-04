@@ -1,0 +1,4407 @@
+{
+  "abs": [
+    "int abs(int n)",
+    "float abs(float n)",
+    "<vector> abs(<vector> v)",
+    "// Returns the absolute value of the argument. (Context: all)"
+  ],
+  "abspath": [
+    "<type> abspath(...)",
+    "// Returns the full path of a file. (Context: all)"
+  ],
+  "accessframe": [
+    "<type> accessframe(...)",
+    "// Tells the COP manager that you need access to the given frame. (Context: cop2)"
+  ],
+  "acos": [
+    "<type> acos(...)",
+    "// Returns the inverse cosine of the argument. (Context: all)"
+  ],
+  "addattrib": [
+    "<type> addattrib(...)",
+    "// Adds an attribute to a geometry. (Context: all)"
+  ],
+  "addattribute": [
+    "<type> addattribute(...)"
+  ],
+  "adddetailattrib": [
+    "<type> adddetailattrib(...)",
+    "// Adds a detail attribute to a geometry. (Context: all)"
+  ],
+  "addgroup": [
+    "<type> addgroup(...)"
+  ],
+  "addpoint": [
+    "<type> addpoint(...)",
+    "// Adds a point to the geometry. (Context: all)"
+  ],
+  "addpointattrib": [
+    "<type> addpointattrib(...)",
+    "// Adds a point attribute to a geometry. (Context: all)"
+  ],
+  "addprim": [
+    "<type> addprim(...)",
+    "// Adds a primitive to the geometry. (Context: all)"
+  ],
+  "addprimattrib": [
+    "<type> addprimattrib(...)",
+    "// Adds a primitive attribute to a geometry. (Context: all)"
+  ],
+  "addvariablename": [
+    "<type> addvariablename(...)",
+    "// Adds a mapping for an attribute to a local variable. (Context: all)"
+  ],
+  "addvertex": [
+    "<type> addvertex(...)",
+    "// Adds a vertex to a primitive in a geometry. (Context: all)"
+  ],
+  "addvertexattrib": [
+    "<type> addvertexattrib(...)",
+    "// Adds a vertex attribute to a geometry. (Context: all)"
+  ],
+  "addvisualizer": [
+    "<type> addvisualizer(...)",
+    "// Appends to a geometry's visualizer detail attribute. (Context: all)"
+  ],
+  "agentaddclip": [
+    "<type> agentaddclip(...)",
+    "// Add a clip into an agent's definition. (Context: all)"
+  ],
+  "agentchannelcount": [
+    "<type> agentchannelcount(...)",
+    "// Returns the number of channels in an agent primitive's rig. (Context: all)"
+  ],
+  "agentchannelnames": [
+    "<type> agentchannelnames(...)",
+    "// Returns the names of the channels in an agent primitive's rig. (Context: all)"
+  ],
+  "agentchannelvalue": [
+    "<type> agentchannelvalue(...)",
+    "// Returns the current value of an agent primitive's channel. (Context: all)"
+  ],
+  "agentchannelvalues": [
+    "<type> agentchannelvalues(...)",
+    "// Returns the current values of an agent primitive's channels. (Context: all)"
+  ],
+  "agentclipcatalog": [
+    "<type> agentclipcatalog(...)",
+    "// Returns all of the animation clips that have been loaded for an agent primitive. (Context: all)"
+  ],
+  "agentclipchannel": [
+    "<type> agentclipchannel(...)",
+    "// Finds the index of a channel in an agent's animation clip. (Context: all)"
+  ],
+  "agentclipchannelnames": [
+    "<type> agentclipchannelnames(...)",
+    "// Returns the names of the channels in an agent's animation clip. (Context: all)"
+  ],
+  "agentcliplayerblend": [
+    "<type> agentcliplayerblend(...)",
+    "// Blends values according to an agent's animation layers. (Context: all)"
+  ],
+  "agentcliplayersamplelocal": [
+    "<type> agentcliplayersamplelocal(...)",
+    "// Samples and blends an agent's layered animation clips. (Context: all)"
+  ],
+  "agentcliplayersampleworld": [
+    "<type> agentcliplayersampleworld(...)",
+    "// Samples and blends an agent's layered animation clips. (Context: all)"
+  ],
+  "agentcliplength": [
+    "<type> agentcliplength(...)",
+    "// Returns the length (in seconds) of an agent's animation clip. (Context: all)"
+  ],
+  "agentclipnames": [
+    "<type> agentclipnames(...)",
+    "// Returns an agent primitive's current animation clips. (Context: all)"
+  ],
+  "agentclipsample": [
+    "<type> agentclipsample(...)",
+    "// Samples a channel of an agent's clip at a specific time. (Context: all)"
+  ],
+  "agentclipsamplelocal": [
+    "<type> agentclipsamplelocal(...)",
+    "// Samples an agent's animation clip at a specific time. (Context: all)"
+  ],
+  "agentclipsamplerate": [
+    "<type> agentclipsamplerate(...)",
+    "// Returns the sample rate of an agent's animation clip. (Context: all)"
+  ],
+  "agentclipsampleworld": [
+    "<type> agentclipsampleworld(...)",
+    "// Samples an agent's animation clip at a specific time. (Context: all)"
+  ],
+  "agentclipstarttime": [
+    "<type> agentclipstarttime(...)",
+    "// Returns the start time (in seconds) of an agent's animation clip. (Context: all)"
+  ],
+  "agentcliptimes": [
+    "<type> agentcliptimes(...)",
+    "// Returns the current times for an agent primitive's animation clips. (Context: all)"
+  ],
+  "agentcliptransformgroups": [
+    "<type> agentcliptransformgroups(...)",
+    "// Returns the transform groups for an agent primitive's current animation clips. (Context: all)"
+  ],
+  "agentclipweights": [
+    "<type> agentclipweights(...)",
+    "// Returns the blend weights for an agent primitive's animation clips. (Context: all)"
+  ],
+  "agentcollisionlayer": [
+    "<type> agentcollisionlayer(...)",
+    "// Returns the name of the collision layer of an agent primitive. (Context: all)"
+  ],
+  "agentcollisionlayers": [
+    "<type> agentcollisionlayers(...)",
+    "// Returns the names of an agent primitive's collision layers. (Context: all)"
+  ],
+  "agentcurrentlayer": [
+    "<type> agentcurrentlayer(...)",
+    "// Returns the name of the current layer of an agent primitive. (Context: all)"
+  ],
+  "agentcurrentlayers": [
+    "<type> agentcurrentlayers(...)",
+    "// Returns the names of an agent primitive's current layers. (Context: all)"
+  ],
+  "agentfindclip": [
+    "<type> agentfindclip(...)",
+    "// Finds the index of a clip in an agent's definition. (Context: all)"
+  ],
+  "agentfindlayer": [
+    "<type> agentfindlayer(...)",
+    "// Finds the index of a layer in an agent's definition. (Context: all)"
+  ],
+  "agentfindtransformgroup": [
+    "<type> agentfindtransformgroup(...)",
+    "// Finds the index of a transform group in an agent's definition. (Context: all)"
+  ],
+  "agentlayerbindings": [
+    "<type> agentlayerbindings(...)",
+    "// Returns the transform that each shape in an agent's layer is bound to. (Context: all)"
+  ],
+  "agentlayers": [
+    "<type> agentlayers(...)",
+    "// Returns all of the layers that have been loaded for an agent primitive. (Context: all)"
+  ],
+  "agentlayershapes": [
+    "<type> agentlayershapes(...)",
+    "// Returns the names of the shapes referenced by an agent primitive's layer. (Context: all)"
+  ],
+  "agentlocaltransform": [
+    "<type> agentlocaltransform(...)",
+    "// Returns the current local space transform of an agent primitive's bone. (Context: all)"
+  ],
+  "agentlocaltransforms": [
+    "<type> agentlocaltransforms(...)",
+    "// Returns the current local space transforms of an agent primitive. (Context: all)"
+  ],
+  "agentmetadata": [
+    "<type> agentmetadata(...)",
+    "// Returns the agent definition's metadata dictionary. (Context: all)"
+  ],
+  "agentrestlocaltransform": [
+    "<type> agentrestlocaltransform(...)",
+    "// Returns the local space rest transform for an agent primitive's joint. (Context: all)"
+  ],
+  "agentrestworldtransform": [
+    "<type> agentrestworldtransform(...)",
+    "// Returns the world space rest transform for an agent primitive's joint. (Context: all)"
+  ],
+  "agentrigchildren": [
+    "<type> agentrigchildren(...)",
+    "// Returns the child transforms of a transform in an agent primitive's rig. (Context: all)"
+  ],
+  "agentrigfind": [
+    "<type> agentrigfind(...)",
+    "// Finds the index of a transform in an agent primitive's rig. (Context: all)"
+  ],
+  "agentrigfindchannel": [
+    "<type> agentrigfindchannel(...)",
+    "// Finds the index of a channel in an agent primitive's rig. (Context: all)"
+  ],
+  "agentrigparent": [
+    "<type> agentrigparent(...)",
+    "// Returns the parent transform of a transform in an agent primitive's rig. (Context: all)"
+  ],
+  "agentsolvefbik": [
+    "<type> agentsolvefbik(...)",
+    "// Applies a full-body inverse kinematics algorithm to an agent's skeleton. (Context: all)"
+  ],
+  "agenttransformcount": [
+    "<type> agenttransformcount(...)",
+    "// Returns the number of transforms in an agent primitive's rig. (Context: all)"
+  ],
+  "agenttransformgroupmember": [
+    "<type> agenttransformgroupmember(...)",
+    "// Returns whether a transform is a member of the specified transform group. (Context: all)"
+  ],
+  "agenttransformgroupmemberchannel": [
+    "<type> agenttransformgroupmemberchannel(...)",
+    "// Returns whether a channel is a member of the specified transform group. (Context: all)"
+  ],
+  "agenttransformgroups": [
+    "<type> agenttransformgroups(...)",
+    "// Returns the names of the transform groups in an agent's definition. (Context: all)"
+  ],
+  "agenttransformgroupweight": [
+    "<type> agenttransformgroupweight(...)",
+    "// Returns the weight of a member of the specified transform group. (Context: all)"
+  ],
+  "agenttransformnames": [
+    "<type> agenttransformnames(...)",
+    "// Returns the name of each transform in an agent primitive's rig. (Context: all)"
+  ],
+  "agenttransformtolocal": [
+    "<type> agenttransformtolocal(...)",
+    "// Converts transforms from world space to local space for an agent primitive. (Context: all)"
+  ],
+  "agenttransformtoworld": [
+    "<type> agenttransformtoworld(...)",
+    "// Converts transforms from local space to world space for an agent primitive. (Context: all)"
+  ],
+  "agentworldtransform": [
+    "<type> agentworldtransform(...)",
+    "// Returns the current world space transform of an agent primitive's bone. (Context: all)"
+  ],
+  "agentworldtransforms": [
+    "<type> agentworldtransforms(...)",
+    "// Returns the current world space transforms of an agent primitive. (Context: all)"
+  ],
+  "albedo": [
+    "<type> albedo(...)",
+    "// Returns the albedo (percentage of reflected light) for a bsdf given the outgoing light direction. (Context: all)"
+  ],
+  "alphaname": [
+    "<type> alphaname(...)",
+    "// Returns the default name of the alpha plane (as it appears in the\ncompositor preferences). (Context: cop2)"
+  ],
+  "ambient": [
+    "<type> ambient(...)",
+    "// Returns the color of ambient light in the scene. (Context: displace, fog, surface)"
+  ],
+  "anoise": [
+    "<type> anoise(...)",
+    "// Generates \"alligator\" noise. (Context: all)"
+  ],
+  "append": [
+    "<type> append(...)",
+    "// Adds an item to an array or string. (Context: all)"
+  ],
+  "area": [
+    "<type> area(...)",
+    "// Returns the area of the micropolygon containing a variable such as P. (Context: all)"
+  ],
+  "argsort": [
+    "<type> argsort(...)",
+    "// Returns the indices of a sorted version of an array. (Context: all)"
+  ],
+  "array": [
+    "<type> array(...)",
+    "// Efficiently creates an array from its arguments. (Context: all)"
+  ],
+  "ashikhmin": [
+    "<type> ashikhmin(...)",
+    "// Returns a specular BSDF using the Ashikhmin shading model. (Context: all)"
+  ],
+  "asin": [
+    "<type> asin(...)",
+    "// Returns the inverse sine of the argument. (Context: all)"
+  ],
+  "assert_enabled": [
+    "<type> assert_enabled(...)",
+    "// Returns 1 if the VEX assertions are enabled (see HOUDINI_VEX_ASSERT) or 0 if assertions are disabled. Used the implement the assert macro. (Context: all)"
+  ],
+  "assign": [
+    "<type> assign(...)",
+    "// An efficient way of extracting the components of a vector or matrix into float variables. (Context: all)"
+  ],
+  "atan": [
+    "<type> atan(...)",
+    "// Returns the inverse tangent of the argument. (Context: all)"
+  ],
+  "atan2": [
+    "<type> atan2(...)",
+    "// Returns the inverse tangent of y/x. (Context: all)"
+  ],
+  "atof": [
+    "<type> atof(...)",
+    "// Converts a string to a float. (Context: all)"
+  ],
+  "atoi": [
+    "<type> atoi(...)",
+    "// Converts a string to an integer. (Context: all)"
+  ],
+  "atten": [
+    "<type> atten(...)",
+    "// Computes attenuated falloff. (Context: all)"
+  ],
+  "attrib": [
+    "<type> attrib(...)",
+    "// Reads the value of an attribute from geometry. (Context: all)"
+  ],
+  "attribclass": [
+    "<type> attribclass(...)",
+    "// Returns the class of a geometry attribute. (Context: all)"
+  ],
+  "attribdataid": [
+    "int [] attribdataid(<geometry>, string attribclass, string attribute_name)",
+    "// Returns the data id of a geometry attribute. (Context: all)"
+  ],
+  "attribsize": [
+    "<type> attribsize(...)",
+    "// Returns the size of a geometry attribute. (Context: all)"
+  ],
+  "attribtype": [
+    "<type> attribtype(...)",
+    "// Returns the type of a geometry attribute. (Context: all)"
+  ],
+  "attribtypeinfo": [
+    "string attribtypeinfo(<geometry>, string attribclass, string attribute_name)",
+    "// Returns the transformation metadata of a geometry attribute. (Context: all)"
+  ],
+  "avg": [
+    "<type> avg(...)",
+    "// Returns the average value of the input(s) (Context: all)"
+  ],
+  "binput": [
+    "<type> binput(...)",
+    "// Samples a 2x2 pixel block around the given UV position, and bilinearly interpolates these pixels. (Context: cop2)"
+  ],
+  "blackbody": [
+    "<type> blackbody(...)",
+    "// Compute the color value of an incandescent black body. (Context: all)"
+  ],
+  "blinn": [
+    "<type> blinn(...)",
+    "// Returns a Blinn BSDF or computes Blinn shading. (Context: all)"
+  ],
+  "blinnBRDF": [
+    "<type> blinnBRDF(...)"
+  ],
+  "bouncelabel": [
+    "<type> bouncelabel(...)"
+  ],
+  "bouncemask": [
+    "<type> bouncemask(...)"
+  ],
+  "bumpmap": [
+    "<type> bumpmap(...)"
+  ],
+  "bumpmapA": [
+    "<type> bumpmapA(...)"
+  ],
+  "bumpmapB": [
+    "<type> bumpmapB(...)"
+  ],
+  "bumpmapG": [
+    "<type> bumpmapG(...)"
+  ],
+  "bumpmapL": [
+    "<type> bumpmapL(...)"
+  ],
+  "bumpmapR": [
+    "<type> bumpmapR(...)"
+  ],
+  "bumpname": [
+    "<type> bumpname(...)",
+    "// Returns the default name of the bump plane (as it appears in the\ncompositor preferences). (Context: cop2)"
+  ],
+  "cbrt": [
+    "<type> cbrt(...)",
+    "// Returns the cube root of the argument. (Context: all)"
+  ],
+  "ceil": [
+    "<type> ceil(...)",
+    "// Returns the smallest integer greater than or equal to the argument. (Context: all)"
+  ],
+  "ch": [
+    "<type> ch(...)",
+    "// Evaluates a channel (or parameter) and return its value. (Context: all)"
+  ],
+  "ch2": [
+    "<type> ch2(...)",
+    "// Evaluates a channel (or parameter) and return its value. (Context: all)"
+  ],
+  "ch3": [
+    "<type> ch3(...)",
+    "// Evaluates a channel (or parameter) and return its value. (Context: all)"
+  ],
+  "ch4": [
+    "<type> ch4(...)",
+    "// Evaluates a channel (or parameter) and return its value. (Context: all)"
+  ],
+  "chadd": [
+    "<type> chadd(...)",
+    "// Adds new channels to a CHOP node. (Context: chop)"
+  ],
+  "chattr": [
+    "<type> chattr(...)",
+    "// Reads from a CHOP attribute. (Context: chop)"
+  ],
+  "chattrnames": [
+    "<type> chattrnames(...)",
+    "// Reads CHOP attribute names of a given attribute class from a CHOP input. (Context: chop)"
+  ],
+  "chdict": [
+    "<type> chdict(...)",
+    "// Evaluates a key-value dictionary parameter and return its value. (Context: all)"
+  ],
+  "chend": [
+    "<type> chend(...)",
+    "// Returns the sample number of the last sample in a given CHOP input. (Context: chop)"
+  ],
+  "chendf": [
+    "<type> chendf(...)",
+    "// Returns the frame corresponding to the last sample of the input specified. (Context: chop)"
+  ],
+  "chendt": [
+    "<type> chendt(...)",
+    "// Returns the time corresponding to the last sample of the input\nspecified. (Context: chop)"
+  ],
+  "chexpr": [
+    "<type> chexpr(...)",
+    "// Evaluates a channel with a new segment expression. (Context: all)"
+  ],
+  "chexprf": [
+    "<type> chexprf(...)",
+    "// Evaluates a channel with a new segment expression at a given frame. (Context: all)"
+  ],
+  "chexprt": [
+    "<type> chexprt(...)",
+    "// Evaluates a channel with a new segment expression at a given time. (Context: all)"
+  ],
+  "chf": [
+    "<type> chf(...)",
+    "// Evaluates a channel (or parameter) and return its value. (Context: all)"
+  ],
+  "chi": [
+    "<type> chi(...)",
+    "// Evaluates a channel (or parameter) and return its value. (Context: all)"
+  ],
+  "chiang": [
+    "<type> chiang(...)",
+    "// Returns a chiang BSDF. (Context: all)"
+  ],
+  "chiang_fur": [
+    "<type> chiang_fur(...)",
+    "// Returns a chiang_fur BSDF. (Context: all)"
+  ],
+  "chid": [
+    "<type> chid(...)",
+    "// Resolves a channel string (or parameter) and return op_id, parm_index and vector_index. (Context: all)"
+  ],
+  "chindex": [
+    "<type> chindex(...)",
+    "// Returns the channel index from a input given a channel name. (Context: chop)"
+  ],
+  "chinput": [
+    "<type> chinput(...)",
+    "// Returns the value of a channel at the specified sample. (Context: chop)"
+  ],
+  "chinputlimits": [
+    "<type> chinputlimits(...)",
+    "// Computes the minimum and maximum value of samples in an input channel. (Context: chop)"
+  ],
+  "chname": [
+    "<type> chname(...)",
+    "// Returns the name of a numbered channel. (Context: cop2, chop)"
+  ],
+  "chnames": [
+    "<type> chnames(...)",
+    "// Returns all the CHOP channel names of a given CHOP input. (Context: chop)"
+  ],
+  "chnumchan": [
+    "<type> chnumchan(...)",
+    "// Returns the number of channels in the input specified. (Context: chop)"
+  ],
+  "chop": [
+    "<type> chop(...)",
+    "// Returns the value of a CHOP channel at the specified sample. (Context: all)"
+  ],
+  "choplocal": [
+    "<type> choplocal(...)",
+    "// Returns the value of a CHOP local transform channel at the specified sample. (Context: all)"
+  ],
+  "choplocalt": [
+    "<type> choplocalt(...)",
+    "// Returns the value of a CHOP local transform channel at the specified sample and evaluation time. (Context: all)"
+  ],
+  "chopt": [
+    "<type> chopt(...)",
+    "// Returns the value of a CHOP channel at the specified sample and evaluation time. (Context: all)"
+  ],
+  "chp": [
+    "<type> chp(...)",
+    "// Evaluates a channel (or parameter) and return its value. (Context: all)"
+  ],
+  "chprim_clear": [
+    "<type> chprim_clear(...)",
+    "// Clears a channel primitive, removing all keys. (Context: all)"
+  ],
+  "chprim_destroykey": [
+    "<type> chprim_destroykey(...)",
+    "// Destroy an existing key from a channel primitive. (Context: all)"
+  ],
+  "chprim_end": [
+    "<type> chprim_end(...)",
+    "// Get the end time of a channel primitive. (Context: all)"
+  ],
+  "chprim_eval": [
+    "<type> chprim_eval(...)",
+    "// Evaluate a channel primitive at the given time. (Context: all)"
+  ],
+  "chprim_insertkey": [
+    "<type> chprim_insertkey(...)",
+    "// Insert a key into a channel primitive. (Context: all)"
+  ],
+  "chprim_keycount": [
+    "<type> chprim_keycount(...)",
+    "// Get the number of keys in a channel primitive. (Context: all)"
+  ],
+  "chprim_keytimes": [
+    "<type> chprim_keytimes(...)",
+    "// Get the key times of a channel primitive. (Context: all)"
+  ],
+  "chprim_keyvalues": [
+    "<type> chprim_keyvalues(...)",
+    "// Get the key values of a channel primitive. (Context: all)"
+  ],
+  "chprim_length": [
+    "<type> chprim_length(...)",
+    "// Get the length of a channel primitive. (Context: all)"
+  ],
+  "chprim_setkeyaccel": [
+    "<type> chprim_setkeyaccel(...)",
+    "// Set the acceleration of a channel primitive key. (Context: all)"
+  ],
+  "chprim_setkeyslope": [
+    "<type> chprim_setkeyslope(...)",
+    "// Set the slope of a channel primitive key. (Context: all)"
+  ],
+  "chprim_setkeyvalue": [
+    "<type> chprim_setkeyvalue(...)",
+    "// Set the value of a channel primitive key. (Context: all)"
+  ],
+  "chprim_start": [
+    "<type> chprim_start(...)",
+    "// Get the start time of a channel primitive. (Context: all)"
+  ],
+  "chr": [
+    "<type> chr(...)",
+    "// Converts an unicode codepoint to a UTF8 string. (Context: all)"
+  ],
+  "chramp": [
+    "<type> chramp(...)",
+    "// Evaluates a ramp parameter and return its value. (Context: all)"
+  ],
+  "chrampderiv": [
+    "<type> chrampderiv(...)",
+    "// Evaluates the derivative of a parm parameter with respect to position. (Context: all)"
+  ],
+  "chrate": [
+    "<type> chrate(...)",
+    "// Returns the sample rate of the input specified. (Context: chop)"
+  ],
+  "chreadbuf": [
+    "<type> chreadbuf(...)",
+    "// Returns the value of CHOP context temporary buffer at the specified index. (Context: chop)"
+  ],
+  "chremove": [
+    "<type> chremove(...)",
+    "// Removes channels from a CHOP node. (Context: chop)"
+  ],
+  "chremoveattr": [
+    "<type> chremoveattr(...)",
+    "// Removes a CHOP attribute. (Context: chop)"
+  ],
+  "chrename": [
+    "<type> chrename(...)",
+    "// Renames a CHOP channel. (Context: chop)"
+  ],
+  "chresizebuf": [
+    "<type> chresizebuf(...)",
+    "// Resize the CHOP context temporary buffer (Context: chop)"
+  ],
+  "chs": [
+    "<type> chs(...)",
+    "// Evaluates a channel (or parameter) and return its value. (Context: all)"
+  ],
+  "chsetattr": [
+    "<type> chsetattr(...)",
+    "// Sets the value of a CHOP attribute. (Context: chop)"
+  ],
+  "chsetlength": [
+    "<type> chsetlength(...)",
+    "// Sets the length of the CHOP channel data. (Context: chop)"
+  ],
+  "chsetrate": [
+    "<type> chsetrate(...)",
+    "// Sets the sampling rate of the CHOP channel data. (Context: chop)"
+  ],
+  "chsetstart": [
+    "<type> chsetstart(...)",
+    "// Sets the CHOP start sample in the channel data. (Context: chop)"
+  ],
+  "chsop": [
+    "<type> chsop(...)",
+    "// Evaluates an operator path parameter and return the path to the operator. (Context: all)"
+  ],
+  "chsraw": [
+    "<type> chsraw(...)",
+    "// Returns the raw string channel (or parameter). (Context: all)"
+  ],
+  "chstart": [
+    "<type> chstart(...)",
+    "// Returns the start sample of the input specified. (Context: chop)"
+  ],
+  "chstartf": [
+    "<type> chstartf(...)",
+    "// Returns the frame corresponding to the first sample of the input\nspecified. (Context: chop)"
+  ],
+  "chstartt": [
+    "<type> chstartt(...)",
+    "// Returns the time corresponding to the first sample of the input\nspecified. (Context: chop)"
+  ],
+  "chu": [
+    "<type> chu(...)",
+    "// Evaluates a channel or parameter, and return its value. (Context: all)"
+  ],
+  "chv": [
+    "<type> chv(...)",
+    "// Evaluates a channel or parameter, and return its value. (Context: all)"
+  ],
+  "chwritebuf": [
+    "<type> chwritebuf(...)",
+    "// Writes a value of CHOP context temporary buffer at the specified index. (Context: chop)"
+  ],
+  "cinput": [
+    "<type> cinput(...)",
+    "// Samples the exact (unfiltered) pixel color at the given coordinates. (Context: cop2)"
+  ],
+  "ckspline": [
+    "<type> ckspline(...)",
+    "// Samples a Catmull-Rom (Cardinal) spline defined by position/value keys. (Context: all)"
+  ],
+  "clamp": [
+    "<type> clamp(...)",
+    "// Returns value clamped between min and max. (Context: all)"
+  ],
+  "clip": [
+    "<type> clip(...)",
+    "// Clip the line segment between p0 and p1. (Context: all)"
+  ],
+  "colormap": [
+    "<type> colormap(...)",
+    "// Looks up a (filtered) color from a texture file. (Context: all)"
+  ],
+  "colorname": [
+    "<type> colorname(...)",
+    "// Returns the default name of the color plane (as it appears in the\ncompositor preferences). (Context: cop2)"
+  ],
+  "combinelocaltransform": [
+    "<type> combinelocaltransform(...)",
+    "// Combines Local and Parent Transforms with Scale Inheritance. (Context: all)"
+  ],
+  "computenormal": [
+    "<type> computenormal(...)",
+    "// In shading contexts, computes a normal. In the SOP contexts, sets how/whether to recompute normals. (Context: all)"
+  ],
+  "concat": [
+    "<type> concat(...)",
+    "// Concatenate all the strings specified to form a single string. (Context: all)"
+  ],
+  "cone": [
+    "<type> cone(...)",
+    "// Returns a cone reflection BSDF. (Context: all)"
+  ],
+  "cos": [
+    "<type> cos(...)",
+    "// Returns the cosine of the argument. (Context: all)"
+  ],
+  "cosh": [
+    "<type> cosh(...)",
+    "// Returns the hyperbolic cosine of the argument. (Context: all)"
+  ],
+  "cospi": [
+    "<type> cospi(...)",
+    "// Returns the cosine of the argument scaled by Pi. (Context: all)"
+  ],
+  "cracktransform": [
+    "<type> cracktransform(...)",
+    "// Depending on the value of c, returns the translate (c=0), rotate\n(c=1), scale (c=2), or shears (c=3)  component of the transform (xform). (Context: all)"
+  ],
+  "create_cdf": [
+    "<type> create_cdf(...)",
+    "// Creates a cumulative distribution function (CDF) from an array of probability density function (PDF) values. (Context: all)"
+  ],
+  "create_pdf": [
+    "<type> create_pdf(...)",
+    "// Creates a probability density function from an array of input values. (Context: all)"
+  ],
+  "cregioncapturetransform": [
+    "<type> cregioncapturetransform(...)",
+    "// Returns the capture transform associated with a Capture Region SOP. (Context: all)"
+  ],
+  "cregiondeformtransform": [
+    "<type> cregiondeformtransform(...)",
+    "// Returns the deform transform associated with a Capture Region SOP. (Context: all)"
+  ],
+  "cregionoverridetransform": [
+    "<type> cregionoverridetransform(...)",
+    "// Returns the capture or deform transform associated with a Capture Region SOP based on the global capture override flag. (Context: all)"
+  ],
+  "cross": [
+    "<type> cross(...)",
+    "// Returns the cross product between the two vectors. (Context: all)"
+  ],
+  "cspline": [
+    "<type> cspline(...)",
+    "// Samples a Catmull-Rom (Cardinal) spline defined by uniformly spaced keys. (Context: all)"
+  ],
+  "ctransform": [
+    "<type> ctransform(...)",
+    "// Transforms between color spaces. (Context: all)"
+  ],
+  "curlgxnoise": [
+    "<type> curlgxnoise(...)",
+    "// Computes divergence free noise based on simplex noise. (Context: all)"
+  ],
+  "curlgxnoise2d": [
+    "<type> curlgxnoise2d(...)",
+    "// Computes divergence free noise in the plane based on simplex noise. (Context: all)"
+  ],
+  "curlnoise": [
+    "<type> curlnoise(...)",
+    "// Computes divergence free noise based on Perlin noise. (Context: all)"
+  ],
+  "curlnoise2d": [
+    "<type> curlnoise2d(...)",
+    "// Computes 2d divergence free noise based on Perlin noise. (Context: all)"
+  ],
+  "curlxnoise": [
+    "<type> curlxnoise(...)",
+    "// Computes divergence free noise based on Simplex noise. (Context: all)"
+  ],
+  "curlxnoise2d": [
+    "<type> curlxnoise2d(...)",
+    "// Computes 2d divergence free noise based on simplex noise. (Context: all)"
+  ],
+  "curvearclen": [
+    "<type> curvearclen(...)",
+    "// Evaluates the length of an arc on a primitive defined by an array of points using parametric uv coordinates. (Context: all)"
+  ],
+  "cvex_bsdf": [
+    "<type> cvex_bsdf(...)",
+    "// Creates a bsdf object from two CVEX shader strings. (Context: all)"
+  ],
+  "cwnoise": [
+    "<type> cwnoise(...)",
+    "// Generates Worley (cellular) noise using a Chebyshev distance metric. (Context: all)"
+  ],
+  "decode": [
+    "<type> decode(...)",
+    "// Decodes a variable name that was previously encoded. (Context: all)"
+  ],
+  "decodeattrib": [
+    "<type> decodeattrib(...)",
+    "// Decodes a geometry attribute name that was previously encoded. (Context: all)"
+  ],
+  "decodeparm": [
+    "<type> decodeparm(...)",
+    "// Decodes a node parameter name that was previously encoded. (Context: all)"
+  ],
+  "decodeutf8": [
+    "<type> decodeutf8(...)",
+    "// Decodes a UTF8 string into a series of codepoints. (Context: all)"
+  ],
+  "degrees": [
+    "<type> degrees(...)",
+    "// Converts the argument from radians into degrees. (Context: all)"
+  ],
+  "depthmap": [
+    "<type> depthmap(...)",
+    "// The depthmap functions work on an image which was rendered as a\nz-depth image from mantra. (Context: all)"
+  ],
+  "depthname": [
+    "<type> depthname(...)",
+    "// Returns the default name of the depth plane (as it appears in the\ncompositor preferences). (Context: cop2)"
+  ],
+  "detail": [
+    "<type> detail(...)",
+    "// Reads the value of a detail attribute value from a geometry. (Context: all)"
+  ],
+  "detailattrib": [
+    "<type> detailattrib(...)",
+    "// Reads a detail attribute value from a geometry. (Context: all)"
+  ],
+  "detailattribsize": [
+    "<type> detailattribsize(...)",
+    "// Returns the size of a geometry detail attribute. (Context: all)"
+  ],
+  "detailattribtype": [
+    "<type> detailattribtype(...)",
+    "// Returns the type of a geometry detail attribute. (Context: all)"
+  ],
+  "detailattribtypeinfo": [
+    "<type> detailattribtypeinfo(...)",
+    "// Returns the type info of a geometry attribute. (Context: all)"
+  ],
+  "detailintrinsic": [
+    "<type> detailintrinsic(...)",
+    "// Reads the value of a detail intrinsic from a geometry. (Context: all)"
+  ],
+  "determinant": [
+    "<type> determinant(...)",
+    "// Computes the determinant of the matrix. (Context: all)"
+  ],
+  "diag": [
+    "<type> diag(...)",
+    "// Extracts diagonal entries or constructs a diagonal matrix. (Context: all)"
+  ],
+  "diagonalizesymmetric": [
+    "<type> diagonalizesymmetric(...)",
+    "// Diagonalizes Symmetric Matrices. (Context: all)"
+  ],
+  "diffuse": [
+    "<type> diffuse(...)",
+    "// Returns a diffuse BSDF or computes diffuse shading. (Context: all)"
+  ],
+  "diffuseBRDF": [
+    "<type> diffuseBRDF(...)"
+  ],
+  "dihedral": [
+    "<type> dihedral(...)",
+    "// Computes the rotation matrix or quaternion which rotates the vector a onto the vector b. (Context: all)"
+  ],
+  "dimport": [
+    "<type> dimport(...)",
+    "// Reads a variable from the displacement shader for the surface. (Context: fog, light, shadow, surface)"
+  ],
+  "distance": [
+    "<type> distance(...)",
+    "// Returns the distance between two points. (Context: all)"
+  ],
+  "distance2": [
+    "<type> distance2(...)",
+    "// Returns the squared distance between the two points. (Context: all)"
+  ],
+  "distance_pointline": [
+    "<type> distance_pointline(...)",
+    "// This function returns the closest distance between the point Q and the\ninfinite line going through O parallel to vector D. (Context: all)"
+  ],
+  "distance_pointray": [
+    "<type> distance_pointray(...)",
+    "// This function returns the closest distance between the point Q and the\nsemi-finite ray starting at O and extending in the direction D. (Context: all)"
+  ],
+  "distance_pointsegment": [
+    "<type> distance_pointsegment(...)",
+    "// This function returns the closest distance between the point Q and a\nfinite line segment between points P0 and P1. (Context: all)"
+  ],
+  "dot": [
+    "<type> dot(...)",
+    "// Returns the dot product between the arguments. (Context: all)"
+  ],
+  "dsmpixel": [
+    "<type> dsmpixel(...)",
+    "// Reads the z-records stored in a pixel of a deep shadow map\nor deep camera map. (Context: all)"
+  ],
+  "Du": [
+    "<type> Du(...)",
+    "// Returns the derivative of the given value with respect to U. (Context: all)"
+  ],
+  "Dv": [
+    "<type> Dv(...)",
+    "// Returns the derivative of the given value with respect to V. (Context: all)"
+  ],
+  "Dw": [
+    "<type> Dw(...)",
+    "// Returns the derivative of the given value with respect to the 3rd axis (for volume rendering). (Context: all)"
+  ],
+  "efit": [
+    "<type> efit(...)",
+    "// Takes the value in one range and shifts it to the corresponding value in a new range. (Context: all)"
+  ],
+  "eigenvalues": [
+    "<type> eigenvalues(...)",
+    "// Computes the eigenvalues of a 3x3 matrix. (Context: all)"
+  ],
+  "encode": [
+    "<type> encode(...)",
+    "// Encodes any string into a valid variable name. (Context: all)"
+  ],
+  "encodeattrib": [
+    "<type> encodeattrib(...)",
+    "// Encodes any string into a valid geometry attribute name. (Context: all)"
+  ],
+  "encodeparm": [
+    "<type> encodeparm(...)",
+    "// Encodes any string into a valid node parameter name. (Context: all)"
+  ],
+  "encodeutf8": [
+    "<type> encodeutf8(...)",
+    "// Encodes a UTF8 string from a series of codepoints. (Context: all)"
+  ],
+  "endswith": [
+    "<type> endswith(...)",
+    "// Indicates the string ends with the specified string. (Context: all)"
+  ],
+  "environment": [
+    "<type> environment(...)",
+    "// Returns the color of the environment texture. (Context: all)"
+  ],
+  "erf": [
+    "<type> erf(...)",
+    "// Gauss error function. (Context: all)"
+  ],
+  "erfc": [
+    "<type> erfc(...)",
+    "// Gauss error function's complement. (Context: all)"
+  ],
+  "erf_inv": [
+    "<type> erf_inv(...)",
+    "// Inverse Gauss error function. (Context: all)"
+  ],
+  "error": [
+    "<type> error(...)",
+    "// Reports a custom runtime VEX error. (Context: all)"
+  ],
+  "eulertoquaternion": [
+    "<type> eulertoquaternion(...)",
+    "// Creates a vector4 representing a quaternion from euler angles. (Context: all)"
+  ],
+  "eval_bsdf": [
+    "vector eval_bsdf( bsdf b; vector viewer; vector light; ... )",
+    "vector eval_bsdf( bsdf b; vector viewer; vector light; int mask; ... )",
+    "vector eval_bsdf( bsdf b; vector viewer; vector light; float &pdf; int mask; ... )",
+    "vector eval_bsdf( bsdf b; vector viewer; vector light; vector normal; ... )",
+    "vector eval_bsdf( bsdf b; vector viewer; vector light; vector normal; int mask; ... )",
+    "vector eval_bsdf( bsdf b; vector viewer; vector light; vector normal; float &pdf; int mask; ... )",
+    "// Evaluates a bsdf given two vectors. (Context: all)"
+  ],
+  "exp": [
+    "<type> exp(...)",
+    "// Returns the exponential function of the argument. (Context: all)"
+  ],
+  "expandedgegroup": [
+    "<type> expandedgegroup(...)"
+  ],
+  "expandpointgroup": [
+    "<type> expandpointgroup(...)",
+    "// Returns an array of point numbers corresponding to a group string. (Context: all)"
+  ],
+  "expandprimgroup": [
+    "<type> expandprimgroup(...)",
+    "// Returns an array of prim numbers corresponding to a group string. (Context: all)"
+  ],
+  "expandvertexgroup": [
+    "<type> expandvertexgroup(...)",
+    "// Returns an array of linear vertex numbers corresponding to a group string. (Context: all)"
+  ],
+  "expand_udim": [
+    "<type> expand_udim(...)",
+    "// Perform UDIM or UVTILE texture filename expansion. (Context: all)"
+  ],
+  "extractlocaltransform": [
+    "<type> extractlocaltransform(...)",
+    "// Extracts Local Transform from a World Transform with Scale Inheritance. (Context: all)"
+  ],
+  "fastshadow": [
+    "<type> fastshadow(...)",
+    "// Sends a ray from the position P along the direction specified by the\ndirection D. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "filamentsample": [
+    "<type> filamentsample(...)",
+    "// Samples the velocity field defined by a set of [vortex filaments|/dopparticles/filaments]. (Context: all)"
+  ],
+  "file_stat": [
+    "<type> file_stat(...)",
+    "// Returns file system status for a given file. (Context: all)"
+  ],
+  "filtershadow": [
+    "<type> filtershadow(...)",
+    "// Sends a ray from the position P along direction D. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "filterstep": [
+    "<type> filterstep(...)",
+    "// Returns the anti-aliased weight of the step function. (Context: all)"
+  ],
+  "filter_remap": [
+    "<type> filter_remap(...)",
+    "// Computes an importance sample based on the given filter type and input uv. (Context: all)"
+  ],
+  "find": [
+    "<type> find(...)",
+    "// Finds an item in an array or string. (Context: all)"
+  ],
+  "findattribval": [
+    "<type> findattribval(...)",
+    "// Finds a primitive/point/vertex that has a certain attribute value. (Context: all)"
+  ],
+  "findattribvalcount": [
+    "<type> findattribvalcount(...)",
+    "// Returns number of elements where an integer or string attribute has a certain value. (Context: all)"
+  ],
+  "findlowerbound": [
+    "<type> findlowerbound(...)",
+    "// Finds the largest item smaller than a target value in an array. (Context: all)"
+  ],
+  "findlowerboundsorted": [
+    "<type> findlowerboundsorted(...)",
+    "// Finds the largest item smaller than a target value in a sorted array. (Context: all)"
+  ],
+  "findsorted": [
+    "<type> findsorted(...)",
+    "// Finds an item in a sorted array. (Context: all)"
+  ],
+  "finput": [
+    "<type> finput(...)",
+    "// Returns fully filtered pixel input. (Context: cop2)"
+  ],
+  "fit": [
+    "<type> fit(...)",
+    "// Takes the value in one range and shifts it to the corresponding value in a new range. (Context: all)"
+  ],
+  "fit01": [
+    "<type> fit01(...)",
+    "// Takes the value in the range `(0, 1)` and shifts it to the corresponding value in a new range. (Context: all)"
+  ],
+  "fit10": [
+    "<type> fit10(...)",
+    "// Takes the value in the range `(1, 0)` and shifts it to the corresponding value in a new range. (Context: all)"
+  ],
+  "fit11": [
+    "<type> fit11(...)",
+    "// Takes the value in the range `(-1, 1)` and shifts it to the corresponding value in a new range. (Context: all)"
+  ],
+  "floor": [
+    "<type> floor(...)",
+    "// Returns the largest integer less than or equal to the argument. (Context: all)"
+  ],
+  "flownoise": [
+    "<type> flownoise(...)",
+    "// Generates 1D and 3D Perlin Flow Noise from 3D and 4D data. (Context: all)"
+  ],
+  "flowpnoise": [
+    "<type> flowpnoise(...)",
+    "// There are two forms of Perlin-style noise: a non-periodic noise which\nchanges randomly throughout N-dimensional space, and a periodic form\nwhich repeats over a given range of space. (Context: all)"
+  ],
+  "foreach": [
+    "<type> foreach(...)",
+    "// Loops over the items in an array, with optional enumeration. (Context: all)"
+  ],
+  "forpoints": [
+    "<type> forpoints(...)"
+  ],
+  "frac": [
+    "<type> frac(...)",
+    "// Returns the fractional component of the floating point number. (Context: all)"
+  ],
+  "fresnel": [
+    "<type> fresnel(...)",
+    "// Computes the fresnel reflection/refraction contributions given an\nincoming vector, surface normal (both normalized), and an index of\nrefraction (eta). (Context: all)"
+  ],
+  "fromNDC": [
+    "<type> fromNDC(...)",
+    "// Transforms a position from normal device coordinates to the\ncoordinates in the appropriate space. (Context: all)"
+  ],
+  "frontface": [
+    "<type> frontface(...)",
+    "// If dot(I, Nref) is less than zero, N will be negated. (Context: all)"
+  ],
+  "fuzzify": [
+    "<type> fuzzify(...)"
+  ],
+  "fuzzy_and": [
+    "<type> fuzzy_and(...)"
+  ],
+  "fuzzy_defuzz_centroid": [
+    "<type> fuzzy_defuzz_centroid(...)"
+  ],
+  "fuzzy_nand": [
+    "<type> fuzzy_nand(...)"
+  ],
+  "fuzzy_nor": [
+    "<type> fuzzy_nor(...)"
+  ],
+  "fuzzy_not": [
+    "<type> fuzzy_not(...)"
+  ],
+  "fuzzy_nxor": [
+    "<type> fuzzy_nxor(...)"
+  ],
+  "fuzzy_or": [
+    "<type> fuzzy_or(...)"
+  ],
+  "fuzzy_xor": [
+    "<type> fuzzy_xor(...)"
+  ],
+  "gather": [
+    "<type> gather(...)",
+    "// Sends rays into the scene and returns information from the shaders of\nsurfaces hit by the rays. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "geoself": [
+    "<type> geoself(...)",
+    "// Returns a handle to the current geometry. (Context: all)"
+  ],
+  "geounwrap": [
+    "<type> geounwrap(...)",
+    "// Returns an `oppath:` string to unwrap the geometry in-place. (Context: all)"
+  ],
+  "getattrib": [
+    "<type> getattrib(...)",
+    "// Reads an attribute value from geometry, with validity check. (Context: all)"
+  ],
+  "getattribute": [
+    "<type> getattribute(...)",
+    "// Copies the value of a geometry attribute into a variable and returns a success flag. (Context: all)"
+  ],
+  "getbbox": [
+    "<type> getbbox(...)",
+    "// Sets two vectors to the minimum and maximum corners of the bounding box for the geometry. (Context: all)"
+  ],
+  "getbbox_center": [
+    "<type> getbbox_center(...)",
+    "// Returns the center of the bounding box for the geometry. (Context: all)"
+  ],
+  "getbbox_max": [
+    "<type> getbbox_max(...)",
+    "// Returns the maximum of the bounding box for the geometry. (Context: all)"
+  ],
+  "getbbox_min": [
+    "<type> getbbox_min(...)",
+    "// Returns the minimum of the bounding box for the geometry. (Context: all)"
+  ],
+  "getbbox_size": [
+    "<type> getbbox_size(...)",
+    "// Returns the size of the bounding box for the geometry. (Context: all)"
+  ],
+  "getblurP": [
+    "<type> getblurP(...)",
+    "// Returns the blurred point position (`P`) vector at a fractional time within the motion blur exposure. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "getbounces": [
+    "<type> getbounces(...)"
+  ],
+  "getbounds": [
+    "<type> getbounds(...)",
+    "// Returns the bounding box of the geometry specified by the filename. (Context: all)"
+  ],
+  "getcomp": [
+    "<type> getcomp(...)",
+    "// Extracts a single component of a vector type, matrix type, or array. (Context: all)"
+  ],
+  "getcomponents": [
+    "<type> getcomponents(...)"
+  ],
+  "getderiv": [
+    "<type> getderiv(...)",
+    "// Evaluates surface derivatives of an attribute. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "getfogname": [
+    "<type> getfogname(...)",
+    "// Returns the name of the current object whose shader is being run. (Context: shading)"
+  ],
+  "getglobalraylevel": [
+    "<type> getglobalraylevel(...)",
+    "// Returns the depth of the ray tree for computing global\nillumination. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "getgroupid": [
+    "<type> getgroupid(...)",
+    "// Returns group id containing current primitive. (Context: shading)"
+  ],
+  "getlight": [
+    "<type> getlight(...)",
+    "// Returns a light struct for the specified light identifier. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "getlightid": [
+    "<type> getlightid(...)",
+    "// Returns the light id for a named light (or -1 for an invalid name). (Context: displace, fog, surface)"
+  ],
+  "getlightname": [
+    "<type> getlightname(...)",
+    "// Returns the name of the current light when called from within an illuminance loop, or converts an integer light ID into the light's name. (Context: shading)"
+  ],
+  "getlights": [
+    "<type> getlights(...)",
+    "// Returns an array of light identifiers for the currently shaded surface. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "getlightscope": [
+    "<type> getlightscope(...)",
+    "// Returns a selection of lights that illuminate a given material. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "getlocalcurvature": [
+    "<type> getlocalcurvature(...)",
+    "// Evaluates local curvature of primitive grid, using the same curvature evaluation method as Measure SOPs. (Context: shading)"
+  ],
+  "getmaterial": [
+    "<type> getmaterial(...)",
+    "// Returns a material struct for the current surface. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "getmaterialid": [
+    "<type> getmaterialid(...)",
+    "// Returns material id of shaded primitive. (Context: shading)"
+  ],
+  "getobjectid": [
+    "<type> getobjectid(...)",
+    "// Returns the object id for the current shading context. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "getobjectname": [
+    "<type> getobjectname(...)",
+    "// Returns the name of the current object whose shader is being run. (Context: shading)"
+  ],
+  "getpackedtransform": [
+    "<type> getpackedtransform(...)",
+    "// Gets the transform of a packed primitive. (Context: all)"
+  ],
+  "getphotonlight": [
+    "<type> getphotonlight(...)",
+    "// Returns the integer ID of the light being used for photon shading. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "getpointbbox": [
+    "<type> getpointbbox(...)",
+    "// Sets two vectors to the minimum and maximum corners of the bounding box for the geometry. (Context: all)"
+  ],
+  "getpointbbox_center": [
+    "<type> getpointbbox_center(...)",
+    "// Returns the center of the bounding box for the geometry. (Context: all)"
+  ],
+  "getpointbbox_max": [
+    "<type> getpointbbox_max(...)",
+    "// Returns the maximum of the bounding box for the geometry. (Context: all)"
+  ],
+  "getpointbbox_min": [
+    "<type> getpointbbox_min(...)",
+    "// Returns the minimum of the bounding box for the geometry. (Context: all)"
+  ],
+  "getpointbbox_size": [
+    "<type> getpointbbox_size(...)",
+    "// Returns the size of the bounding box for the geometry. (Context: all)"
+  ],
+  "getprimid": [
+    "<type> getprimid(...)",
+    "// Returns the number of the current primitive. (Context: shading)"
+  ],
+  "getptextureid": [
+    "<type> getptextureid(...)",
+    "// Returns the ptexture face id for the current primitive. (Context: shading)"
+  ],
+  "getraylevel": [
+    "<type> getraylevel(...)",
+    "// Returns the depth of the ray tree for the current shading. (Context: shading)"
+  ],
+  "getrayweight": [
+    "<type> getrayweight(...)",
+    "// Returns an approximation to the contribution of the ray to the final\npixel color. (Context: shading)"
+  ],
+  "getsamplestore": [
+    "<type> getsamplestore(...)",
+    "// Looks up sample data in a channel, referenced by a point. (Context: shading)"
+  ],
+  "getscope": [
+    "<type> getscope(...)",
+    "// Returns a selection of objects visible to rays for a given material. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "getsmoothP": [
+    "<type> getsmoothP(...)",
+    "// Returns modified surface position based on a smoothing function. (Context: shading)"
+  ],
+  "getspace": [
+    "<type> getspace(...)",
+    "// Returns a transform from one space to another. (Context: all)"
+  ],
+  "getuvtangents": [
+    "<type> getuvtangents(...)",
+    "// Evaluates UV tangents at a point on an arbitrary object. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "ggx": [
+    "<type> ggx(...)",
+    "// Returns a ggx BSDF. (Context: all)"
+  ],
+  "gradient": [
+    "<type> gradient(...)",
+    "// Returns the gradient of a field. (Context: all)"
+  ],
+  "gxnoise": [
+    "<type> gxnoise(...)",
+    "// Evaluates a simplex noise field. (Context: all)"
+  ],
+  "gxnoised": [
+    "<type> gxnoised(...)",
+    "// Evaluates a simplex noise field and its derivatives. (Context: all)"
+  ],
+  "hair": [
+    "<type> hair(...)",
+    "// Returns a BSDF for shading hair. (Context: all)"
+  ],
+  "hasattrib": [
+    "<type> hasattrib(...)",
+    "// Checks whether a geometry attribute exists. (Context: all)"
+  ],
+  "hasdetailattrib": [
+    "<type> hasdetailattrib(...)",
+    "// Returns if a geometry detail attribute exists. (Context: all)"
+  ],
+  "haslight": [
+    "<type> haslight(...)",
+    "// Returns whether a light illuminates the given material. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "hasmetadata": [
+    "<type> hasmetadata(...)",
+    "// Queries if metadata exists on a composite operator. (Context: cop2)"
+  ],
+  "hasplane": [
+    "<type> hasplane(...)",
+    "// Returns 1 if the plane specified by the parameter exists in this\nCOP. (Context: cop)"
+  ],
+  "haspointattrib": [
+    "<type> haspointattrib(...)",
+    "// Returns if a geometry point attribute exists. (Context: all)"
+  ],
+  "hasprimattrib": [
+    "<type> hasprimattrib(...)",
+    "// Returns if a geometry prim attribute exists. (Context: all)"
+  ],
+  "hasvertexattrib": [
+    "<type> hasvertexattrib(...)",
+    "// Returns if a geometry vertex attribute exists. (Context: all)"
+  ],
+  "has_udim": [
+    "<type> has_udim(...)",
+    "// Test string for UDIM or UVTILE patterns. (Context: all)"
+  ],
+  "hedge_dstpoint": [
+    "<type> hedge_dstpoint(...)",
+    "// Returns the destination point of a half-edge. (Context: all)"
+  ],
+  "hedge_dstvertex": [
+    "<type> hedge_dstvertex(...)",
+    "// Returns the destination vertex of a half-edge. (Context: all)"
+  ],
+  "hedge_equivcount": [
+    "<type> hedge_equivcount(...)",
+    "// Returns the number of half-edges equivalent to a given half-edge. (Context: all)"
+  ],
+  "hedge_isequiv": [
+    "<type> hedge_isequiv(...)",
+    "// Determines whether a two half-edges are equivalent (represent the same edge). (Context: all)"
+  ],
+  "hedge_isprimary": [
+    "<type> hedge_isprimary(...)",
+    "// Determines whether a half-edge number corresponds to a primary half-edge. (Context: all)"
+  ],
+  "hedge_isvalid": [
+    "<type> hedge_isvalid(...)",
+    "// Determines whether a half-edge number corresponds to a valid half-edge. (Context: all)"
+  ],
+  "hedge_next": [
+    "<type> hedge_next(...)",
+    "// Returns the half-edge that follows a given half-edge in its polygon. (Context: all)"
+  ],
+  "hedge_nextequiv": [
+    "<type> hedge_nextequiv(...)",
+    "// Returns the next half-edges equivalent to a given half-edge. (Context: all)"
+  ],
+  "hedge_postdstpoint": [
+    "<type> hedge_postdstpoint(...)",
+    "// Returns the point into which the vertex following the destination vertex of a half-edge in its primitive is wired. (Context: all)"
+  ],
+  "hedge_postdstvertex": [
+    "<type> hedge_postdstvertex(...)",
+    "// Returns the vertex following the destination vertex of a half-edge in its primitive. (Context: all)"
+  ],
+  "hedge_presrcpoint": [
+    "<type> hedge_presrcpoint(...)",
+    "// Returns the point into which the vertex that precedes the source vertex of a half-edge in its primitive is wired. (Context: all)"
+  ],
+  "hedge_presrcvertex": [
+    "<type> hedge_presrcvertex(...)",
+    "// Returns the vertex that precedes the source vertex of a half-edge in its primitive. (Context: all)"
+  ],
+  "hedge_prev": [
+    "<type> hedge_prev(...)",
+    "// Returns the half-edge that precedes a given half-edge in its polygon. (Context: all)"
+  ],
+  "hedge_prim": [
+    "<type> hedge_prim(...)",
+    "// Returns the primitive that contains a half-edge. (Context: all)"
+  ],
+  "hedge_primary": [
+    "<type> hedge_primary(...)",
+    "// Returns the primary half-edge equivalent to a given half-edge. (Context: all)"
+  ],
+  "hedge_srcpoint": [
+    "<type> hedge_srcpoint(...)",
+    "// Returns the source point of a half-edge. (Context: all)"
+  ],
+  "hedge_srcvertex": [
+    "<type> hedge_srcvertex(...)",
+    "// Returns the source vertex of a half-edge. (Context: all)"
+  ],
+  "henyeygreenstein": [
+    "<type> henyeygreenstein(...)",
+    "// Returns an anisotropic volumetric BSDF, which can scatter light forward or backward. (Context: all)"
+  ],
+  "hex_adjacent": [
+    "<type> hex_adjacent(...)",
+    "// Returns primitive number of an adjacent hexahedron. (Context: all)"
+  ],
+  "hex_faceindex": [
+    "<type> hex_faceindex(...)",
+    "// Returns vertex indices of each face of a hexahedron. (Context: all)"
+  ],
+  "hscript_noise": [
+    "<type> hscript_noise(...)",
+    "// Generates noise matching the output of the Hscript noise() expression function. (Context: all)"
+  ],
+  "hscript_rand": [
+    "<type> hscript_rand(...)",
+    "// Produces the exact same results as the Houdini expression function of\nthe same name. (Context: all)"
+  ],
+  "hscript_snoise": [
+    "<type> hscript_snoise(...)"
+  ],
+  "hscript_sturb": [
+    "<type> hscript_sturb(...)"
+  ],
+  "hscript_turb": [
+    "<type> hscript_turb(...)",
+    "// Generates turbulence matching the output of the HScript turb() expression function. (Context: all)"
+  ],
+  "hsvtorgb": [
+    "<type> hsvtorgb(...)",
+    "// Convert HSV color space into RGB color space. (Context: all)"
+  ],
+  "iaspect": [
+    "<type> iaspect(...)",
+    "// Returns the aspect ratio of the specified input. (Context: cop2)"
+  ],
+  "ichname": [
+    "<type> ichname(...)",
+    "// Returns the channel name of the indexed plane of the given input. (Context: cop2)"
+  ],
+  "ident": [
+    "<type> ident(...)",
+    "// Returns an identity matrix. (Context: all)"
+  ],
+  "idtopoint": [
+    "<type> idtopoint(...)",
+    "// Finds a point by its id attribute. (Context: all)"
+  ],
+  "idtoprim": [
+    "<type> idtoprim(...)",
+    "// Finds a primitive by its id attribute. (Context: all)"
+  ],
+  "iend": [
+    "<type> iend(...)",
+    "// Returns the last frame of the specified input. (Context: cop2)"
+  ],
+  "iendtime": [
+    "<type> iendtime(...)",
+    "// Returns the end time of the specified input. (Context: cop2)"
+  ],
+  "ihasplane": [
+    "<type> ihasplane(...)",
+    "// Returns 1 if the specified input has a plane named `planename`. (Context: cop2)"
+  ],
+  "illuminance": [
+    "<type> illuminance(...)",
+    "// Loops through all light sources in the scene, calling the light shader for each light source to set the `Cl` and `L` global variables. (Context: displace, fog, surface)"
+  ],
+  "import": [
+    "<type> import(...)",
+    "// Reads attribute data. (Context: sop)"
+  ],
+  "importance_remap": [
+    "<type> importance_remap(...)",
+    "// Remaps a texture coordinate to another coordinate in the map to optimize sampling of brighter areas. (Context: all)"
+  ],
+  "index": [
+    "<type> index(...)"
+  ],
+  "inedgegroup": [
+    "<type> inedgegroup(...)",
+    "// Returns 1 if the edge specified by the point pair is in the group specified by the string. (Context: all)"
+  ],
+  "ingroup": [
+    "<type> ingroup(...)"
+  ],
+  "inpointgroup": [
+    "<type> inpointgroup(...)",
+    "// Returns 1 if the point specified by the point number is in the group specified by the string. (Context: all)"
+  ],
+  "inprimgroup": [
+    "<type> inprimgroup(...)",
+    "// Returns 1 if the primitive specified by the primitive number is in the group specified by the string. (Context: all)"
+  ],
+  "insert": [
+    "<type> insert(...)",
+    "// Inserts an item, array, or string into an array or string. (Context: all)"
+  ],
+  "instance": [
+    "<type> instance(...)",
+    "// Creates an instance transform matrix. (Context: all)"
+  ],
+  "integratehoseksky": [
+    "<type> integratehoseksky(...)",
+    "// Computes irradiance from the given Hosek Sky on a horizontal surface (Context: all)"
+  ],
+  "interpolate": [
+    "<type> interpolate(...)",
+    "// Interpolates a value across the currently shaded micropolygon. (Context: all)"
+  ],
+  "intersect": [
+    "<type> intersect(...)",
+    "// This function computes the first intersection of a ray with geometry. (Context: all)"
+  ],
+  "intersect_all": [
+    "<type> intersect_all(...)",
+    "// Computes all intersections of the specified ray with geometry. (Context: all)"
+  ],
+  "intersect_lights": [
+    "<type> intersect_lights(...)",
+    "// Finds the nearest intersection of a ray with any of a list of (area) lights and runs the light shader at the intersection point. (Context: displace, fog, surface)"
+  ],
+  "inumplanes": [
+    "<type> inumplanes(...)",
+    "// Returns the number of planes in the given input. (Context: cop2)"
+  ],
+  "invert": [
+    "<type> invert(...)",
+    "// Inverts a matrix. (Context: all)"
+  ],
+  "invertexgroup": [
+    "<type> invertexgroup(...)",
+    "// Returns 1 if the vertex specified by the vertex number is in the group specified by the string. (Context: all)"
+  ],
+  "invlerp": [
+    "<type> invlerp(...)",
+    "// Inverses a linear interpolation between the values. (Context: all)"
+  ],
+  "iplaneindex": [
+    "<type> iplaneindex(...)",
+    "// Returns the index of the plane named 'planename' in the specified input. (Context: cop2)"
+  ],
+  "iplanename": [
+    "<type> iplanename(...)",
+    "// Returns the name of the plane specified by the planeindex of the given input (Context: cop2)"
+  ],
+  "iplanesize": [
+    "<type> iplanesize(...)",
+    "// Returns the number of components in the plane named `planename` in\nthe specified input. (Context: cop2)"
+  ],
+  "irate": [
+    "<type> irate(...)",
+    "// Returns the frame rate of the specified input. (Context: cop2)"
+  ],
+  "irradiance": [
+    "<type> irradiance(...)",
+    "// Computes irradiance (global illumination) at the point P with the normal N. (Context: shading)"
+  ],
+  "isalpha": [
+    "<type> isalpha(...)",
+    "// Returns 1 if all the characters in the string are alphabetic (Context: all)"
+  ],
+  "isbound": [
+    "<type> isbound(...)",
+    "// Parameters in VEX can be overridden by geometry attributes (if the attributes exist on the surface being rendered). (Context: all)"
+  ],
+  "isconnected": [
+    "<type> isconnected(...)",
+    "// Returns 1 if input_number is connected, or 0 if the input is not connected. (Context: chop, cop2, sop)"
+  ],
+  "isdigit": [
+    "<type> isdigit(...)",
+    "// Returns 1 if all the characters in the string are numeric (Context: all)"
+  ],
+  "isfinite": [
+    "<type> isfinite(...)",
+    "// Checks whether a value is a normal finite number. (Context: all)"
+  ],
+  "isfogray": [
+    "<type> isfogray(...)",
+    "// Returns 1 if the shader is being called to evaluate illumination for\nfog objects, or 0 if the light or shadow shader is being called to\nevaluate surface illumination. (Context: light, shadow)"
+  ],
+  "isframes": [
+    "<type> isframes(...)",
+    "// Returns 1 if the Vex CHOP's Unit Menu is currently set to 'frames', 0\notherwise. (Context: chop)"
+  ],
+  "isinf": [
+    "<type> isinf(...)",
+    "// Checks whether a value is a positive or negative infinity. (Context: all)"
+  ],
+  "islpeactive": [
+    "<type> islpeactive(...)",
+    "// Returns 1 if Light Path Expressions are enabled. 0 Otherwise. (Context: surface)"
+  ],
+  "isnan": [
+    "<type> isnan(...)",
+    "// Checks whether a value is not a number. (Context: all)"
+  ],
+  "isotropic": [
+    "<type> isotropic(...)",
+    "// Returns an isotropic BSDF, which scatters light equally in all directions. (Context: all)"
+  ],
+  "israytracing": [
+    "<type> israytracing(...)",
+    "// Indicates whether a shader is being executed for ray tracing. (Context: shading)"
+  ],
+  "issamples": [
+    "<type> issamples(...)",
+    "// Returns 1 if the Vex CHOP's Unit Menu is currently set to 'samples',\n0 otherwise. (Context: chop)"
+  ],
+  "isseconds": [
+    "<type> isseconds(...)",
+    "// Returns 1 if the Vex CHOP's Unit Menu is currently set to 'seconds',\n0 otherwise. (Context: chop)"
+  ],
+  "isshadingRHS": [
+    "<type> isshadingRHS(...)",
+    "// Detects the orientation of default shading space. (Context: fog, light, shadow, surface, displace)"
+  ],
+  "isshadowray": [
+    "<type> isshadowray(...)",
+    "// Returns 1 if the shader is being called to evaluate opacity for\nshadow rays, or 0 if the shader is being called to evaluate for surface\ncolor. (Context: surface)"
+  ],
+  "istart": [
+    "<type> istart(...)",
+    "// Returns the starting frame of the specified input. (Context: cop2)"
+  ],
+  "istarttime": [
+    "<type> istarttime(...)",
+    "// Returns the start time of the specified input. (Context: cop2)"
+  ],
+  "isuvrendering": [
+    "<type> isuvrendering(...)",
+    "// Indicates whether the shader is being evaluated while doing UV rendering (e.g. texture unwrapping) (Context: displace, fog, light, shadow, surface)"
+  ],
+  "isvalidindex": [
+    "<type> isvalidindex(...)",
+    "// Checks if the index given is valid for the array or string given. (Context: all)"
+  ],
+  "isvarying": [
+    "<type> isvarying(...)",
+    "// Check whether a VEX variable is varying or uniform. (Context: all)"
+  ],
+  "itoa": [
+    "<type> itoa(...)",
+    "// Converts an integer to a string. (Context: all)"
+  ],
+  "ixres": [
+    "<type> ixres(...)",
+    "// Returns the X resolution of the specified input. (Context: cop2)"
+  ],
+  "iyres": [
+    "<type> iyres(...)",
+    "// Returns the Y resolution of the specified input. (Context: cop2)"
+  ],
+  "join": [
+    "<type> join(...)",
+    "// Concatenate all the strings of an array inserting a common spacer. (Context: all)"
+  ],
+  "json_dumps": [
+    "<type> json_dumps(...)",
+    "// Converts a VEX dictionary into a JSON string. (Context: all)"
+  ],
+  "json_loads": [
+    "<type> json_loads(...)",
+    "// Converts a JSON string into a VEX dictionary. (Context: all)"
+  ],
+  "keys": [
+    "<type> keys(...)",
+    "// Returns all the keys in a dictionary. (Context: all)"
+  ],
+  "kspline": [
+    "<type> kspline(...)",
+    "// Returns an interpolated value along a curve defined by a basis and key/position pairs. (Context: all)"
+  ],
+  "len": [
+    "<type> len(...)",
+    "// Returns the length of an array. (Context: all)"
+  ],
+  "length": [
+    "<type> length(...)",
+    "// Returns the magnitude of a vector. (Context: all)"
+  ],
+  "length2": [
+    "<type> length2(...)",
+    "// Returns the squared distance of the vector or vector4. (Context: all)"
+  ],
+  "lerp": [
+    "<type> lerp(...)",
+    "// Performs linear interpolation between the values. (Context: all)"
+  ],
+  "lightbounces": [
+    "<type> lightbounces(...)",
+    "// Returns the bounce mask for a light struct. (Context: shading)"
+  ],
+  "lightid": [
+    "<type> lightid(...)",
+    "// Returns the light id for a light struct. (Context: shading)"
+  ],
+  "lightstate": [
+    "<type> lightstate(...)",
+    "// Queries the renderer for a named property. (Context: shading)"
+  ],
+  "limit_sample_space": [
+    "<type> limit_sample_space(...)",
+    "// Limits a unit value in a way that maintains uniformity and in-range consistency. (Context: all)"
+  ],
+  "limport": [
+    "<type> limport(...)",
+    "// Imports a variable from the light shader for the surface. (Context: displace, fog, shadow, surface)"
+  ],
+  "lkspline": [
+    "<type> lkspline(...)",
+    "// Samples a polyline between the key points. (Context: all)"
+  ],
+  "log": [
+    "<type> log(...)",
+    "// Returns the natural logarithm of the argument. (Context: all)"
+  ],
+  "log10": [
+    "<type> log10(...)",
+    "// Returns the logarithm (base 10) of the argument. (Context: all)"
+  ],
+  "lookat": [
+    "<type> lookat(...)",
+    "// Computes a rotation matrix or angles to orient the negative z-axis along the vector (to-from) under the transformation. (Context: all)"
+  ],
+  "lspline": [
+    "<type> lspline(...)",
+    "// Samples a polyline defined by linearly spaced values. (Context: all)"
+  ],
+  "lstrip": [
+    "<type> lstrip(...)",
+    "// Strips leading whitespace from a string. (Context: all)"
+  ],
+  "luminance": [
+    "<type> luminance(...)",
+    "// Compute the luminance of the RGB color specified by the parameters. (Context: all)"
+  ],
+  "lumname": [
+    "<type> lumname(...)",
+    "// Returns the default name of the luminaence plane (as it appears in the\ncompositor preferences). (Context: cop2)"
+  ],
+  "makebasis": [
+    "<type> makebasis(...)",
+    "// Creates an orthonormal basis given a z-axis vector. (Context: all)"
+  ],
+  "maketransform": [
+    "<type> maketransform(...)",
+    "// Builds a 3x3 or 4x4 transform matrix. (Context: all)"
+  ],
+  "makevalidvarname": [
+    "<type> makevalidvarname(...)",
+    "// Forces a string to conform to the rules for variable names. (Context: all)"
+  ],
+  "maskname": [
+    "<type> maskname(...)",
+    "// Returns the default name of the mask plane (as it appears in the\ncompositor preferences). (Context: cop2)"
+  ],
+  "mask_bsdf": [
+    "<type> mask_bsdf(...)",
+    "// Returns new BSDF that only includes the components specified by the mask. (Context: all)"
+  ],
+  "match": [
+    "<type> match(...)",
+    "// This function returns 1 if the subject matches the pattern specified,\nor 0 if the subject doesn't match. (Context: all)"
+  ],
+  "matchvex_blinn": [
+    "<type> matchvex_blinn(...)",
+    "// Returns a BSDF that matches the output of the traditional VEX blinn function. (Context: all)"
+  ],
+  "matchvex_specular": [
+    "<type> matchvex_specular(...)",
+    "// Returns a BSDF that matches the output of the traditional VEX specular function. (Context: all)"
+  ],
+  "mattrib": [
+    "<type> mattrib(...)",
+    "// Returns the value of the point attribute for the metaballs if\nmetaball geometry is specified to i3dgen. (Context: image3d)"
+  ],
+  "max": [
+    "<type> max(...)"
+  ],
+  "mdensity": [
+    "<type> mdensity(...)",
+    "// Returns the density of the metaball field if metaball geometry is\nspecified to i3dgen. (Context: image3d)"
+  ],
+  "medulla_diffuse": [
+    "<type> medulla_diffuse(...)",
+    "// Returns a diffuse BSDF or computes diffuse shading. (Context: all)"
+  ],
+  "medulla_henyeygreenstein": [
+    "<type> medulla_henyeygreenstein(...)",
+    "// Returns an anisotropic volumetric BSDF, which can scatter light forward or backward. (Context: all)"
+  ],
+  "metadata": [
+    "<type> metadata(...)",
+    "// Returns a metadata value from a composite operator. (Context: cop2)"
+  ],
+  "metaimport": [
+    "<type> metaimport(...)",
+    "// Once you get a handle to a metaball using metastart and metanext, you\ncan query attributes of the metaball with metaimport. (Context: all)"
+  ],
+  "metamarch": [
+    "<type> metamarch(...)",
+    "// Takes the ray defined by p0 and p1 and partitions it into zero or\nmore sub-intervals where each interval intersects a cluster of metaballs\nfrom filename. (Context: all)"
+  ],
+  "metanext": [
+    "<type> metanext(...)",
+    "// Iterate to the next metaball in the list of metaballs returned by the `metastart()` function. (Context: all)"
+  ],
+  "metastart": [
+    "<type> metastart(...)",
+    "// Open a geometry file and return a \"handle\" for the metaballs of\ninterest, at the position p. (Context: all)"
+  ],
+  "metaweight": [
+    "<type> metaweight(...)",
+    "// Returns the metaweight of the geometry at position p. (Context: all)"
+  ],
+  "min": [
+    "<type> min(...)"
+  ],
+  "minpos": [
+    "<type> minpos(...)",
+    "// Given a position in world space, returns the position of the closest point on a given geometry. (Context: all)"
+  ],
+  "mspace": [
+    "<type> mspace(...)",
+    "// Transforms the position specified into the \"local\" space of the\nmetaball. (Context: image3d)"
+  ],
+  "mwnoise": [
+    "<type> mwnoise(...)",
+    "// Generates Worley (cellular) noise using a Manhattan distance metric. (Context: all)"
+  ],
+  "mx_cellnoise": [
+    "<type> mx_cellnoise(...)",
+    "// MaterialX compatible cellnoise (Context: all)"
+  ],
+  "mx_perlin": [
+    "<type> mx_perlin(...)",
+    "// MaterialX compatible Perlin noise (Context: all)"
+  ],
+  "mx_voronoi": [
+    "<type> mx_voronoi(...)",
+    "// MaterialX compatible Voronoi noise (Context: all)"
+  ],
+  "mx_worley": [
+    "<type> mx_worley(...)",
+    "// MaterialX compatible Worley noise (Context: all)"
+  ],
+  "nametopoint": [
+    "<type> nametopoint(...)",
+    "// Finds a point by its name attribute. (Context: all)"
+  ],
+  "nametoprim": [
+    "<type> nametoprim(...)",
+    "// Finds a primitive by its name attribute. (Context: all)"
+  ],
+  "nbouncetypes": [
+    "<type> nbouncetypes(...)"
+  ],
+  "ndcdepth": [
+    "float ndcdepth(float z)",
+    "// Returns the camera space z-depth of the NDC z-depth value. (Context: all)"
+  ],
+  "nearpoint": [
+    "<type> nearpoint(...)",
+    "// Finds the closest point in a geometry. (Context: all)"
+  ],
+  "nearpoints": [
+    "<type> nearpoints(...)",
+    "// Finds the all the closest point in a geometry. (Context: all)"
+  ],
+  "nedgesgroup": [
+    "<type> nedgesgroup(...)",
+    "// Returns the number of edges in the group. (Context: all)"
+  ],
+  "neighbour": [
+    "<type> neighbour(...)",
+    "// Returns the point number of the next point connected to a given point. (Context: all)"
+  ],
+  "neighbourcount": [
+    "<type> neighbourcount(...)",
+    "// Returns the number of points that are connected to the specified point. (Context: all)"
+  ],
+  "neighbours": [
+    "<type> neighbours(...)",
+    "// Returns an array of the point numbers of the neighbours of a point. (Context: all)"
+  ],
+  "newgroup": [
+    "<type> newgroup(...)"
+  ],
+  "newsampler": [
+    "<type> newsampler(...)",
+    "// Initializes a sampling sequence for the nextsample function. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "nextsample": [
+    "<type> nextsample(...)"
+  ],
+  "ninput": [
+    "<type> ninput(...)",
+    "// Reads a component from a pixel and its eight neighbors. (Context: cop2)"
+  ],
+  "ninputs": [
+    "<type> ninputs(...)",
+    "// Returns the number of inputs. (Context: chop)"
+  ],
+  "noise": [
+    "<type> noise(...)",
+    "// There are two forms of Perlin-style noise: a non-periodic noise which\nchanges randomly throughout N-dimensional space, and a periodic form\nwhich repeats over a given range of space. (Context: all)"
+  ],
+  "noised": [
+    "<type> noised(...)",
+    "// Derivatives of Perlin Noise. (Context: all)"
+  ],
+  "normalize": [
+    "<type> normalize(...)",
+    "// Returns a normalized vector. (Context: all)"
+  ],
+  "normalname": [
+    "<type> normalname(...)",
+    "// Returns the default name of the normal plane (as it appears in the\ncompositor preferences). (Context: cop2)"
+  ],
+  "normal_bsdf": [
+    "<type> normal_bsdf(...)",
+    "// Returns the normal for the diffuse component of a BSDF. (Context: all)"
+  ],
+  "norm_1": [
+    "<type> norm_1(...)",
+    "// Returns the induced matrix 1-norm. (Context: all)"
+  ],
+  "norm_fro": [
+    "<type> norm_fro(...)",
+    "// Returns the Frobenius norm of a matrix. (Context: all)"
+  ],
+  "norm_inf": [
+    "<type> norm_inf(...)",
+    "// Returns the induced matrix infinity-norm. (Context: all)"
+  ],
+  "norm_max": [
+    "<type> norm_max(...)",
+    "// Returns the matrix max-norm. (Context: all)"
+  ],
+  "norm_spectral": [
+    "<type> norm_spectral(...)",
+    "// Returns the matrix spectral norm. (Context: all)"
+  ],
+  "npoints": [
+    "<type> npoints(...)",
+    "// Returns the number of points in the input or geometry file. (Context: all)"
+  ],
+  "npointsgroup": [
+    "<type> npointsgroup(...)",
+    "// Returns the number of points in the group. (Context: all)"
+  ],
+  "nprimitives": [
+    "<type> nprimitives(...)",
+    "// Returns the number of primitives in the input or geometry file. (Context: all)"
+  ],
+  "nprimitivesgroup": [
+    "<type> nprimitivesgroup(...)",
+    "// Returns the number of primitives in the group. (Context: all)"
+  ],
+  "nrandom": [
+    "<type> nrandom(...)",
+    "// Non-deterministic random number generation function. (Context: all)"
+  ],
+  "ntransform": [
+    "<type> ntransform(...)",
+    "// Transforms a normal vector. (Context: all)"
+  ],
+  "nuniqueval": [
+    "<type> nuniqueval(...)",
+    "// Returns the number of unique values from an integer or string attribute. (Context: all)"
+  ],
+  "nvertices": [
+    "<type> nvertices(...)",
+    "// Returns the number of vertices in the input or geometry file. (Context: all)"
+  ],
+  "nverticesgroup": [
+    "<type> nverticesgroup(...)",
+    "// Returns the number of vertices in the group. (Context: all)"
+  ],
+  "objectstate": [
+    "<type> objectstate(...)",
+    "// Queries the renderer for a named property. (Context: shading)"
+  ],
+  "occlusion": [
+    "<type> occlusion(...)",
+    "// Computes ambient occlusion. (Context: shading)"
+  ],
+  "ocean_sample": [
+    "<type> ocean_sample(...)",
+    "// Evaluates an ocean spectrum and samples the result at a given time and location. (Context: all)"
+  ],
+  "ocio_activedisplays": [
+    "<type> ocio_activedisplays(...)",
+    "// Returns the names of active displays supported in Open Color IO (Context: all)"
+  ],
+  "ocio_activeviews": [
+    "<type> ocio_activeviews(...)",
+    "// Returns the names of active views supported in Open Color IO (Context: all)"
+  ],
+  "ocio_import": [
+    "<type> ocio_import(...)",
+    "// Imports attributes from OpenColorIO spaces. (Context: all)"
+  ],
+  "ocio_parsecolorspace": [
+    "<type> ocio_parsecolorspace(...)",
+    "// Parse the color space from a string (Context: all)"
+  ],
+  "ocio_roles": [
+    "<type> ocio_roles(...)",
+    "// Returns the names of roles supported in Open Color IO (Context: all)"
+  ],
+  "ocio_spaces": [
+    "<type> ocio_spaces(...)",
+    "// Returns the names of color spaces supported in Open Color IO. (Context: all)"
+  ],
+  "ocio_transform": [
+    "<type> ocio_transform(...)",
+    "// Transform colors using Open Color IO (Context: all)"
+  ],
+  "ocio_transformview": [
+    "<type> ocio_transformview(...)",
+    "// Transform colors _to_ a view using Open Color IO (Context: all)"
+  ],
+  "ocio_transformviewreverse": [
+    "<type> ocio_transformviewreverse(...)",
+    "// Transform colors _from_ a display/view using Open Color IO (Context: all)"
+  ],
+  "onoise": [
+    "<type> onoise(...)",
+    "// These functions are similar to wnoise and vnoise. (Context: all)"
+  ],
+  "opdigits": [
+    "<type> opdigits(...)",
+    "// Returns the integer value of the last sequence of digits of a string (Context: all)"
+  ],
+  "opend": [
+    "<type> opend(...)",
+    "// Ends a long operation. (Context: shading)"
+  ],
+  "opfullpath": [
+    "<type> opfullpath(...)",
+    "// Returns the full path for the given relative path (Context: all)"
+  ],
+  "opid": [
+    "<type> opid(...)",
+    "// Resolves an operator path string and return its op_id. (Context: all)"
+  ],
+  "opparentbonetransform": [
+    "<type> opparentbonetransform(...)",
+    "// Returns the parent bone transform associated with an OP. (Context: all)"
+  ],
+  "opparenttransform": [
+    "<type> opparenttransform(...)",
+    "// Returns the parent transform associated with an OP. (Context: all)"
+  ],
+  "opparmtransform": [
+    "<type> opparmtransform(...)",
+    "// Returns the parm transform associated with an OP. (Context: all)"
+  ],
+  "oppreconstrainttransform": [
+    "<type> oppreconstrainttransform(...)",
+    "// Returns the preconstraint transform associated with an OP. (Context: all)"
+  ],
+  "oppreparmtransform": [
+    "<type> oppreparmtransform(...)",
+    "// Returns the pre and parm transform associated with an OP. (Context: all)"
+  ],
+  "opprerawparmtransform": [
+    "<type> opprerawparmtransform(...)",
+    "// Returns the pre and raw parm transform associated with an OP. (Context: all)"
+  ],
+  "oppretransform": [
+    "<type> oppretransform(...)",
+    "// Returns the pretransform associated with an OP. (Context: all)"
+  ],
+  "oprawparmtransform": [
+    "<type> oprawparmtransform(...)",
+    "// Returns the raw parm transform associated with an OP. (Context: all)"
+  ],
+  "opstart": [
+    "<type> opstart(...)",
+    "// Start a long operation. (Context: shading)"
+  ],
+  "optransform": [
+    "<type> optransform(...)",
+    "// Returns the transform associated with an OP. (Context: all)"
+  ],
+  "ord": [
+    "<type> ord(...)",
+    "// Converts an UTF8 string into a codepoint. (Context: all)"
+  ],
+  "orthographic": [
+    "<type> orthographic(...)",
+    "// Create an orthographic projection matrix. (Context: all)"
+  ],
+  "osd_facecount": [
+    "<type> osd_facecount(...)"
+  ],
+  "osd_firstpatch": [
+    "<type> osd_firstpatch(...)"
+  ],
+  "osd_limit": [
+    "<type> osd_limit(...)",
+    "// Evaluates a point attribute at the subdivision limit surface using Open Subdiv, \nand also evaluates all first and second partial derivatives with respect to the given \nattribute. (Context: all)"
+  ],
+  "osd_limitsurface": [
+    "<type> osd_limitsurface(...)",
+    "// Evaluates a point attribute at the subdivision limit surface using Open Subdiv. (Context: all)"
+  ],
+  "osd_limitsurfacevertex": [
+    "<type> osd_limitsurfacevertex(...)",
+    "// Evaluates a vertex attribute at the subdivision limit surface using Open Subdiv. (Context: all)"
+  ],
+  "osd_lookupface": [
+    "<type> osd_lookupface(...)",
+    "// Outputs the Houdini face and UV coordinates corresponding to the given coordinates on an OSD patch. (Context: all)"
+  ],
+  "osd_lookuppatch": [
+    "<type> osd_lookuppatch(...)",
+    "// Outputs the OSD patch and UV coordinates corresponding to the given coordinates on a Houdini polygon face. (Context: all)"
+  ],
+  "osd_patchcount": [
+    "<type> osd_patchcount(...)"
+  ],
+  "osd_patches": [
+    "<type> osd_patches(...)",
+    "// Returns a list of patch IDs for the patches in a subdivision hull. (Context: all)"
+  ],
+  "outerproduct": [
+    "<type> outerproduct(...)",
+    "// Returns the outer product between the arguments. (Context: all)"
+  ],
+  "ow_nspace": [
+    "<type> ow_nspace(...)",
+    "// Transforms a normal vector from Object to World space. (Context: all)"
+  ],
+  "ow_space": [
+    "<type> ow_space(...)",
+    "// Transforms a position value from Object to World space. (Context: all)"
+  ],
+  "ow_vspace": [
+    "<type> ow_vspace(...)",
+    "// Transforms a direction vector from Object to World space. (Context: all)"
+  ],
+  "packedtransform": [
+    "<type> packedtransform(...)",
+    "// Transforms a packed primitive. (Context: all)"
+  ],
+  "pack_inttosafefloat": [
+    "<type> pack_inttosafefloat(...)",
+    "// Reversibly packs an integer into a finite, non-denormal float. (Context: all)"
+  ],
+  "pathtrace": [
+    "<type> pathtrace(...)",
+    "// Computes global illumination using PBR for secondary bounces. (Context: shading)"
+  ],
+  "pbr_mask_h": [
+    "<type> pbr_mask_h(...)"
+  ],
+  "pcclose": [
+    "<type> pcclose(...)",
+    "// This function closes the handle associated with a pcopen\nfunction. (Context: all)"
+  ],
+  "pccone": [
+    "<type> pccone(...)",
+    "// Returns a list of closest points from a file within a specified cone. (Context: all)"
+  ],
+  "pccone_radius": [
+    "<type> pccone_radius(...)",
+    "// Returns a list of closest points from a file in a cone, taking into account their radii (Context: all)"
+  ],
+  "pcconvex": [
+    "<type> pcconvex(...)"
+  ],
+  "pcexport": [
+    "<type> pcexport(...)",
+    "// Writes data to a point cloud inside a `pciterate` or a `pcunshaded` loop. (Context: all)"
+  ],
+  "pcfarthest": [
+    "<type> pcfarthest(...)",
+    "// Returns the distance to the farthest point found in the search\nperformed by pcopen. (Context: all)"
+  ],
+  "pcfilter": [
+    "<type> pcfilter(...)",
+    "// Filters points found by `pcopen` using a simple reconstruction filter. (Context: all)"
+  ],
+  "pcfind": [
+    "<type> pcfind(...)",
+    "// Returns a list of closest points from a file. (Context: all)"
+  ],
+  "pcfind_radius": [
+    "<type> pcfind_radius(...)",
+    "// Returns a list of closest points from a file taking into account their radii. (Context: all)"
+  ],
+  "pcgenerate": [
+    "<type> pcgenerate(...)",
+    "// Generates a point cloud. (Context: all)"
+  ],
+  "pcimport": [
+    "<type> pcimport(...)",
+    "// Imports channel data from a point cloud inside a `pciterate` or a `pcunshaded` loop. (Context: all)"
+  ],
+  "pcimportbyidx3": [
+    "<type> pcimportbyidx3(...)",
+    "// Imports channel data from a point cloud outside a `pciterate` or a `pcunshaded` loop. (Context: all)"
+  ],
+  "pcimportbyidx4": [
+    "<type> pcimportbyidx4(...)",
+    "// Imports channel data from a point cloud outside a `pciterate` or a `pcunshaded` loop. (Context: all)"
+  ],
+  "pcimportbyidxf": [
+    "<type> pcimportbyidxf(...)",
+    "// Imports channel data from a point cloud outside a `pciterate` or a `pcunshaded` loop. (Context: all)"
+  ],
+  "pcimportbyidxi": [
+    "<type> pcimportbyidxi(...)",
+    "// Imports channel data from a point cloud outside a `pciterate` or a `pcunshaded` loop. (Context: all)"
+  ],
+  "pcimportbyidxp": [
+    "<type> pcimportbyidxp(...)",
+    "// Imports channel data from a point cloud outside a `pciterate` or a `pcunshaded` loop. (Context: all)"
+  ],
+  "pcimportbyidxs": [
+    "<type> pcimportbyidxs(...)",
+    "// Imports channel data from a point cloud outside a `pciterate` or a `pcunshaded` loop. (Context: all)"
+  ],
+  "pcimportbyidxv": [
+    "<type> pcimportbyidxv(...)",
+    "// Imports channel data from a point cloud outside a `pciterate` or a `pcunshaded` loop. (Context: all)"
+  ],
+  "pciterate": [
+    "<type> pciterate(...)",
+    "// This function can be used to iterate over all the points which were\nfound in the pcopen query. (Context: all)"
+  ],
+  "pcline": [
+    "<type> pcline(...)",
+    "// Returns a list of closest points to an infinite line from a specified file (Context: all)"
+  ],
+  "pcline_radius": [
+    "<type> pcline_radius(...)",
+    "// Returns a list of closest points to an infinite line from a specified file (Context: all)"
+  ],
+  "pcnumfound": [
+    "<type> pcnumfound(...)",
+    "// This node returns the number of points found by pcopen. (Context: all)"
+  ],
+  "pcopen": [
+    "<type> pcopen(...)",
+    "// Returns a handle to a point cloud file. (Context: all)"
+  ],
+  "pcopenlod": [
+    "<type> pcopenlod(...)",
+    "// Returns a handle to a point cloud file. (Context: all)"
+  ],
+  "pcsampleleaf": [
+    "<type> pcsampleleaf(...)",
+    "// Changes the current iteration point to a leaf descendant of the current aggregate point. (Context: all)"
+  ],
+  "pcsegment": [
+    "<type> pcsegment(...)",
+    "// Returns a list of closest points to a line segment from a specified file (Context: all)"
+  ],
+  "pcsegment_radius": [
+    "<type> pcsegment_radius(...)",
+    "// Returns a list of closest points to a line segment from a specified file (Context: all)"
+  ],
+  "pcsize": [
+    "<type> pcsize(...)"
+  ],
+  "pcunshaded": [
+    "<type> pcunshaded(...)",
+    "// Iterate over all of the points of a read-write channel which haven't\nhad any data written to the channel yet. (Context: all)"
+  ],
+  "pcwrite": [
+    "<type> pcwrite(...)",
+    "// Writes data to a point cloud file. (Context: all)"
+  ],
+  "perspective": [
+    "<type> perspective(...)",
+    "// Create a perspective projection matrix. (Context: all)"
+  ],
+  "pgfind": [
+    "<type> pgfind(...)",
+    "// Returns a list of closest points from a file. (Context: all)"
+  ],
+  "phong": [
+    "<type> phong(...)",
+    "// Returns a Phong BSDF or computes Phong shading. (Context: shading)"
+  ],
+  "phongBRDF": [
+    "<type> phongBRDF(...)"
+  ],
+  "phonglobe": [
+    "<type> phonglobe(...)"
+  ],
+  "photonmap": [
+    "<type> photonmap(...)",
+    "// Samples a color from a photon map. (Context: all)"
+  ],
+  "pinvert": [
+    "<type> pinvert(...)",
+    "// Computes the pseudo-inverse of a matrix. (Context: all)"
+  ],
+  "planeindex": [
+    "<type> planeindex(...)",
+    "// Returns the index of the plane specified by the parameter, starting\nat zero. (Context: cop2)"
+  ],
+  "planename": [
+    "<type> planename(...)",
+    "// Returns the name of the plane specified by the index (e. (Context: cop2)"
+  ],
+  "planepointdistance": [
+    "<type> planepointdistance(...)",
+    "// Computes the distance and closest point of a point to an infinite plane. (Context: all)"
+  ],
+  "planesize": [
+    "<type> planesize(...)",
+    "// Returns the number of components in the plane (1 for scalar planes\nand up to 4 for vector planes). (Context: cop2)"
+  ],
+  "planesphereintersect": [
+    "<type> planesphereintersect(...)",
+    "// Computes the intersection of a 3D sphere and an infinite 3D plane. (Context: all)"
+  ],
+  "pluralize": [
+    "<type> pluralize(...)",
+    "// Converts an English noun to its plural. (Context: all)"
+  ],
+  "pnoise": [
+    "<type> pnoise(...)",
+    "// There are two forms of Perlin-style noise: a non-periodic noise which\nchanges randomly throughout N-dimensional space, and a periodic form\nwhich repeats over a given range of space. (Context: all)"
+  ],
+  "point": [
+    "<type> point(...)",
+    "// Reads a point attribute value from a geometry. (Context: all)"
+  ],
+  "pointattrib": [
+    "<type> pointattrib(...)",
+    "// Reads a point attribute value from a geometry and outputs a success/fail flag. (Context: all)"
+  ],
+  "pointattribsize": [
+    "<type> pointattribsize(...)",
+    "// Returns the size of a geometry point attribute. (Context: all)"
+  ],
+  "pointattribtype": [
+    "<type> pointattribtype(...)",
+    "// Returns the type of a geometry point attribute. (Context: all)"
+  ],
+  "pointattribtypeinfo": [
+    "<type> pointattribtypeinfo(...)",
+    "// Returns the type info of a geometry attribute. (Context: all)"
+  ],
+  "pointedge": [
+    "<type> pointedge(...)",
+    "// Finds and returns a half-edge with the given endpoints. (Context: all)"
+  ],
+  "pointhedge": [
+    "<type> pointhedge(...)",
+    "// Finds and returns a half-edge with a given source point or with given source and destination points. (Context: all)"
+  ],
+  "pointhedgenext": [
+    "<type> pointhedgenext(...)",
+    "// Returns the *next* half-edge with the same source as a given half-edge. (Context: all)"
+  ],
+  "pointlocaltransforms": [
+    "<type> pointlocaltransforms(...)",
+    "// Returns an array of point localtransforms from an array of point indices. (Context: all)"
+  ],
+  "pointname": [
+    "<type> pointname(...)",
+    "// Returns the default name of the point plane (as it appears in the\ncompositor preferences). (Context: cop2)"
+  ],
+  "pointprims": [
+    "<type> pointprims(...)",
+    "// Returns the list of primitives containing a point. (Context: all)"
+  ],
+  "pointprimuv": [
+    "<type> pointprimuv(...)",
+    "// Returns the intrinsic uv location of the point in the primitive. (Context: all)"
+  ],
+  "pointtransform": [
+    "<type> pointtransform(...)",
+    "// Returns a point transform from a point index. (Context: all)"
+  ],
+  "pointtransformrigid": [
+    "<type> pointtransformrigid(...)",
+    "// Returns a rigid point transform from a point index. (Context: all)"
+  ],
+  "pointtransforms": [
+    "<type> pointtransforms(...)",
+    "// Returns an array of point transforms from an array of point indices. (Context: all)"
+  ],
+  "pointtransformsrigid": [
+    "<type> pointtransformsrigid(...)",
+    "// Returns an array of rigid point transforms from an array of point indices. (Context: all)"
+  ],
+  "pointvertex": [
+    "<type> pointvertex(...)",
+    "// Returns a linear vertex number of a point in a geometry. (Context: all)"
+  ],
+  "pointvertices": [
+    "<type> pointvertices(...)",
+    "// Returns the list of vertices connected to a point. (Context: all)"
+  ],
+  "polardecomp": [
+    "<type> polardecomp(...)",
+    "// Computes the polar decomposition of a matrix. (Context: all)"
+  ],
+  "polyneighbours": [
+    "<type> polyneighbours(...)",
+    "// Returns an array of the primitive numbers of the edge-neighbours of a polygon. (Context: all)"
+  ],
+  "pop": [
+    "<type> pop(...)",
+    "// Removes the last element of an array and returns it. (Context: all)"
+  ],
+  "pow": [
+    "<type> pow(...)",
+    "// Raises the first argument to the power of the second argument. (Context: all)"
+  ],
+  "predicate_incircle": [
+    "<type> predicate_incircle(...)",
+    "// Determines if a point is inside or outside a triangle circumcircle. (Context: all)"
+  ],
+  "predicate_insphere": [
+    "<type> predicate_insphere(...)",
+    "// Determines if a point is inside or outside a tetrahedron circumsphere. (Context: all)"
+  ],
+  "predicate_orient2d": [
+    "<type> predicate_orient2d(...)",
+    "// Determines the orientation of a point with respect to a line. (Context: all)"
+  ],
+  "predicate_orient3d": [
+    "<type> predicate_orient3d(...)",
+    "// Determines the orientation of a point with respect to a plane. (Context: all)"
+  ],
+  "premul": [
+    "<type> premul(...)",
+    "// Pre multiply matrices. (Context: all)"
+  ],
+  "prerotate": [
+    "<type> prerotate(...)",
+    "// Applies a pre rotation to the given matrix. (Context: all)"
+  ],
+  "prescale": [
+    "<type> prescale(...)",
+    "// Prescales the given matrix in three directions simultaneously (X, Y, Z -\ngiven by the components of the scale_vector). (Context: all)"
+  ],
+  "pretranslate": [
+    "<type> pretranslate(...)",
+    "// Pretranslates a matrix by a vector. (Context: all)"
+  ],
+  "prim": [
+    "<type> prim(...)",
+    "// Reads a primitive attribute value from a geometry. (Context: all)"
+  ],
+  "primarclen": [
+    "<type> primarclen(...)",
+    "// Evaluates the length of an arc on a primitive using parametric uv coordinates. (Context: all)"
+  ],
+  "primattrib": [
+    "<type> primattrib(...)",
+    "// Reads a primitive attribute value from a geometry, outputting a success flag. (Context: all)"
+  ],
+  "primattribsize": [
+    "<type> primattribsize(...)",
+    "// Returns the size of a geometry prim attribute. (Context: all)"
+  ],
+  "primattribtype": [
+    "<type> primattribtype(...)",
+    "// Returns the type of a geometry prim attribute. (Context: all)"
+  ],
+  "primattribtypeinfo": [
+    "<type> primattribtypeinfo(...)",
+    "// Returns the type info of a geometry attribute. (Context: all)"
+  ],
+  "primduv": [
+    "<type> primduv(...)",
+    "// Returns position derivative on a primitive at a certain parametric (u, v) position. (Context: all)"
+  ],
+  "primfind": [
+    "<type> primfind(...)",
+    "// Returns a list of primitives potentially intersecting a given bounding box. (Context: all)"
+  ],
+  "primhedge": [
+    "<type> primhedge(...)",
+    "// Returns *one* of the half-edges contained in a primitive. (Context: all)"
+  ],
+  "priminteriorweights": [
+    "<type> priminteriorweights(...)",
+    "// Finds the indices and weightings of the vertices that will compute an\ninterior point given the UVW coordinates. (Context: all)"
+  ],
+  "primintrinsic": [
+    "<type> primintrinsic(...)",
+    "// Reads a primitive intrinsic from a geometry. (Context: all)"
+  ],
+  "primpoint": [
+    "<type> primpoint(...)",
+    "// Converts a primitive/vertex pair into a point number. (Context: all)"
+  ],
+  "primpoints": [
+    "<type> primpoints(...)",
+    "// Returns the list of points on a primitive. (Context: all)"
+  ],
+  "primuv": [
+    "<type> primuv(...)",
+    "// Interpolates the value of an attribute at a certain parametric (uvw) position. (Context: all)"
+  ],
+  "primuvconvert": [
+    "<type> primuvconvert(...)",
+    "// Convert parametric UV locations on curve primitives between different spaces. (Context: all)"
+  ],
+  "primvertex": [
+    "<type> primvertex(...)",
+    "// Converts a primitive/vertex pair into a linear vertex. (Context: all)"
+  ],
+  "primvertexcount": [
+    "<type> primvertexcount(...)",
+    "// Returns number of vertices in a primitive in a geometry. (Context: all)"
+  ],
+  "primvertices": [
+    "<type> primvertices(...)",
+    "// Returns the list of vertices on a primitive. (Context: all)"
+  ],
+  "prim_attribute": [
+    "<type> prim_attribute(...)",
+    "// Interpolates the value of an attribute at a certain parametric (u, v) position and copies it into a variable. (Context: all)"
+  ],
+  "prim_normal": [
+    "<type> prim_normal(...)",
+    "// Returns the normal of the primitive (prim_number) at parametric location u, v. (Context: all)"
+  ],
+  "printf": [
+    "<type> printf(...)",
+    "// Prints values to the console which started the VEX program. (Context: all)"
+  ],
+  "print_once": [
+    "<type> print_once(...)",
+    "// Prints a message only once, even in a loop. (Context: all)"
+  ],
+  "product": [
+    "<type> product(...)",
+    "// Returns the product of a list of numbers. (Context: all)"
+  ],
+  "ptexture": [
+    "<type> ptexture(...)",
+    "// Computes a filtered sample from a ptex texture map. Use texture instead. (Context: all)"
+  ],
+  "ptlined": [
+    "<type> ptlined(...)",
+    "// This function returns the closest distance between the point Q and a\nfinite line segment between points P0 and P1. (Context: all)"
+  ],
+  "ptransform": [
+    "<type> ptransform(...)",
+    "// Transforms a vector from one space to another. (Context: all)"
+  ],
+  "push": [
+    "<type> push(...)",
+    "// Adds an item to an array. (Context: all)"
+  ],
+  "pxnoise": [
+    "<type> pxnoise(...)",
+    "// Simplex noise is very close to Perlin noise, except with the samples on a simplex mesh rather than a grid.  This results in less grid artifacts.  It also uses a higher order bspline to provide better derivatives. This is the periodic simplex noise (Context: all)"
+  ],
+  "pxnoised": [
+    "<type> pxnoised(...)",
+    "// Periodic derivatives of Simplex Noise. (Context: all)"
+  ],
+  "py_dumps": [
+    "<type> py_dumps(...)",
+    "// Converts a VEX dictionary into a Python-style dictionary string. (Context: all)"
+  ],
+  "py_loads": [
+    "<type> py_loads(...)",
+    "// Converts a Python dictionary string into a VEX dictionary. (Context: all)"
+  ],
+  "qconvert": [
+    "<type> qconvert(...)",
+    "// Converts a quaternion represented by a vector4 to a matrix3 representation. (Context: all)"
+  ],
+  "qdistance": [
+    "<type> qdistance(...)",
+    "// Finds distance between two quaternions. (Context: all)"
+  ],
+  "qinvert": [
+    "<type> qinvert(...)",
+    "// Inverts a quaternion rotation. (Context: all)"
+  ],
+  "qmultiply": [
+    "<type> qmultiply(...)",
+    "// Multiplies two quaternions and returns the result. (Context: all)"
+  ],
+  "qrotate": [
+    "<type> qrotate(...)",
+    "// Rotates a vector by a quaternion. (Context: all)"
+  ],
+  "quaternion": [
+    "<type> quaternion(...)",
+    "// Creates a vector4 representing a quaternion. (Context: all)"
+  ],
+  "quaterniontoeuler": [
+    "<type> quaterniontoeuler(...)",
+    "// Creates a euler angle representing a quaternion. (Context: all)"
+  ],
+  "radians": [
+    "<type> radians(...)",
+    "// Converts the argument from degrees into radians. (Context: all)"
+  ],
+  "ramp_lookup": [
+    "<type> ramp_lookup(...)",
+    "// Evaluates a Houdini-style ramp at a specific location. (Context: all)"
+  ],
+  "ramp_pack": [
+    "<type> ramp_pack(...)",
+    "// Packs a set of arrays into a string-encoded ramp. (Context: all)"
+  ],
+  "ramp_unpack": [
+    "<type> ramp_unpack(...)",
+    "// Unpacks a string-encoded ramp into a set of arrays. (Context: all)"
+  ],
+  "rand": [
+    "<type> rand(...)",
+    "// Creates a random number between 0 and 1 from a seed. (Context: all)"
+  ],
+  "random": [
+    "<type> random(...)",
+    "// Generate a random number based on the integer position in 1-4D space. (Context: all)"
+  ],
+  "random_brj": [
+    "<type> random_brj(...)",
+    "// Generate a uniformly distributed random number. (Context: all)"
+  ],
+  "random_fhash": [
+    "<type> random_fhash(...)",
+    "// Hashes floating point numbers to integers. (Context: all)"
+  ],
+  "random_ihash": [
+    "<type> random_ihash(...)",
+    "// Hashes integer numbers to integers. (Context: all)"
+  ],
+  "random_poisson": [
+    "<type> random_poisson(...)",
+    "// Generates a random Poisson variable given the mean to the distribution and a seed. (Context: all)"
+  ],
+  "random_shash": [
+    "<type> random_shash(...)",
+    "// Hashes a string to an integer. (Context: all)"
+  ],
+  "random_sobol": [
+    "<type> random_sobol(...)",
+    "// Generate a uniformly distributed random number. (Context: all)"
+  ],
+  "rawbumpmap": [
+    "<type> rawbumpmap(...)"
+  ],
+  "rawbumpmapA": [
+    "<type> rawbumpmapA(...)"
+  ],
+  "rawbumpmapB": [
+    "<type> rawbumpmapB(...)"
+  ],
+  "rawbumpmapG": [
+    "<type> rawbumpmapG(...)"
+  ],
+  "rawbumpmapL": [
+    "<type> rawbumpmapL(...)"
+  ],
+  "rawbumpmapR": [
+    "<type> rawbumpmapR(...)"
+  ],
+  "rawcolormap": [
+    "<type> rawcolormap(...)",
+    "// Looks up an unfiltered color from a texture file. (Context: all)"
+  ],
+  "rayhittest": [
+    "<type> rayhittest(...)",
+    "// Sends a ray from the position P along the direction D. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "rayimport": [
+    "<type> rayimport(...)",
+    "// Imports a value sent by a shader in a gather loop. (Context: fog, light, shadow, surface)"
+  ],
+  "reflect": [
+    "<type> reflect(...)",
+    "// Returns the vector representing the reflection of the direction\nagainst the normal. (Context: all)"
+  ],
+  "reflectlight": [
+    "<type> reflectlight(...)",
+    "// Computes the amount of reflected light which hits the surface. (Context: shading)"
+  ],
+  "refract": [
+    "<type> refract(...)",
+    "// Returns the refraction ray given an incoming direction, the\nnormalized normal and an index of refraction. (Context: all)"
+  ],
+  "refractlight": [
+    "<type> refractlight(...)",
+    "// Computes the illumination of surfaces refracted by the current\nsurface. (Context: shading)"
+  ],
+  "relativepath": [
+    "<type> relativepath(...)",
+    "// Computes the relative path for two full paths. (Context: all)"
+  ],
+  "relbbox": [
+    "<type> relbbox(...)",
+    "// Returns the relative position of the point given with respect to the bounding box of the geometry. (Context: all)"
+  ],
+  "relpath": [
+    "<type> relpath(...)",
+    "// Returns the relative path to a file. (Context: all)"
+  ],
+  "relpointbbox": [
+    "<type> relpointbbox(...)",
+    "// Returns the relative position of the point given with respect to the bounding box of the geometry. (Context: all)"
+  ],
+  "removeattrib": [
+    "<type> removeattrib(...)",
+    "// Removes an attribute or group from the geometry. (Context: all)"
+  ],
+  "removedetailattrib": [
+    "<type> removedetailattrib(...)",
+    "// Removes a detail attribute from a geometry. (Context: all)"
+  ],
+  "removegroup": [
+    "<type> removegroup(...)"
+  ],
+  "removeindex": [
+    "<type> removeindex(...)",
+    "// Removes an item at the given index from an array. (Context: all)"
+  ],
+  "removepoint": [
+    "<type> removepoint(...)",
+    "// Removes a point from the geometry. (Context: all)"
+  ],
+  "removepointattrib": [
+    "<type> removepointattrib(...)",
+    "// Removes a point attribute from a geometry. (Context: all)"
+  ],
+  "removepointgroup": [
+    "<type> removepointgroup(...)",
+    "// Removes a point group from a geometry. (Context: all)"
+  ],
+  "removeprim": [
+    "<type> removeprim(...)",
+    "// Removes a primitive from the geometry. (Context: all)"
+  ],
+  "removeprimattrib": [
+    "<type> removeprimattrib(...)",
+    "// Removes a primitive attribute from a geometry. (Context: all)"
+  ],
+  "removeprimgroup": [
+    "<type> removeprimgroup(...)",
+    "// Removes a primitive group from a geometry. (Context: all)"
+  ],
+  "removevalue": [
+    "<type> removevalue(...)",
+    "// Removes an item from an array. (Context: all)"
+  ],
+  "removevertex": [
+    "<type> removevertex(...)",
+    "// Removes a vertex from the geometry. (Context: all)"
+  ],
+  "removevertexattrib": [
+    "<type> removevertexattrib(...)",
+    "// Removes a vertex attribute from a geometry. (Context: all)"
+  ],
+  "removevertexgroup": [
+    "<type> removevertexgroup(...)",
+    "// Removes a vertex group from a geometry. (Context: all)"
+  ],
+  "renderstate": [
+    "<type> renderstate(...)",
+    "// Queries the renderer for a named property. (Context: shading)"
+  ],
+  "reorder": [
+    "<type> reorder(...)",
+    "// Reorders items in an array or string. (Context: all)"
+  ],
+  "replace": [
+    "<type> replace(...)",
+    "// Replaces occurrences of a substring. (Context: all)"
+  ],
+  "replace_match": [
+    "<type> replace_match(...)",
+    "// Replaces the matched string pattern with another pattern. (Context: all)"
+  ],
+  "resample_linear": [
+    "<type> resample_linear(...)"
+  ],
+  "resize": [
+    "<type> resize(...)",
+    "// Sets the length of an array. (Context: all)"
+  ],
+  "resolvemissedray": [
+    "<type> resolvemissedray(...)",
+    "// Returns the background color for rays that exit the scene. (Context: shading)"
+  ],
+  "reverse": [
+    "<type> reverse(...)",
+    "// Returns an array or string in reverse order. (Context: all)"
+  ],
+  "re_find": [
+    "<type> re_find(...)",
+    "// Matches a regular expression in a string (Context: all)"
+  ],
+  "re_findall": [
+    "<type> re_findall(...)",
+    "// Finds all instances of the given regular expression in the string (Context: all)"
+  ],
+  "re_match": [
+    "<type> re_match(...)",
+    "// Returns 1 if the entire input string matches the expression (Context: all)"
+  ],
+  "re_replace": [
+    "<type> re_replace(...)",
+    "// Replaces instances of regex_find with regex_replace (Context: all)"
+  ],
+  "re_split": [
+    "<type> re_split(...)",
+    "// Splits the given string based on regex match. (Context: all)"
+  ],
+  "rgbtohsv": [
+    "<type> rgbtohsv(...)",
+    "// Convert RGB color space to HSV color space. (Context: all)"
+  ],
+  "rgbtoxyz": [
+    "<type> rgbtoxyz(...)",
+    "// Convert a linear sRGB triplet to CIE XYZ tristimulus values. (Context: all)"
+  ],
+  "rint": [
+    "<type> rint(...)",
+    "// Rounds the number to the closest whole number. (Context: all)"
+  ],
+  "rotate": [
+    "<type> rotate(...)",
+    "// Applies a rotation to the given matrix. (Context: all)"
+  ],
+  "rotate_x_to": [
+    "<type> rotate_x_to(...)",
+    "// Rotates a vector by a rotation that would bring the x-axis to a given direction. (Context: all)"
+  ],
+  "rstrip": [
+    "<type> rstrip(...)",
+    "// Strips trailing whitespace from a string. (Context: all)"
+  ],
+  "sampledisk": [
+    "<type> sampledisk(...)",
+    "// Warps uniform random samples to a disk. (Context: all)"
+  ],
+  "sample_bsdf": [
+    "<type> sample_bsdf(...)",
+    "// Samples a BSDF. (Context: all)"
+  ],
+  "sample_cauchy": [
+    "<type> sample_cauchy(...)",
+    "// Samples the Cauchy (Lorentz) distribution. (Context: all)"
+  ],
+  "sample_cdf": [
+    "<type> sample_cdf(...)",
+    "// Samples a cumulative distribution function (CDF). (Context: all)"
+  ],
+  "sample_circle_arc": [
+    "<type> sample_circle_arc(...)",
+    "// Generates a uniform unit vector2, within maxangle of center, given a uniform number between 0 and 1. (Context: all)"
+  ],
+  "sample_circle_edge_uniform": [
+    "<type> sample_circle_edge_uniform(...)",
+    "// Generates a uniform unit vector2, given a uniform number between 0 and 1. (Context: all)"
+  ],
+  "sample_circle_ring_uniform": [
+    "<type> sample_circle_ring_uniform(...)",
+    "// Generates a uniform vector2 with alpha < length < 1, where 0 < alpha < 1, given a vector2 of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_circle_slice": [
+    "<type> sample_circle_slice(...)",
+    "// Generates a uniform vector2 with length < 1, within maxangle of center, given a vector2 of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_circle_uniform": [
+    "<type> sample_circle_uniform(...)",
+    "// Generates a uniform vector2 with length < 1, given a vector2 of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_direction_cone": [
+    "<type> sample_direction_cone(...)",
+    "// Generates a uniform unit vector, within maxangle of center, given a vector2 of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_direction_uniform": [
+    "<type> sample_direction_uniform(...)",
+    "// Generates a uniform unit vector, given a vector2 of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_discrete": [
+    "<type> sample_discrete(...)",
+    "// Returns an integer, either uniform or weighted, given a uniform number between 0 and 1. (Context: all)"
+  ],
+  "sample_exponential": [
+    "<type> sample_exponential(...)",
+    "// Samples the exponential distribution. (Context: all)"
+  ],
+  "sample_geometry": [
+    "<type> sample_geometry(...)",
+    "// Samples geometry in the scene and returns information from the shaders of surfaces that were sampled. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "sample_hemisphere": [
+    "<type> sample_hemisphere(...)",
+    "// Generates a unit vector, optionally biased, within a hemisphere, given a vector2 of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_hypersphere_cone": [
+    "<type> sample_hypersphere_cone(...)",
+    "// Generates a uniform vector4 with length < 1, within maxangle of center, given a vector4 of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_hypersphere_uniform": [
+    "<type> sample_hypersphere_uniform(...)",
+    "// Generates a uniform vector4 with length < 1, given a vector4 of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_light": [
+    "<type> sample_light(...)",
+    "// Samples a 3D position on a light source and runs the light shader at that point. (Context: displace, fog, surface)"
+  ],
+  "sample_lognormal": [
+    "<type> sample_lognormal(...)",
+    "// Samples the log-normal distribution based on parameters of the underlying normal distribution. (Context: all)"
+  ],
+  "sample_lognormal_by_median": [
+    "<type> sample_lognormal_by_median(...)",
+    "// Samples the log-normal distribution based on median and standard deviation. (Context: all)"
+  ],
+  "sample_normal": [
+    "<type> sample_normal(...)",
+    "// Samples the normal (Gaussian) distribution. (Context: all)"
+  ],
+  "sample_orientation_cone": [
+    "<type> sample_orientation_cone(...)",
+    "// Generates a uniform unit vector4, within maxangle of center, given a vector of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_orientation_uniform": [
+    "<type> sample_orientation_uniform(...)",
+    "// Generates a uniform unit vector4, given a vector of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_photon": [
+    "<type> sample_photon(...)",
+    "// Samples a 3D position on a light source and runs the light shader at that point. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "sample_sphere_cone": [
+    "<type> sample_sphere_cone(...)",
+    "// Generates a uniform vector with length < 1, within maxangle of center, given a vector of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_sphere_shell_uniform": [
+    "<type> sample_sphere_shell_uniform(...)",
+    "// Generates a uniform vector with alpha < length < 1, where 0 < alpha < 1, given a vector of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "sample_sphere_uniform": [
+    "<type> sample_sphere_uniform(...)",
+    "// Generates a uniform vector with length < 1, given a vector of uniform numbers between 0 and 1. (Context: all)"
+  ],
+  "scale": [
+    "<type> scale(...)",
+    "// Scales the given matrix in three directions simultaneously (X, Y, Z -\ngiven by the components of the scale_vector). (Context: all)"
+  ],
+  "scatter": [
+    "<type> scatter(...)",
+    "// Evaluates a scattering event through the domain of a geometric object. (Context: displace, fog, light, shadow, surface)"
+  ],
+  "select": [
+    "<type> select(...)",
+    "// Returns one of two parameters based on a conditional. (Context: all)"
+  ],
+  "sensor_panorama_create": [
+    "<type> sensor_panorama_create(...)",
+    "// Sensor function to render GL scene and query the result. (Context: all)"
+  ],
+  "sensor_panorama_getcolor": [
+    "<type> sensor_panorama_getcolor(...)",
+    "// Sensor function query a rendered GL scene. (Context: all)"
+  ],
+  "sensor_panorama_getcone": [
+    "<type> sensor_panorama_getcone(...)",
+    "// Sensor function to query average values from rendered GL scene. (Context: all)"
+  ],
+  "sensor_panorama_getdepth": [
+    "<type> sensor_panorama_getdepth(...)",
+    "// Sensor function query a rendered GL scene. (Context: all)"
+  ],
+  "sensor_save": [
+    "<type> sensor_save(...)",
+    "// Sensor function to save a rendered GL scene. (Context: all)"
+  ],
+  "serialize": [
+    "<type> serialize(...)",
+    "// Flattens an array of vector or matrix types into an array of floats. (Context: all)"
+  ],
+  "set": [
+    "<type> set(...)",
+    "// Creates a new value based on its arguments, such as creating a vector from its components. (Context: all)"
+  ],
+  "setagentchannelvalue": [
+    "<type> setagentchannelvalue(...)",
+    "// Overrides the value of an agent primitive's channel. (Context: all)"
+  ],
+  "setagentchannelvalues": [
+    "<type> setagentchannelvalues(...)",
+    "// Overrides the values of an agent primitive's channels. (Context: all)"
+  ],
+  "setagentclipnames": [
+    "<type> setagentclipnames(...)",
+    "// Sets the current animation clips for an agent primitive. (Context: all)"
+  ],
+  "setagentclips": [
+    "<type> setagentclips(...)",
+    "// Sets the animation clips that an agent should use to compute its transforms. (Context: all)"
+  ],
+  "setagentcliptimes": [
+    "<type> setagentcliptimes(...)",
+    "// Sets the current times for an agent primitive's animation clips. (Context: all)"
+  ],
+  "setagentclipweights": [
+    "<type> setagentclipweights(...)",
+    "// Sets the blend weights for an agent primitive's animation clips. (Context: all)"
+  ],
+  "setagentcollisionlayer": [
+    "<type> setagentcollisionlayer(...)",
+    "// Sets the collision layer of an agent primitive. (Context: all)"
+  ],
+  "setagentcollisionlayers": [
+    "<type> setagentcollisionlayers(...)",
+    "// Sets the collision layers of an agent primitive. (Context: all)"
+  ],
+  "setagentcurrentlayer": [
+    "<type> setagentcurrentlayer(...)",
+    "// Sets the current layer of an agent primitive. (Context: all)"
+  ],
+  "setagentcurrentlayers": [
+    "<type> setagentcurrentlayers(...)",
+    "// Sets the current display layers of an agent primitive. (Context: all)"
+  ],
+  "setagentlocaltransform": [
+    "<type> setagentlocaltransform(...)",
+    "// Overrides the local space transform of an agent primitive's bone. (Context: all)"
+  ],
+  "setagentlocaltransforms": [
+    "<type> setagentlocaltransforms(...)",
+    "// Overrides the local space transforms of an agent primitive. (Context: all)"
+  ],
+  "setagentworldtransform": [
+    "<type> setagentworldtransform(...)",
+    "// Overrides the world space transform of an agent primitive's bone. (Context: all)"
+  ],
+  "setagentworldtransforms": [
+    "<type> setagentworldtransforms(...)",
+    "// Overrides the world space transforms of an agent primitive. (Context: all)"
+  ],
+  "setattrib": [
+    "<type> setattrib(...)",
+    "// Writes an attribute value to geometry. (Context: all)"
+  ],
+  "setattribtypeinfo": [
+    "<type> setattribtypeinfo(...)",
+    "// Sets the meaning of an attribute in geometry. (Context: all)"
+  ],
+  "setcomp": [
+    "<type> setcomp(...)",
+    "// Sets a single component of a vector or matrix type, or an item in an array. (Context: all)"
+  ],
+  "setcurrentlight": [
+    "<type> setcurrentlight(...)",
+    "// Sets the current light (Context: displace, fog, surface)"
+  ],
+  "setdetailattrib": [
+    "<type> setdetailattrib(...)",
+    "// Sets a detail attribute in a geometry. (Context: all)"
+  ],
+  "setdetailintrinsic": [
+    "<type> setdetailintrinsic(...)",
+    "// Sets the value of a writeable detail intrinsic attribute. (Context: all)"
+  ],
+  "setedgegroup": [
+    "<type> setedgegroup(...)",
+    "// Sets edge group membership in a geometry. (Context: all)"
+  ],
+  "setpackedtransform": [
+    "<type> setpackedtransform(...)",
+    "// Sets the transform of a packed primitive. (Context: all)"
+  ],
+  "setpointattrib": [
+    "<type> setpointattrib(...)",
+    "// Sets a point attribute in a geometry. (Context: all)"
+  ],
+  "setpointgroup": [
+    "<type> setpointgroup(...)",
+    "// Adds or removes a point to/from a group in a geometry. (Context: all)"
+  ],
+  "setpointlocaltransforms": [
+    "<type> setpointlocaltransforms(...)",
+    "// Sets an array of point local transforms at the given point indices. (Context: all)"
+  ],
+  "setpointtransform": [
+    "<type> setpointtransform(...)",
+    "// Sets the world space transform of a given point (Context: all)"
+  ],
+  "setpointtransforms": [
+    "<type> setpointtransforms(...)",
+    "// Sets an array of point transforms at the given point indices. (Context: all)"
+  ],
+  "setprimattrib": [
+    "<type> setprimattrib(...)",
+    "// Sets a primitive attribute in a geometry. (Context: all)"
+  ],
+  "setprimgroup": [
+    "<type> setprimgroup(...)",
+    "// Adds or removes a primitive to/from a group in a geometry. (Context: all)"
+  ],
+  "setprimintrinsic": [
+    "<type> setprimintrinsic(...)",
+    "// Sets the value of a writeable primitive intrinsic attribute. (Context: all)"
+  ],
+  "setprimvertex": [
+    "<type> setprimvertex(...)",
+    "// Rewires a vertex in the geometry to a different point. (Context: all)"
+  ],
+  "setsamplestore": [
+    "<type> setsamplestore(...)",
+    "// Stores sample data in a channel, referenced by a point. (Context: shading)"
+  ],
+  "setvertexattrib": [
+    "<type> setvertexattrib(...)",
+    "// Sets a vertex attribute in a geometry. (Context: all)"
+  ],
+  "setvertexgroup": [
+    "<type> setvertexgroup(...)",
+    "// Adds or removes a vertex to/from a group in a geometry. (Context: all)"
+  ],
+  "setvertexpoint": [
+    "<type> setvertexpoint(...)",
+    "// Rewires a vertex in the geometry to a different point. (Context: all)"
+  ],
+  "shadow": [
+    "<type> shadow(...)",
+    "// Calls shadow shaders for the current light source. (Context: displace, fog, surface)"
+  ],
+  "shadowmap": [
+    "<type> shadowmap(...)",
+    "// The shadowmap function will treat the shadow map as if the image were\nrendered from a light source. (Context: all)"
+  ],
+  "shadow_light": [
+    "<type> shadow_light(...)",
+    "// Executes the shadow shader for a given light and returns the amount of shadowing as a multiplier of the shaded color. (Context: displace, fog, surface)"
+  ],
+  "sheen": [
+    "<type> sheen(...)",
+    "// Returns a Zeltner Sheen BSDF. (Context: all)"
+  ],
+  "shimport": [
+    "<type> shimport(...)",
+    "// Imports a variable from the shadow shader for the surface. (Context: fog, surface)"
+  ],
+  "shl": [
+    "<type> shl(...)",
+    "// Bit-shifts an integer left. (Context: all)"
+  ],
+  "shr": [
+    "<type> shr(...)",
+    "// Bit-shifts an integer right. (Context: all)"
+  ],
+  "shrz": [
+    "<type> shrz(...)",
+    "// Bit-shifts an integer right. (Context: all)"
+  ],
+  "sign": [
+    "<type> sign(...)",
+    "// Returns -1, 0, or 1 depending on the sign of the argument. (Context: all)"
+  ],
+  "simport": [
+    "<type> simport(...)",
+    "// Imports a variable sent by a surface shader in an illuminance loop. (Context: fog, light, shadow)"
+  ],
+  "sin": [
+    "<type> sin(...)",
+    "// Returns the sine of the argument. (Context: all)"
+  ],
+  "sinh": [
+    "<type> sinh(...)",
+    "// Returns the hyperbolic sine of the argument. (Context: all)"
+  ],
+  "sinpi": [
+    "<type> sinpi(...)",
+    "// Returns the sine of the argument scaled by Pi. (Context: all)"
+  ],
+  "sleep": [
+    "<type> sleep(...)",
+    "// Yields processing for a certain number of milliseconds. (Context: all)"
+  ],
+  "slerp": [
+    "<type> slerp(...)",
+    "// Quaternion blend between q1 and q2 based on the bias. (Context: all)"
+  ],
+  "slerpv": [
+    "<type> slerpv(...)",
+    "// Spherical blends between two vectors based on the bias. (Context: all)"
+  ],
+  "slice": [
+    "<type> slice(...)",
+    "// Slices a sub-string or sub-array of a string or array. (Context: all)"
+  ],
+  "slideframe": [
+    "<type> slideframe(...)",
+    "// Finds the normal component of frame slid along a curve. (Context: all)"
+  ],
+  "smooth": [
+    "<type> smooth(...)",
+    "// Computes ease in/out interpolation between values. (Context: all)"
+  ],
+  "smoothrotation": [
+    "<type> smoothrotation(...)",
+    "// Returns the closest equivalent Euler rotations to a reference rotation. (Context: all)"
+  ],
+  "snoise": [
+    "<type> snoise(...)",
+    "// These functions are similar to wnoise. (Context: all)"
+  ],
+  "solid_angle": [
+    "<type> solid_angle(...)",
+    "// Computes the solid angle (in steradians) a BSDF function subtends. (Context: all)"
+  ],
+  "solveconstraint": [
+    "<type> solveconstraint(...)",
+    "// Applies an inverse kinematics algorithm to a skeleton. (Context: all)"
+  ],
+  "solvecubic": [
+    "<type> solvecubic(...)",
+    "// Solves a cubic function returning the number of real roots. (Context: all)"
+  ],
+  "solvecurve": [
+    "<type> solvecurve(...)",
+    "// Applies a curve inverse kinematics algorithm to a skeleton. (Context: all)"
+  ],
+  "solvefbik": [
+    "<type> solvefbik(...)",
+    "// Applies a full-body inverse kinematics algorithm to a skeleton. (Context: all)"
+  ],
+  "solveik": [
+    "<type> solveik(...)",
+    "// Applies an inverse kinematics algorithm to a skeleton. (Context: all)"
+  ],
+  "solvephysfbik": [
+    "<type> solvephysfbik(...)",
+    "// Applies a full-body inverse kinematics algorithm to a skeleton, with optional control over the center of mass. (Context: all)"
+  ],
+  "solvepoly": [
+    "<type> solvepoly(...)",
+    "// Finds the real roots of a polynomial. (Context: all)"
+  ],
+  "solvequadratic": [
+    "<type> solvequadratic(...)",
+    "// Solves a quadratic function returning the number of real roots. (Context: all)"
+  ],
+  "solvetriangleSSS": [
+    "<type> solvetriangleSSS(...)",
+    "// Finds the angles of a triangle from its sides. (Context: all)"
+  ],
+  "sort": [
+    "<type> sort(...)",
+    "// Returns the array sorted in increasing order. (Context: all)"
+  ],
+  "specular": [
+    "<type> specular(...)",
+    "// Returns a specular BSDF or computes specular shading. (Context: all)"
+  ],
+  "specularBRDF": [
+    "<type> specularBRDF(...)",
+    "// Returns the computed BRDFs for the different lighting models used in VEX shading. (Context: all)"
+  ],
+  "spline": [
+    "<type> spline(...)",
+    "// Samples a value along a polyline or spline curve. (Context: all)"
+  ],
+  "spline_cdf": [
+    "<type> spline_cdf(...)",
+    "// Generate a cumulative distribution function (CDF) by sampling a spline curve. (Context: all)"
+  ],
+  "split": [
+    "<type> split(...)",
+    "// Splits a string into tokens. (Context: all)"
+  ],
+  "splitpath": [
+    "<type> splitpath(...)",
+    "// Splits a file path into the directory and name parts. (Context: all)"
+  ],
+  "split_bsdf": [
+    "<type> split_bsdf(...)",
+    "// Splits a bsdf into its component lobes. (Context: all)"
+  ],
+  "sprintf": [
+    "<type> sprintf(...)",
+    "// Formats a string like printf but returns the result as a string\ninstead of printing it. (Context: all)"
+  ],
+  "sqrt": [
+    "<type> sqrt(...)",
+    "// Returns the square root of the argument. (Context: all)"
+  ],
+  "sssapprox": [
+    "<type> sssapprox(...)",
+    "// Creates an approximate SSS BSDF. (Context: all)"
+  ],
+  "startswith": [
+    "<type> startswith(...)",
+    "// Returns 1 if the string starts with the specified string. (Context: all)"
+  ],
+  "storelightexport": [
+    "<type> storelightexport(...)",
+    "// Stores exported data for a light. (Context: displace, fog, surface)"
+  ],
+  "strip": [
+    "<type> strip(...)",
+    "// Strips leading and trailing whitespace from a string. (Context: all)"
+  ],
+  "strlen": [
+    "<type> strlen(...)",
+    "// Returns the length of the string. (Context: all)"
+  ],
+  "sum": [
+    "<type> sum(...)",
+    "// Returns the sum of a list of numbers. (Context: all)"
+  ],
+  "surfacedist": [
+    "<type> surfacedist(...)",
+    "// Finds the distance of a point to a group of points along the surface of a geometry. (Context: all)"
+  ],
+  "svddecomp": [
+    "<type> svddecomp(...)",
+    "// Computes the singular value decomposition of a given matrix. (Context: all)"
+  ],
+  "switch": [
+    "<type> switch(...)",
+    "// Use a different bsdf for direct or indirect lighting. (Context: all)"
+  ],
+  "swizzle": [
+    "<type> swizzle(...)",
+    "// Rearranges the components of a vector. (Context: all)"
+  ],
+  "tan": [
+    "<type> tan(...)",
+    "// Returns the trigonometric tangent of the argument (Context: all)"
+  ],
+  "tanh": [
+    "<type> tanh(...)",
+    "// Returns the hyperbolic tangent of the argument (Context: all)"
+  ],
+  "tanpi": [
+    "<type> tanpi(...)",
+    "// Returns the trigonometric tangent of the argument scaled by Pi (Context: all)"
+  ],
+  "tet_adjacent": [
+    "<type> tet_adjacent(...)",
+    "// Returns primitive number of an adjacent tetrahedron. (Context: all)"
+  ],
+  "tet_faceindex": [
+    "<type> tet_faceindex(...)",
+    "// Returns vertex indices of each face of a tetrahedron. (Context: all)"
+  ],
+  "teximport": [
+    "<type> teximport(...)",
+    "// Imports attributes from texture files. (Context: all)"
+  ],
+  "texprintf": [
+    "<type> texprintf(...)",
+    "// Similar to sprintf, but does expansion of UDIM or UVTILE texture filename expansion. (Context: all)"
+  ],
+  "texture": [
+    "<type> texture(...)",
+    "// Computes a filtered sample of the texture map specified. (Context: all)"
+  ],
+  "texture3d": [
+    "<type> texture3d(...)",
+    "// Returns the value of the 3d image at the position specified by P. (Context: all)"
+  ],
+  "texture3dBox": [
+    "<type> texture3dBox(...)",
+    "// This function queries the 3D texture map specified and returns the\nbounding box information of the file. (Context: all)"
+  ],
+  "titlecase": [
+    "<type> titlecase(...)",
+    "// Returns a string that is the titlecase version of the input string. (Context: all)"
+  ],
+  "tolower": [
+    "<type> tolower(...)",
+    "// Converts all characters in string to lower case (Context: all)"
+  ],
+  "toNDC": [
+    "<type> toNDC(...)",
+    "// Transforms a position into normal device coordinates. (Context: all)"
+  ],
+  "toupper": [
+    "<type> toupper(...)",
+    "// Converts all characters in string to upper case (Context: all)"
+  ],
+  "tr": [
+    "<type> tr(...)",
+    "// Returns the trace of the given matrix. (Context: all)"
+  ],
+  "trace": [
+    "<type> trace(...)",
+    "// Sends a ray from P along the normalized vector D. (Context: shading)"
+  ],
+  "translate": [
+    "<type> translate(...)",
+    "// Translates a matrix by a vector. (Context: all)"
+  ],
+  "translucent": [
+    "<type> translucent(...)",
+    "// Returns a Lambertian translucence BSDF. (Context: all)"
+  ],
+  "transpose": [
+    "<type> transpose(...)",
+    "// Transposes the given matrix. (Context: all)"
+  ],
+  "trunc": [
+    "<type> trunc(...)",
+    "// Removes the fractional part of a floating point number. (Context: all)"
+  ],
+  "tw_nspace": [
+    "<type> tw_nspace(...)",
+    "// Transforms a normal vector from Texture to World space. (Context: all)"
+  ],
+  "tw_space": [
+    "<type> tw_space(...)",
+    "// Transforms a position value from Texture to World space. (Context: all)"
+  ],
+  "tw_vspace": [
+    "<type> tw_vspace(...)",
+    "// Transforms a direction vector from Texture to World space. (Context: all)"
+  ],
+  "typeid": [
+    "<type> typeid(...)",
+    "// Returns a numeric code identifying a VEX data type. (Context: all)"
+  ],
+  "uniqueval": [
+    "<type> uniqueval(...)",
+    "// Returns one of the set of unique values across all values for an int or string attribute. (Context: all)"
+  ],
+  "uniquevals": [
+    "<type> uniquevals(...)",
+    "// Returns the set of unique values across all values for an int or string attribute. (Context: all)"
+  ],
+  "unpack_intfromsafefloat": [
+    "<type> unpack_intfromsafefloat(...)",
+    "// Reverses the packing of pack_inttosafefloat to get back the original integer. (Context: all)"
+  ],
+  "unserialize": [
+    "<type> unserialize(...)",
+    "// Turns a flat array of floats into an array of vectors or matrices. (Context: all)"
+  ],
+  "upush": [
+    "<type> upush(...)",
+    "// Adds a uniform item to an array. (Context: all)"
+  ],
+  "usd_addattrib": [
+    "<type> usd_addattrib(...)",
+    "// Creates an attribute of a given type on a primitive. (Context: all)"
+  ],
+  "usd_addcollectionexclude": [
+    "<type> usd_addcollectionexclude(...)",
+    "// Excludes an object from the collection (Context: all)"
+  ],
+  "usd_addcollectioninclude": [
+    "<type> usd_addcollectioninclude(...)",
+    "// Includes an object in the collection (Context: all)"
+  ],
+  "usd_addinversetotransformorder": [
+    "<type> usd_addinversetotransformorder(...)",
+    "// Appends an inversed transform operation to the primitive's transform order (Context: all)"
+  ],
+  "usd_addorient": [
+    "<type> usd_addorient(...)",
+    "// Applies a quaternion orientation to the primitive (Context: all)"
+  ],
+  "usd_addprim": [
+    "<type> usd_addprim(...)",
+    "// Creates a primitive of a given type. (Context: all)"
+  ],
+  "usd_addprimvar": [
+    "<type> usd_addprimvar(...)",
+    "// Creates a primvar of a given type on a primitive. (Context: all)"
+  ],
+  "usd_addrelationshiptarget": [
+    "<type> usd_addrelationshiptarget(...)",
+    "// Adds a target to the primitive's relationship (Context: all)"
+  ],
+  "usd_addrotate": [
+    "<type> usd_addrotate(...)",
+    "// Applies a rotation to the primitive (Context: all)"
+  ],
+  "usd_addscale": [
+    "<type> usd_addscale(...)",
+    "// Applies a scale to the primitive (Context: all)"
+  ],
+  "usd_addschemaattrib": [
+    "<type> usd_addschemaattrib(...)",
+    "// Creates an attribute of a given type on a primitive, and sets the `custom` metadata flag to `False`. (Context: all)"
+  ],
+  "usd_addtotransformorder": [
+    "<type> usd_addtotransformorder(...)",
+    "// Appends a transform operation to the primitive's transform order (Context: all)"
+  ],
+  "usd_addtransform": [
+    "<type> usd_addtransform(...)",
+    "// Applies a transformation to the primitive (Context: all)"
+  ],
+  "usd_addtranslate": [
+    "<type> usd_addtranslate(...)",
+    "// Applies a translation to the primitive (Context: all)"
+  ],
+  "usd_applyapi": [
+    "<type> usd_applyapi(...)",
+    "// Apply an API schema to a primitive. (Context: all)"
+  ],
+  "usd_attrib": [
+    "<type> usd_attrib(...)",
+    "// Reads the value of an attribute from the USD primitive. (Context: all)"
+  ],
+  "usd_attribelement": [
+    "<type> usd_attribelement(...)",
+    "// Reads the value of an element from an array attribute. (Context: all)"
+  ],
+  "usd_attriblen": [
+    "<type> usd_attriblen(...)",
+    "// Returns the length of the array attribute. (Context: all)"
+  ],
+  "usd_attribnames": [
+    "<type> usd_attribnames(...)",
+    "// Returns the names of the attributes available on the primitive. (Context: all)"
+  ],
+  "usd_attribsize": [
+    "<type> usd_attribsize(...)",
+    "// Returns the tuple size of the attribute. (Context: all)"
+  ],
+  "usd_attribtimesamples": [
+    "<type> usd_attribtimesamples(...)",
+    "// Returns the time codes at which the attribute values are authored. (Context: all)"
+  ],
+  "usd_attribtypename": [
+    "<type> usd_attribtypename(...)",
+    "// Returns the name of the attribute type. (Context: all)"
+  ],
+  "usd_blockattrib": [
+    "<type> usd_blockattrib(...)",
+    "// Blocks the attribute. (Context: all)"
+  ],
+  "usd_blockprimvar": [
+    "<type> usd_blockprimvar(...)",
+    "// Blocks the primvar. (Context: all)"
+  ],
+  "usd_blockprimvarindices": [
+    "<type> usd_blockprimvarindices(...)",
+    "// Blocks the primvar. (Context: all)"
+  ],
+  "usd_blockrelationship": [
+    "<type> usd_blockrelationship(...)",
+    "// Blocks the primitive's relationship. (Context: all)"
+  ],
+  "usd_boundmaterialpath": [
+    "<type> usd_boundmaterialpath(...)",
+    "// Returns the material path bound to a given primitive. (Context: all)"
+  ],
+  "usd_childnames": [
+    "<type> usd_childnames(...)",
+    "// Returns the names of the primitive's children. (Context: all)"
+  ],
+  "usd_clearmetadata": [
+    "<type> usd_clearmetadata(...)",
+    "// Clears the value of the metadata. (Context: all)"
+  ],
+  "usd_cleartransformorder": [
+    "<type> usd_cleartransformorder(...)",
+    "// Clears the primitive's transform order (Context: all)"
+  ],
+  "usd_collectioncomputedpaths": [
+    "<type> usd_collectioncomputedpaths(...)",
+    "// Obtains the list of all objects that belong to the collection (Context: all)"
+  ],
+  "usd_collectioncontains": [
+    "<type> usd_collectioncontains(...)",
+    "// Checks if an object path belongs to the collection (Context: all)"
+  ],
+  "usd_collectionexcludes": [
+    "<type> usd_collectionexcludes(...)",
+    "// Obtains the object paths that are in the collection's exclude list (Context: all)"
+  ],
+  "usd_collectionexpansionrule": [
+    "<type> usd_collectionexpansionrule(...)",
+    "// Obtains the collection's expansion rule (Context: all)"
+  ],
+  "usd_collectionincludes": [
+    "<type> usd_collectionincludes(...)",
+    "// Obtains the object paths that are in the collection's include list (Context: all)"
+  ],
+  "usd_drawmode": [
+    "<type> usd_drawmode(...)",
+    "// Returns the primitive's draw mode. (Context: all)"
+  ],
+  "usd_findtransformname": [
+    "<type> usd_findtransformname(...)",
+    "// Retrurns primitive's transform operation full name for given the transform operation suffix (Context: all)"
+  ],
+  "usd_flattenediprimvar": [
+    "<type> usd_flattenediprimvar(...)",
+    "// Reads the value of a flattened primvar directly from the USD primitive or from USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_flattenediprimvarelement": [
+    "<type> usd_flattenediprimvarelement(...)",
+    "// Reads an element value of a flattened array primvar directly from the USD primitive or from its ancestor. (Context: all)"
+  ],
+  "usd_flattenedprimvar": [
+    "<type> usd_flattenedprimvar(...)",
+    "// Reads the value of an flattened primvar directly from the USD primitive. (Context: all)"
+  ],
+  "usd_flattenedprimvarelement": [
+    "<type> usd_flattenedprimvarelement(...)",
+    "// Reads an element value of a flattened array primvar directly from a USD primitive. (Context: all)"
+  ],
+  "usd_getbbox": [
+    "<type> usd_getbbox(...)",
+    "// Sets two vectors to the minimum and maximum corners of the bounding box for the primitive. (Context: all)"
+  ],
+  "usd_getbbox_center": [
+    "<type> usd_getbbox_center(...)",
+    "// Returns the center of the bounding box for the primitive. (Context: all)"
+  ],
+  "usd_getbbox_max": [
+    "<type> usd_getbbox_max(...)",
+    "// Returns the maximum of the bounding box for the primitive. (Context: all)"
+  ],
+  "usd_getbbox_min": [
+    "<type> usd_getbbox_min(...)",
+    "// Returns the minimum of the bounding box for the primitive. (Context: all)"
+  ],
+  "usd_getbbox_size": [
+    "<type> usd_getbbox_size(...)",
+    "// Returns the size of the bounding box for the primitive. (Context: all)"
+  ],
+  "usd_getbounds": [
+    "<type> usd_getbounds(...)",
+    "// Obtains the primitive's bounds (Context: all)"
+  ],
+  "usd_getpointinstancebounds": [
+    "<type> usd_getpointinstancebounds(...)",
+    "// Obtains the primitive's bounds (Context: all)"
+  ],
+  "usd_hasapi": [
+    "<type> usd_hasapi(...)",
+    "// Checks if the primitive adheres to the given API. (Context: all)"
+  ],
+  "usd_haspayload": [
+    "<type> usd_haspayload(...)",
+    "// Checks if the primitive adheres to the given API. (Context: all)"
+  ],
+  "usd_iprimvar": [
+    "<type> usd_iprimvar(...)",
+    "// Reads the value of a primvar directly from the USD primitive or from USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_iprimvarelement": [
+    "<type> usd_iprimvarelement(...)",
+    "// Reads the value of an element from the array primvar directly from the USD primitive or from USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_iprimvarelementsize": [
+    "<type> usd_iprimvarelementsize(...)",
+    "// Returns the element size of the primvar directly from the USD primitive or from USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_iprimvarindices": [
+    "<type> usd_iprimvarindices(...)",
+    "// Returns the index array of an indexed primvar directly on the USD primitive or on USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_iprimvarinterpolation": [
+    "<type> usd_iprimvarinterpolation(...)",
+    "// Returns the element size of the primvar directly on the USD primitive or on USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_iprimvarlen": [
+    "<type> usd_iprimvarlen(...)",
+    "// Returns the length of the array primvar directly on the USD primitive or on USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_iprimvarnames": [
+    "<type> usd_iprimvarnames(...)",
+    "// Returns the names of the primvars available directly on the given USD primitive or on USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_iprimvarsize": [
+    "<type> usd_iprimvarsize(...)",
+    "// Returns the tuple size of the primvar directly on the USD primitive or on USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_iprimvartimesamples": [
+    "<type> usd_iprimvartimesamples(...)",
+    "// Returns the time codes at which the primvar values are authored directly on the given primitive or on its ancestor. (Context: all)"
+  ],
+  "usd_iprimvartypename": [
+    "<type> usd_iprimvartypename(...)",
+    "// Returns the name of the primvar type found on the given primitive or its ancestor. (Context: all)"
+  ],
+  "usd_isabstract": [
+    "<type> usd_isabstract(...)",
+    "// Checks if the primitive is abstract. (Context: all)"
+  ],
+  "usd_isactive": [
+    "<type> usd_isactive(...)",
+    "// Checks if the primitive is active. (Context: all)"
+  ],
+  "usd_isarray": [
+    "<type> usd_isarray(...)",
+    "// Checks if the attribute is an array. (Context: all)"
+  ],
+  "usd_isarrayiprimvar": [
+    "<type> usd_isarrayiprimvar(...)",
+    "// Checks if there is an array primvar directly on the USD primitive or on USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_isarraymetadata": [
+    "<type> usd_isarraymetadata(...)",
+    "// Checks if the given metadata is an array. (Context: all)"
+  ],
+  "usd_isarrayprimvar": [
+    "<type> usd_isarrayprimvar(...)",
+    "// Checks if there is an array primvar directly on the USD primitive. (Context: all)"
+  ],
+  "usd_isattrib": [
+    "<type> usd_isattrib(...)",
+    "// Checks if the primitive has an attribute by the given name. (Context: all)"
+  ],
+  "usd_iscollection": [
+    "<type> usd_iscollection(...)",
+    "// Checks if the collection exists. (Context: all)"
+  ],
+  "usd_iscollectionpath": [
+    "<type> usd_iscollectionpath(...)",
+    "// Checks if the path is a valid collection path. (Context: all)"
+  ],
+  "usd_isindexediprimvar": [
+    "<type> usd_isindexediprimvar(...)",
+    "// Checks if there is an indexed primvar directly on the USD primitive or on USD primitive's ancestor. (Context: all)"
+  ],
+  "usd_isindexedprimvar": [
+    "<type> usd_isindexedprimvar(...)",
+    "// Checks if there is an indexed primvar directly on the USD primitive. (Context: all)"
+  ],
+  "usd_isinstance": [
+    "<type> usd_isinstance(...)",
+    "// Checks if the primitive is an instance. (Context: all)"
+  ],
+  "usd_isiprimvar": [
+    "<type> usd_isiprimvar(...)",
+    "// Checks if the primitive or its ancestor has a primvar of the given name. (Context: all)"
+  ],
+  "usd_iskind": [
+    "<type> usd_iskind(...)",
+    "// Checks if the primitive is of a given kind. (Context: all)"
+  ],
+  "usd_ismetadata": [
+    "<type> usd_ismetadata(...)",
+    "// Checks if the primitive has metadata by the given name. (Context: all)"
+  ],
+  "usd_ismodel": [
+    "<type> usd_ismodel(...)",
+    "// Checks if the primitive is a model. (Context: all)"
+  ],
+  "usd_isprim": [
+    "<type> usd_isprim(...)",
+    "// Checks if the path refers to a valid primitive. (Context: all)"
+  ],
+  "usd_isprimvar": [
+    "<type> usd_isprimvar(...)",
+    "// Checks if the primitive has a primvar of the given name. (Context: all)"
+  ],
+  "usd_isrelationship": [
+    "<type> usd_isrelationship(...)",
+    "// Checks if the primitive has a relationship by the given name. (Context: all)"
+  ],
+  "usd_isstage": [
+    "<type> usd_isstage(...)",
+    "// Checks if the stage is valid. (Context: all)"
+  ],
+  "usd_istransformreset": [
+    "<type> usd_istransformreset(...)",
+    "// Checks if the primitive transform is reset (Context: all)"
+  ],
+  "usd_istype": [
+    "<type> usd_istype(...)",
+    "// Checks if the primitive is of a given type. (Context: all)"
+  ],
+  "usd_isvisible": [
+    "<type> usd_isvisible(...)",
+    "// Checks if the primitive is visible. (Context: all)"
+  ],
+  "usd_kind": [
+    "<type> usd_kind(...)",
+    "// Returns the primitive's kind. (Context: all)"
+  ],
+  "usd_localtransform": [
+    "<type> usd_localtransform(...)",
+    "// Obtains the primitive's local transform (Context: all)"
+  ],
+  "usd_makeattribpath": [
+    "<type> usd_makeattribpath(...)",
+    "// Constructs an attribute path from a primitive path and an attribute name. (Context: all)"
+  ],
+  "usd_makecollectionpath": [
+    "<type> usd_makecollectionpath(...)",
+    "// Constructs a collection path from a primitive path and a collection name. (Context: all)"
+  ],
+  "usd_makepropertypath": [
+    "<type> usd_makepropertypath(...)",
+    "// Constructs an property path from a primitive path and an property name. (Context: all)"
+  ],
+  "usd_makerelationshippath": [
+    "<type> usd_makerelationshippath(...)",
+    "// Constructs an relationship path from a primitive path and a relationship name. (Context: all)"
+  ],
+  "usd_makevalidprimname": [
+    "<type> usd_makevalidprimname(...)",
+    "// Forces a string to conform to the rules for naming USD primitives. (Context: all)"
+  ],
+  "usd_makevalidprimpath": [
+    "<type> usd_makevalidprimpath(...)",
+    "// Forces a string to conform to the rules for paths to USD primitives. (Context: all)"
+  ],
+  "usd_metadata": [
+    "<type> usd_metadata(...)",
+    "// Reads the value of metadata from the USD object. (Context: all)"
+  ],
+  "usd_metadataelement": [
+    "<type> usd_metadataelement(...)",
+    "// Reads the value of an element from the array metadata. (Context: all)"
+  ],
+  "usd_metadatalen": [
+    "<type> usd_metadatalen(...)",
+    "// Returns the length of the array metadata. (Context: all)"
+  ],
+  "usd_metadatanames": [
+    "<type> usd_metadatanames(...)",
+    "// Returns the names of the metadata available on the object. (Context: all)"
+  ],
+  "usd_name": [
+    "<type> usd_name(...)",
+    "// Returns the name of the primitive. (Context: all)"
+  ],
+  "usd_parentpath": [
+    "<type> usd_parentpath(...)",
+    "// Returns the path of the primitive's parent. (Context: all)"
+  ],
+  "usd_pointinstancetransform": [
+    "<type> usd_pointinstancetransform(...)",
+    "// Obtains the transform for the given point instance (Context: all)"
+  ],
+  "usd_pointinstance_getbbox": [
+    "<type> usd_pointinstance_getbbox(...)",
+    "// Sets two vectors to the minimum and maximum corners of the bounding box for the given instance inside point instancer. (Context: all)"
+  ],
+  "usd_pointinstance_getbbox_center": [
+    "<type> usd_pointinstance_getbbox_center(...)",
+    "// Returns the center of the bounding box for the instance inside a point instancer primitive. (Context: all)"
+  ],
+  "usd_pointinstance_getbbox_max": [
+    "<type> usd_pointinstance_getbbox_max(...)",
+    "// Returns the maximum position of the bounding box for the instance inside a point instancer primitive. (Context: all)"
+  ],
+  "usd_pointinstance_getbbox_min": [
+    "<type> usd_pointinstance_getbbox_min(...)",
+    "// Returns the minimum position of the bounding box for the instance inside a point instancer primitive. (Context: all)"
+  ],
+  "usd_pointinstance_getbbox_size": [
+    "<type> usd_pointinstance_getbbox_size(...)",
+    "// Returns the size of the bounding box for the instance inside a point instancer primitive. (Context: all)"
+  ],
+  "usd_pointinstance_relbbox": [
+    "<type> usd_pointinstance_relbbox(...)",
+    "// Returns the relative position of the point given with respect to the bounding box of the geometry. (Context: all)"
+  ],
+  "usd_primvar": [
+    "<type> usd_primvar(...)",
+    "// Reads the value of a primvar directly from the USD primitive. (Context: all)"
+  ],
+  "usd_primvarattribname": [
+    "<type> usd_primvarattribname(...)",
+    "// Returns the namespaced attribute name for the given primvar. (Context: all)"
+  ],
+  "usd_primvarelement": [
+    "<type> usd_primvarelement(...)",
+    "// Reads the value of an element from the array primvar directly from the USD primitive. (Context: all)"
+  ],
+  "usd_primvarelementsize": [
+    "<type> usd_primvarelementsize(...)",
+    "// Returns the element size of the primvar directly from the USD primitive. (Context: all)"
+  ],
+  "usd_primvarindices": [
+    "<type> usd_primvarindices(...)",
+    "// Returns the index array of an indexed primvar directly on the USD primitive. (Context: all)"
+  ],
+  "usd_primvarinterpolation": [
+    "<type> usd_primvarinterpolation(...)",
+    "// Returns the element size of the primvar directly on the USD primitive. (Context: all)"
+  ],
+  "usd_primvarlen": [
+    "<type> usd_primvarlen(...)",
+    "// Returns the length of the array primvar directly on the USD primitive. (Context: all)"
+  ],
+  "usd_primvarnames": [
+    "<type> usd_primvarnames(...)",
+    "// Returns the names of the primvars available on the given USD primitive. (Context: all)"
+  ],
+  "usd_primvarsize": [
+    "<type> usd_primvarsize(...)",
+    "// Returns the tuple size of the primvar directly on the USD primitive. (Context: all)"
+  ],
+  "usd_primvartimesamples": [
+    "<type> usd_primvartimesamples(...)",
+    "// Returns the time codes at which the primvar values are authored directly on\nthe given primitive. (Context: all)"
+  ],
+  "usd_primvartypename": [
+    "<type> usd_primvartypename(...)",
+    "// Returns the name of the primvar type found on the given primitive. (Context: all)"
+  ],
+  "usd_purpose": [
+    "<type> usd_purpose(...)",
+    "// Returns the primitive's purpose. (Context: all)"
+  ],
+  "usd_relationshipforwardedtargets": [
+    "<type> usd_relationshipforwardedtargets(...)",
+    "// Obtains the relationship forwarded targets. (Context: all)"
+  ],
+  "usd_relationshipnames": [
+    "<type> usd_relationshipnames(...)",
+    "// Returns the names of the relationships available on the primitive. (Context: all)"
+  ],
+  "usd_relationshiptargets": [
+    "<type> usd_relationshiptargets(...)",
+    "// Obtains the relationship targets. (Context: all)"
+  ],
+  "usd_relbbox": [
+    "<type> usd_relbbox(...)",
+    "// Returns the relative position of the point given with respect to the bounding box of the geometry. (Context: all)"
+  ],
+  "usd_removerelationshiptarget": [
+    "<type> usd_removerelationshiptarget(...)",
+    "// Remove a target from the primitive's relationship (Context: all)"
+  ],
+  "usd_setactive": [
+    "<type> usd_setactive(...)",
+    "// Sets the primitive active state. (Context: all)"
+  ],
+  "usd_setattrib": [
+    "<type> usd_setattrib(...)",
+    "// Sets the value of an attribute. (Context: all)"
+  ],
+  "usd_setattribelement": [
+    "<type> usd_setattribelement(...)",
+    "// Sets the value of an element in an array attribute. (Context: all)"
+  ],
+  "usd_setcollectionexcludes": [
+    "<type> usd_setcollectionexcludes(...)",
+    "// Sets the excludes list on the collection (Context: all)"
+  ],
+  "usd_setcollectionexpansionrule": [
+    "<type> usd_setcollectionexpansionrule(...)",
+    "// Sets the expansion rule on the collection (Context: all)"
+  ],
+  "usd_setcollectionincludes": [
+    "<type> usd_setcollectionincludes(...)",
+    "// Sets the includes list on the collection (Context: all)"
+  ],
+  "usd_setdrawmode": [
+    "<type> usd_setdrawmode(...)",
+    "// Sets the primitive's draw mode. (Context: all)"
+  ],
+  "usd_setkind": [
+    "<type> usd_setkind(...)",
+    "// Sets the primitive's kind. (Context: all)"
+  ],
+  "usd_setmetadata": [
+    "<type> usd_setmetadata(...)",
+    "// Sets the value of an metadata. (Context: all)"
+  ],
+  "usd_setmetadataelement": [
+    "<type> usd_setmetadataelement(...)",
+    "// Sets the value of an element in an array metadata. (Context: all)"
+  ],
+  "usd_setprimvar": [
+    "<type> usd_setprimvar(...)",
+    "// Sets the value of a primvar. (Context: all)"
+  ],
+  "usd_setprimvarelement": [
+    "<type> usd_setprimvarelement(...)",
+    "// Sets the value of an element in an array primvar. (Context: all)"
+  ],
+  "usd_setprimvarelementsize": [
+    "<type> usd_setprimvarelementsize(...)",
+    "// Sets the element size of a primvar. (Context: all)"
+  ],
+  "usd_setprimvarindices": [
+    "<type> usd_setprimvarindices(...)",
+    "// Sets the indices for the given primvar. (Context: all)"
+  ],
+  "usd_setprimvarinterpolation": [
+    "<type> usd_setprimvarinterpolation(...)",
+    "// Sets the interpolation of a primvar. (Context: all)"
+  ],
+  "usd_setpurpose": [
+    "<type> usd_setpurpose(...)",
+    "// Sets the primitive's purpose. (Context: all)"
+  ],
+  "usd_setrelationshiptargets": [
+    "<type> usd_setrelationshiptargets(...)",
+    "// Sets the targets in the primitive's relationship (Context: all)"
+  ],
+  "usd_settransformorder": [
+    "<type> usd_settransformorder(...)",
+    "// Sets the primitive's transform order (Context: all)"
+  ],
+  "usd_settransformreset": [
+    "<type> usd_settransformreset(...)",
+    "// Sets/clears the primitive's transform reset flag (Context: all)"
+  ],
+  "usd_setvariantselection": [
+    "<type> usd_setvariantselection(...)",
+    "// Sets the selected variant in the given variant set. (Context: all)"
+  ],
+  "usd_setvisibility": [
+    "<type> usd_setvisibility(...)",
+    "// Configures the primitive to be visible, invisible, or to inherit visibility\nfrom the parent. (Context: all)"
+  ],
+  "usd_setvisible": [
+    "<type> usd_setvisible(...)",
+    "// Makes the primitive visible or invisible. (Context: all)"
+  ],
+  "usd_specifier": [
+    "<type> usd_specifier(...)",
+    "// Returns the primitive's specifier. (Context: all)"
+  ],
+  "usd_transformname": [
+    "<type> usd_transformname(...)",
+    "// Constructs a full name of a transform operation (Context: all)"
+  ],
+  "usd_transformorder": [
+    "<type> usd_transformorder(...)",
+    "// Obtains the primitive's transform order (Context: all)"
+  ],
+  "usd_transformsuffix": [
+    "<type> usd_transformsuffix(...)",
+    "// Extracts the transform operation suffix from the full name (Context: all)"
+  ],
+  "usd_transformtype": [
+    "<type> usd_transformtype(...)",
+    "// Infers the transform operation type from the full name (Context: all)"
+  ],
+  "usd_typename": [
+    "<type> usd_typename(...)",
+    "// Returns the name of the primitive's type. (Context: all)"
+  ],
+  "usd_uniquetransformname": [
+    "<type> usd_uniquetransformname(...)",
+    "// Constructs a unique full name of a transform operation (Context: all)"
+  ],
+  "usd_variants": [
+    "<type> usd_variants(...)",
+    "// Returns the variants belonging to the given variant set on a primitive. (Context: all)"
+  ],
+  "usd_variantselection": [
+    "<type> usd_variantselection(...)",
+    "// Returns the currently selected variant in a given variant set. (Context: all)"
+  ],
+  "usd_variantsets": [
+    "<type> usd_variantsets(...)",
+    "// Returns the variant sets available on a primitive. (Context: all)"
+  ],
+  "usd_worldtransform": [
+    "<type> usd_worldtransform(...)",
+    "// Obtains the primitive's world transform (Context: all)"
+  ],
+  "uvdist": [
+    "<type> uvdist(...)",
+    "// Finds the distance of a uv coordinate to a geometry in uv space. (Context: all)"
+  ],
+  "uvintersect": [
+    "<type> uvintersect(...)",
+    "// This function computes the intersection of the specified ray with the geometry in uv space. (Context: all)"
+  ],
+  "uvsample": [
+    "<type> uvsample(...)",
+    "// Interpolates the value of an attribute at certain UV coordinates using a UV attribute. (Context: all)"
+  ],
+  "uvunwrap": [
+    "<type> uvunwrap(...)",
+    "// Computes the position and normal at given (u, v) coordinates, for use in a lens shader. (Context: all)"
+  ],
+  "variance": [
+    "<type> variance(...)",
+    "// Computes the mean value and variance for a value. (Context: all)"
+  ],
+  "velocityname": [
+    "<type> velocityname(...)",
+    "// Returns the default name of the velocity plane (as it appears in the\ncompositor preferences). (Context: cop2)"
+  ],
+  "vertex": [
+    "<type> vertex(...)",
+    "// Reads a vertex attribute value from a geometry. (Context: all)"
+  ],
+  "vertexattrib": [
+    "<type> vertexattrib(...)",
+    "// Reads a vertex attribute value from a geometry. (Context: all)"
+  ],
+  "vertexattribsize": [
+    "<type> vertexattribsize(...)",
+    "// Returns the size of a geometry vertex attribute. (Context: all)"
+  ],
+  "vertexattribtype": [
+    "<type> vertexattribtype(...)",
+    "// Returns the type of a geometry vertex attribute. (Context: all)"
+  ],
+  "vertexattribtypeinfo": [
+    "<type> vertexattribtypeinfo(...)",
+    "// Returns the type info of a geometry attribute. (Context: all)"
+  ],
+  "vertexcurveparam": [
+    "<type> vertexcurveparam(...)",
+    "// Returns the parametric coordinate of a vertex along the perimeter of\nits primitive. (Context: all)"
+  ],
+  "vertexhedge": [
+    "<type> vertexhedge(...)",
+    "// Returns the half-edge which has a vertex as source. (Context: all)"
+  ],
+  "vertexindex": [
+    "<type> vertexindex(...)",
+    "// Converts a primitive/vertex pair into a linear vertex. (Context: all)"
+  ],
+  "vertexnext": [
+    "<type> vertexnext(...)",
+    "// Returns the linear vertex number of the next vertex sharing a point with a given vertex. (Context: all)"
+  ],
+  "vertexpoint": [
+    "<type> vertexpoint(...)",
+    "// Returns the point number of linear vertex in a geometry. (Context: all)"
+  ],
+  "vertexprev": [
+    "<type> vertexprev(...)",
+    "// Returns the linear vertex number of the previous vertex sharing a point with a given vertex. (Context: all)"
+  ],
+  "vertexprim": [
+    "<type> vertexprim(...)",
+    "// Returns the number of the primitive containing a given vertex. (Context: all)"
+  ],
+  "vertexprimindex": [
+    "<type> vertexprimindex(...)",
+    "// Converts a linear vertex index into a primitive vertex number. (Context: all)"
+  ],
+  "vnoise": [
+    "<type> vnoise(...)",
+    "// Generates Voronoi (cellular) noise. (Context: all)"
+  ],
+  "volume": [
+    "<type> volume(...)",
+    "// Returns the volume of the microvoxel containing a variable such as P. (Context: all)"
+  ],
+  "volumecubicsample": [
+    "<type> volumecubicsample(...)",
+    "// Samples the volume primitive's value. (Context: all)"
+  ],
+  "volumecubicsamplev": [
+    "<type> volumecubicsamplev(...)",
+    "// Samples the volume primitive's value. (Context: all)"
+  ],
+  "volumegradient": [
+    "<type> volumegradient(...)",
+    "// Calculates the volume primitive's gradient. (Context: all)"
+  ],
+  "volumeindex": [
+    "<type> volumeindex(...)",
+    "// Gets the value of a specific voxel. (Context: all)"
+  ],
+  "volumeindexactive": [
+    "<type> volumeindexactive(...)",
+    "// Gets the active setting of a specific voxel. (Context: all)"
+  ],
+  "volumeindexi": [
+    "<type> volumeindexi(...)",
+    "// Gets the integer value of a specific voxel. (Context: all)"
+  ],
+  "volumeindexorigin": [
+    "<type> volumeindexorigin(...)",
+    "// Gets the index of the bottom left of a volume primitive. (Context: all)"
+  ],
+  "volumeindexp": [
+    "<type> volumeindexp(...)",
+    "// Gets the vector4 value of a specific voxel. (Context: all)"
+  ],
+  "volumeindextopos": [
+    "<type> volumeindextopos(...)",
+    "// Converts a volume voxel index into a position. (Context: all)"
+  ],
+  "volumeindexu": [
+    "<type> volumeindexu(...)",
+    "// Gets the vector2 value of a specific voxel. (Context: all)"
+  ],
+  "volumeindexv": [
+    "<type> volumeindexv(...)",
+    "// Gets the vector value of a specific voxel. (Context: all)"
+  ],
+  "volumepostoindex": [
+    "<type> volumepostoindex(...)",
+    "// Converts a position into a volume voxel index. (Context: all)"
+  ],
+  "volumeres": [
+    "<type> volumeres(...)",
+    "// Gets the resolution of a volume primitive. (Context: all)"
+  ],
+  "volumesample": [
+    "<type> volumesample(...)",
+    "// Samples the volume primitive's float value. (Context: all)"
+  ],
+  "volumesamplei": [
+    "<type> volumesamplei(...)",
+    "// Samples the volume primitive's integer value. (Context: all)"
+  ],
+  "volumesamplep": [
+    "<type> volumesamplep(...)",
+    "// Samples the volume primitive's vector4 value. (Context: all)"
+  ],
+  "volumesampleu": [
+    "<type> volumesampleu(...)",
+    "// Samples the volume primitive's vector2 value. (Context: all)"
+  ],
+  "volumesamplev": [
+    "<type> volumesamplev(...)",
+    "// Samples the volume primitive's vector value. (Context: all)"
+  ],
+  "volumesmoothsample": [
+    "<type> volumesmoothsample(...)",
+    "// Samples the volume primitive's value. (Context: all)"
+  ],
+  "volumesmoothsamplev": [
+    "<type> volumesmoothsamplev(...)",
+    "// Samples the volume primitive's value. (Context: all)"
+  ],
+  "volumetypeid": [
+    "<type> volumetypeid(...)",
+    "// Gets the typeid of the data of a volume or VDB primitive. (Context: all)"
+  ],
+  "volumevoxeldiameter": [
+    "<type> volumevoxeldiameter(...)",
+    "// Computes the approximate diameter of a voxel. (Context: all)"
+  ],
+  "vtransform": [
+    "<type> vtransform(...)",
+    "// Transforms a directional vector. (Context: all)"
+  ],
+  "warning": [
+    "<type> warning(...)",
+    "// Reports a custom runtime VEX warning. (Context: all)"
+  ],
+  "weightarrayblend": [
+    "<type> weightarrayblend(...)",
+    "// Blends an existing name/weight array pair with another array or named item. (Context: all)"
+  ],
+  "weightarrayfromname": [
+    "<type> weightarrayfromname(...)",
+    "// Initializes an index array and weight array pair with a single named entry. (Context: all)"
+  ],
+  "weightarraynormalize": [
+    "<type> weightarraynormalize(...)",
+    "// Normalizes an array of floats so it sums to `1.0`. (Context: all)"
+  ],
+  "weightarraythreshold": [
+    "<type> weightarraythreshold(...)",
+    "// Discards any weights below a threshold from an name/weight array pair. (Context: all)"
+  ],
+  "windingnumber": [
+    "<type> windingnumber(...)",
+    "// Computes the winding number of a mesh around a point. (Context: all)"
+  ],
+  "windingnumber2d": [
+    "<type> windingnumber2d(...)",
+    "// Computes the winding number of a curve in XY plane around a\npoint. (Context: all)"
+  ],
+  "wireblinn": [
+    "<type> wireblinn(...)"
+  ],
+  "wirediffuse": [
+    "<type> wirediffuse(...)"
+  ],
+  "wnoise": [
+    "<type> wnoise(...)",
+    "// Generates Worley (cellular) noise. (Context: all)"
+  ],
+  "wo_nspace": [
+    "<type> wo_nspace(...)",
+    "// Transforms a normal vector from World to Object space. (Context: all)"
+  ],
+  "wo_space": [
+    "<type> wo_space(...)",
+    "// Transforms a position value from World to Object space. (Context: all)"
+  ],
+  "wo_vspace": [
+    "<type> wo_vspace(...)",
+    "// Transforms a direction vector from World to Object space. (Context: all)"
+  ],
+  "writepixel": [
+    "<type> writepixel(...)",
+    "// Writes color information to a pixel in the output image (Context: shading)"
+  ],
+  "wt_nspace": [
+    "<type> wt_nspace(...)",
+    "// Transforms a normal vector from World to Texture space. (Context: all)"
+  ],
+  "wt_space": [
+    "<type> wt_space(...)",
+    "// Transforms a position value from World to Texture space. (Context: all)"
+  ],
+  "wt_vspace": [
+    "<type> wt_vspace(...)",
+    "// Transforms a direction vector from World to Texture space. (Context: all)"
+  ],
+  "xnoise": [
+    "<type> xnoise(...)",
+    "// Simplex noise is very close to Perlin noise, except with the samples on a simplex mesh rather than a grid.  This results in less grid artifacts.  It also uses a higher order bspline to provide better derivatives. (Context: all)"
+  ],
+  "xnoised": [
+    "<type> xnoised(...)",
+    "// Derivatives of Simplex Noise. (Context: all)"
+  ],
+  "xyzdist": [
+    "<type> xyzdist(...)",
+    "// Finds the distance from a point to the closest location on surface geometry. (Context: all)"
+  ],
+  "xyztorgb": [
+    "<type> xyztorgb(...)",
+    "// Convert CIE XYZ tristimulus values to a linear sRGB triplet. (Context: all)"
+  ],
+  "_adaptive_variadic": [
+    "<type> _adaptive_variadic(...)"
+  ],
+  "_area_variadic": [
+    "<type> _area_variadic(...)"
+  ],
+  "_bias_variadic": [
+    "<type> _bias_variadic(...)"
+  ],
+  "_common": [
+    "<type> _common(...)"
+  ],
+  "_derive_variadic": [
+    "<type> _derive_variadic(...)"
+  ],
+  "_gather_variadic": [
+    "<type> _gather_variadic(...)"
+  ],
+  "_imagefilter_variadic": [
+    "<type> _imagefilter_variadic(...)"
+  ],
+  "_lightmask_variadic": [
+    "<type> _lightmask_variadic(...)"
+  ],
+  "_rayopts_variadic": [
+    "<type> _rayopts_variadic(...)"
+  ],
+  "_space_args": [
+    "<type> _space_args(...)"
+  ],
+  "__uniform_mul": [
+    "<type> __uniform_mul(...)",
+    "// Multiply matrices. (Context: all)"
+  ],
+  "__uniform_premul": [
+    "<type> __uniform_premul(...)",
+    "// Pre multiply matrices. (Context: all)"
+  ]
+}
