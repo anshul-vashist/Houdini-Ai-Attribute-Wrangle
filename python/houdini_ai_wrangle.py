@@ -1182,16 +1182,34 @@ def navigate_history_version(node: hou.Node, direction: int):
             hou.ui.displayMessage("No history recorded yet.", severity=hou.severityType.Warning)
         return
 
-    current_code = node.parm("snippet").eval().strip() if node.parm("snippet") else ""
+    # Determine current index from version_info parm (reliable, not content-based)
+    info_parm = _get_info_parm(node)
     current_idx = len(history) - 1
-    
-    for i, item in enumerate(history):
-        if item.get("code", "").strip() == current_code:
-            current_idx = i
-            break
+    if info_parm:
+        ver_str = info_parm.eval()  # e.g. "v5 / 11 (20:10:13)"
+        try:
+            # Parse "vX / Y (HH:MM:SS)" -> X-1 (0-based)
+            current_ver_num = int(ver_str.split("/")[0].strip().lstrip("v"))
+            # Find the matching history entry by version number
+            for i, item in enumerate(history):
+                if item.get("version") == current_ver_num:
+                    current_idx = i
+                    break
+        except (ValueError, IndexError):
+            # Fallback: search by content match
+            current_code = node.parm("snippet").eval().strip() if node.parm("snippet") else ""
+            for i, item in enumerate(history):
+                if item.get("code", "").strip() == current_code:
+                    current_idx = i
+                    break
 
     target_idx = max(0, min(len(history) - 1, current_idx + direction))
     if target_idx == current_idx:
+        if hou.isUIAvailable():
+            hou.ui.setStatusMessage(
+                "Already at first version." if direction < 0 else "Already at latest version.",
+                severity=hou.severityType.Message
+            )
         return
 
     target_entry = history[target_idx]
@@ -1199,7 +1217,7 @@ def navigate_history_version(node: hou.Node, direction: int):
 
     node.parm("snippet").set(target_code)
     sync_spare_parameters(node, target_code)
-    
+
     if node.parm("ai_thought_trace") and "thought" in target_entry:
         node.parm("ai_thought_trace").set(target_entry["thought"] or "Turbo mode (direct execution)")
 
@@ -1208,12 +1226,12 @@ def navigate_history_version(node: hou.Node, direction: int):
     except Exception:
         pass
 
-    info_parm = _get_info_parm(node)
     status_parm = _get_status_parm(node)
     if info_parm:
         info_parm.set(f"v{target_entry['version']} / {len(history)} ({target_entry['timestamp']})")
     if status_parm:
-        status_parm.set(f"Loaded {target_entry['prompt']}")
+        status_parm.set(f"Loaded v{target_entry['version']}: {target_entry['prompt']}")
+
 
 
 # ---------------------------------------------------------------------------
@@ -1594,8 +1612,25 @@ def setup_ai_parameters(node: hou.Node) -> bool:
         return False
 
     ptg = node.parmTemplateGroup()
-    if ptg.find("ai_folder"):
+    # Use ai_generate as the guard - it's a leaf parm that Houdini won't silently rename
+    if ptg.find("ai_generate") or ptg.find("ai_folder"):
         return True
+
+    # Strip any stale spare parms (e.g. ripple_freq / ripple_amp left from prior generations)
+    _known_base_parms = {
+        "snippet", "group", "grouptype", "class", "exportlist",
+        "autobind", "bindings", "groupautobind", "groupbindings",
+        "vex_cwdpath", "vex_outputmask", "vex_updatenmls",
+        "vex_matchattrib", "vex_inplace", "vex_selectiongroup",
+        "vex_precision", "vex_numcount", "vex_threadjobsize",
+        "vex_strict", "vex_strictvariables", "ai_spare_parms",
+    }
+    for e in list(ptg.entriesWithoutFolders()):
+        if e.name() not in _known_base_parms and not e.name().startswith("ai_"):
+            try:
+                ptg.remove(e)
+            except Exception:
+                pass
 
     # Main Tabbed Container
     ai_tabs = hou.FolderParmTemplate("ai_folder", "AI VEX Copilot v3.5", folder_type=hou.folderType.Tabs)
@@ -2461,12 +2496,27 @@ def on_fork_branch_clicked(kwargs):
         return
 
     with hou.undos.group("Fork AI Wrangle Variant"):
-        snip_a = node.parm("ai_snippet_a").eval() if node.parm("ai_snippet_a") and node.parm("ai_snippet_a").eval() else node.parm("snippet").eval()
-        snip_b = node.parm("ai_snippet_b").eval() if node.parm("ai_snippet_b") else ""
+        curr_code = node.parm("snippet").eval() if node.parm("snippet") else ""
 
-        if not snip_b:
+        # Always capture current snippet as Variant A
+        snip_a_parm = node.parm("ai_snippet_a")
+        if snip_a_parm and not snip_a_parm.eval().strip():
+            snip_a_parm.set(curr_code)
+
+        snip_a = snip_a_parm.eval() if snip_a_parm else curr_code
+        snip_b_parm = node.parm("ai_snippet_b")
+        snip_b = snip_b_parm.eval() if snip_b_parm else ""
+
+        if not snip_b.strip():
             if hou.isUIAvailable():
-                hou.ui.displayMessage("Variant B is currently empty. Generate or paste code into Variant B first.", severity=hou.severityType.Warning)
+                hou.ui.displayMessage(
+                    "Variant A has been captured from the current snippet.\n\n"
+                    "To complete the A/B fork:\n"
+                    "1. Generate or Refine to create the second variant.\n"
+                    "2. Press '🌿 Fork to Branch Node & Switch' again.\n\n"
+                    "The fork will create a Switch SOP for live A/B comparison.",
+                    severity=hou.severityType.Message
+                )
             return
 
         fork_name = f"{node.name()}_variantB"
