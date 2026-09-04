@@ -89,9 +89,18 @@ def main() -> None:
     finally:
         geo.destroy()
 
-    required = {"ai_status", "ai_perf", "ai_model_info", "ai_history_json", "ai_version_info", "ai_thought_trace", "ai_compact_mode"}
+    required = {"ai_status", "ai_perf", "ai_model_info", "ai_history_json", "ai_version_info", "ai_thought_trace", "ai_generate", "ai_prompt"}
     installed = hou.hda.definitionsInFile(str(HDA_PATH))[0]
-    found = {parm.name() for parm in installed.parmTemplateGroup().entriesWithoutFolders()}
+
+    def _collect_parm_names(templates):
+        names = set()
+        for t in templates:
+            names.add(t.name())
+            if isinstance(t, hou.FolderParmTemplate):
+                names.update(_collect_parm_names(t.parmTemplates()))
+        return names
+
+    found = _collect_parm_names(installed.parmTemplateGroup().entries())
     missing = required - found
     if missing:
         raise RuntimeError(f"Regenerated HDA is missing required parameters: {sorted(missing)}")

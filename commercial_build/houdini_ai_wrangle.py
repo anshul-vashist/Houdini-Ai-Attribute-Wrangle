@@ -1602,7 +1602,7 @@ def toggle_viewport_visualizer(node: hou.Node, vis_type: str, attr_name: str, en
 
 
 # ---------------------------------------------------------------------------
-# Node Parameter Setup (v3.5 Layout)
+# Node Parameter Setup (v4.0 — Clean & Focused)
 # ---------------------------------------------------------------------------
 
 def setup_ai_parameters(node: hou.Node) -> bool:
@@ -1612,11 +1612,11 @@ def setup_ai_parameters(node: hou.Node) -> bool:
         return False
 
     ptg = node.parmTemplateGroup()
-    # Use ai_generate as the guard - it's a leaf parm that Houdini won't silently rename
+    # Guard: ai_generate is a leaf parm Houdini won't silently rename
     if ptg.find("ai_generate") or ptg.find("ai_folder"):
         return True
 
-    # Strip any stale spare parms (e.g. ripple_freq / ripple_amp left from prior generations)
+    # Strip stale spare parms from previous sessions
     _known_base_parms = {
         "snippet", "group", "grouptype", "class", "exportlist",
         "autobind", "bindings", "groupautobind", "groupbindings",
@@ -1632,306 +1632,89 @@ def setup_ai_parameters(node: hou.Node) -> bool:
             except Exception:
                 pass
 
-    # Main Tabbed Container
-    ai_tabs = hou.FolderParmTemplate("ai_folder", "AI VEX Copilot v3.5", folder_type=hou.folderType.Tabs)
-
     # =========================================================================
-    # TAB 1: 🪄 Generate (Daily Workflow & Core Engine)
+    # MAIN PANEL — flat Simple folder (no tabs, no clutter)
     # =========================================================================
-    tab_gen = hou.FolderParmTemplate("tab_generate", "🪄 Generate", folder_type=hou.folderType.Simple)
+    ai_folder = hou.FolderParmTemplate(
+        "ai_folder", "AI VEX Copilot",
+        folder_type=hou.folderType.Simple
+    )
 
+    # ── 1. Prompt ─────────────────────────────────────────────────────────────
     prompt_parm = hou.StringParmTemplate(
         name="ai_prompt",
-        label="Task Prompt",
+        label="Prompt",
         num_components=1,
-        default_value=([""]),
+        default_value=[""],
         string_type=hou.stringParmType.Regular,
-        help="Type your natural language procedural or FX task here.\nExample: 'Displace points along @N using curlnoise with frequency slider and color ramp'\nSupports attributes (@P, @v, @Cd, @N, @pscale) and UI channels (chf, chv, chramp)."
+        help=(
+            "Describe what you want in plain English.\n\n"
+            "Examples:\n"
+            "• 'Displace points along normals using noise'\n"
+            "• 'Color points by height with a ramp'\n"
+            "• 'Scatter pscale randomly between 0.01 and 0.1'\n\n"
+            "Supports VEX attributes (@P, @N, @Cd, @v, @pscale), "
+            "UI channels (chf, chv, chramp), and natural language task descriptions."
+        )
     )
-    prompt_parm.setTags({"multiline": "1", "editor": "1"})
+    prompt_parm.setTags({"multiline": "1", "editor": "1", "editorlang": "vex"})
 
-    # Context & Reasoning Toggles Row
-    autodetect_parm = hou.ToggleParmTemplate(
-        name="ai_autodetect",
-        label="Auto-Detect Schema & Class",
-        default_value=True,
-        help="When enabled, automatically inspects upstream geometry schema (attributes, groups, bounding box, volume fields) and determines the target execution class (Point, Primitive, Detail, or Vertex)."
-    )
-    autodetect_parm.setJoinWithNext(True)
-
-    reasoning_parm = hou.ToggleParmTemplate(
-        name="ai_reasoning_mode",
-        label="🧠 Deep Reasoning Mode (CoT)",
-        default_value=False,
-        help="🧠 Deep Reasoning Mode (CoT):\nWhen enabled, the AI generates a step-by-step mathematical reasoning blueprint (<think> trace) before writing code. Ideal for complex multi-pass algorithms, spatial packing, and custom physics solvers.\nWhen disabled, Turbo Mode generates pure VEX in 1-2s."
-    )
-    reasoning_parm.setJoinWithNext(True)
-
-    compact_parm = hou.ToggleParmTemplate(
-        name="ai_compact_mode",
-        label="🗕 Compact View",
-        default_value=False,
-        help="🗕 Compact View:\nWhen enabled, minimizes the interface into a sleek, focused workspace by hiding secondary panels (FX Presets, Diagnostics, History, and Studio Tools)."
-    )
-
-    # Action Toolbar Row (Joined horizontally)
+    # ── 2. Action Buttons (single row) ────────────────────────────────────────
     gen_btn = hou.ButtonParmTemplate(
         name="ai_generate",
-        label="🪄 Generate VEX",
+        label="✦ Generate",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_generate_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="🪄 Generate VEX:\nQueries qwen3-vex, compiles the code with live CITL error checking, and automatically creates scale-calibrated interactive UI parameter sliders on this node."
+        help="Generate VEX from your prompt. Uses the AI model to write production-ready VEX code."
     )
     gen_btn.setJoinWithNext(True)
 
     refine_btn = hou.ButtonParmTemplate(
         name="ai_refine",
-        label="🔄 Refine",
+        label="↺ Refine",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_refine_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="🔄 Refine / Iterate:\nModifies existing VEX code conversationally based on your new prompt instructions without losing prior functionality.\nExample: 'Make it faster and add velocity drag'."
+        help="Refine the existing VEX code based on your updated prompt. Preserves the overall structure."
     )
     refine_btn.setJoinWithNext(True)
 
     optimize_btn = hou.ButtonParmTemplate(
         name="ai_optimize",
-        label="⚡ SIMD Optimize",
+        label="⚡ Optimize",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_optimize_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="⚡ Optimize SIMD:\nAutomatically refactors the VEX snippet for high-throughput SIMD parallel performance on multi-million point meshes (hoists loop invariants, vectorizes calculations, eliminates redundant functions)."
+        help="Restructure the VEX for SIMD vectorization and maximum parallelism."
     )
     optimize_btn.setJoinWithNext(True)
 
     explain_btn = hou.ButtonParmTemplate(
         name="ai_explain",
-        label="💡 Document",
+        label="? Document",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_explain_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="💡 Explain & Document:\nAnnotates the VEX code with clean, educational inline comments and parameter docstrings without modifying executable logic."
+        help="Add inline comments and a block header explaining the current VEX code."
     )
 
-    sep_gen = hou.SeparatorParmTemplate("sep_gen")
-
-    # Status & Benchmark Banner Row
+    # ── 3. Status ─────────────────────────────────────────────────────────────
     status_parm = hou.StringParmTemplate(
         name="ai_status",
-        label="Status",
+        label="",
         num_components=1,
-        default_value=(["Ready"]),
+        default_value=["Ready — type a prompt and press Generate."],
         string_type=hou.stringParmType.Regular,
-        help="Displays real-time compilation status, 1-shot CITL repair feedback, or generation errors."
+        help="Shows the current AI engine status, compile result, and timing."
     )
-    status_parm.setJoinWithNext(True)
+    status_parm.setTags({"editable": "0"})
 
-    perf_parm = hou.StringParmTemplate(
-        name="ai_perf",
-        label="Cook Benchmark",
-        num_components=1,
-        default_value=(["Cook: --"]),
-        string_type=hou.stringParmType.Regular,
-        help="Displays live cook execution duration (in milliseconds), processed point count, and compute throughput (Million points / sec)."
-    )
+    sep_top = hou.SeparatorParmTemplate("sep_top")
 
-    tab_gen.addParmTemplate(prompt_parm)
-    tab_gen.addParmTemplate(autodetect_parm)
-    tab_gen.addParmTemplate(reasoning_parm)
-    tab_gen.addParmTemplate(compact_parm)
-    tab_gen.addParmTemplate(gen_btn)
-    tab_gen.addParmTemplate(refine_btn)
-    tab_gen.addParmTemplate(optimize_btn)
-    tab_gen.addParmTemplate(explain_btn)
-    tab_gen.addParmTemplate(sep_gen)
-    tab_gen.addParmTemplate(status_parm)
-    tab_gen.addParmTemplate(perf_parm)
-
-    # =========================================================================
-    # TAB 2: 📚 FX Presets & Variants
-    # =========================================================================
-    tab_presets = hou.FolderParmTemplate("tab_presets", "📚 FX Presets", folder_type=hou.folderType.Simple)
-    tab_presets.setConditional(hou.parmCondType.HideWhen, "{ ai_compact_mode == 1 }")
-
-    preset_items = list(_FX_PRESETS.keys())
-    preset_labels = [_FX_PRESETS[k]["label"] for k in preset_items]
-    preset_menu = hou.MenuParmTemplate(
-        name="ai_preset_menu",
-        label="Procedural Recipe",
-        menu_items=preset_items,
-        menu_labels=preset_labels,
-        default_value=0,
-        help="Choose from 11 verified mathematical and simulation presets."
-    )
-    preset_menu.setJoinWithNext(True)
-
-    load_preset_btn = hou.ButtonParmTemplate(
-        name="ai_load_preset",
-        label="📥 Load Recipe",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_load_preset_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Loads the selected mathematical/FX preset into this wrangle, sets target class, and generates parameters."
-    )
-
-    sep_fx = hou.SeparatorParmTemplate("sep_fx")
-
-    # A/B Variant Comparison (Collapsible)
-    variant_folder = hou.FolderParmTemplate(
-        name="ai_variant_folder",
-        label="🌿 A/B Variant Audition & Branching",
-        folder_type=hou.folderType.Collapsible
-    )
-
-    variant_parm = hou.IntParmTemplate(
-        name="ai_variant",
-        label="Audition Variant",
-        num_components=1,
-        default_value=(0,),
-        menu_items=("0", "1"),
-        menu_labels=("Variant A", "Variant B"),
-        item_generator_script="",
-        menu_type=hou.menuType.Normal,
-        help="Toggle between Variant A and Variant B in real time."
-    )
-    variant_parm.setScriptCallback("import houdini_ai_wrangle; houdini_ai_wrangle.on_variant_changed(kwargs)")
-    variant_parm.setScriptCallbackLanguage(hou.scriptLanguage.Python)
-    variant_parm.setJoinWithNext(True)
-
-    fork_btn = hou.ButtonParmTemplate(
-        name="ai_fork_branch",
-        label="🌿 Fork to Branch Node & Switch",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_fork_branch_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Duplicates this node into a sibling with Variant B, connecting both to a Switch SOP."
-    )
-
-    snip_a = hou.StringParmTemplate("ai_snippet_a", "Snippet A", 1, default_value=([""]), tags={"hide": "1"})
-    snip_b = hou.StringParmTemplate("ai_snippet_b", "Snippet B", 1, default_value=([""]), tags={"hide": "1"})
-
-    variant_folder.addParmTemplate(variant_parm)
-    variant_folder.addParmTemplate(fork_btn)
-    variant_folder.addParmTemplate(snip_a)
-    variant_folder.addParmTemplate(snip_b)
-
-    tab_presets.addParmTemplate(preset_menu)
-    tab_presets.addParmTemplate(load_preset_btn)
-    tab_presets.addParmTemplate(sep_fx)
-    tab_presets.addParmTemplate(variant_folder)
-
-    # =========================================================================
-    # TAB 3: 🛡️ Diagnostics & Viewport
-    # =========================================================================
-    tab_diag = hou.FolderParmTemplate("tab_diagnostics", "🛡️ Diagnostics", folder_type=hou.folderType.Simple)
-    tab_diag.setConditional(hou.parmCondType.HideWhen, "{ ai_compact_mode == 1 }")
-
-    sanitize_btn = hou.ButtonParmTemplate(
-        name="ai_sanitize_guards",
-        label="🛡️ Sanitize NaNs & Infs",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_sanitize_guards_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Refactors the code to add protective mathematical clamps on trig, division, and sqrt."
-    )
-    sanitize_btn.setJoinWithNext(True)
-
-    stats_btn = hou.ButtonParmTemplate(
-        name="ai_inspect_stats",
-        label="📊 Inspect Attrib Stats",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_inspect_stats_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Scans geometry attributes, computing min, max, average, and reporting any corrupt NaN/Inf floats."
-    )
-
-    sep_diag = hou.SeparatorParmTemplate("sep_diag")
-
-    # Collapsible Viewport Visualizers
-    vis_folder = hou.FolderParmTemplate(
-        name="ai_vis_folder",
-        label="👁️ Viewport Visualizers (Vectors & Heatmaps)",
-        folder_type=hou.folderType.Collapsible
-    )
-
-    vis_vec_toggle = hou.ToggleParmTemplate(
-        name="ai_vis_vector_toggle",
-        label="Show 3D Vectors",
-        default_value=False,
-        help="Enables 3D vector visualizer in viewport."
-    )
-    vis_vec_toggle.setScriptCallback("import houdini_ai_wrangle; houdini_ai_wrangle.on_vis_vector_toggle(kwargs)")
-    vis_vec_toggle.setScriptCallbackLanguage(hou.scriptLanguage.Python)
-    vis_vec_toggle.setJoinWithNext(True)
-
-    vis_vec_attr = hou.StringParmTemplate(
-        name="ai_vis_vector_attr",
-        label="Vector Attrib",
-        num_components=1,
-        default_value=(["v"]),
-        help="Vector attribute to display (e.g. v, N, tangentu)."
-    )
-
-    vis_col_toggle = hou.ToggleParmTemplate(
-        name="ai_vis_color_toggle",
-        label="Show Heatmap",
-        default_value=False,
-        help="Colors geometry according to attribute magnitude."
-    )
-    vis_col_toggle.setScriptCallback("import houdini_ai_wrangle; houdini_ai_wrangle.on_vis_color_toggle(kwargs)")
-    vis_col_toggle.setScriptCallbackLanguage(hou.scriptLanguage.Python)
-    vis_col_toggle.setJoinWithNext(True)
-
-    vis_col_attr = hou.StringParmTemplate(
-        name="ai_vis_color_attr",
-        label="Heatmap Attrib",
-        num_components=1,
-        default_value=(["speed"]),
-        help="Float attribute to display as heatmap."
-    )
-
-    vis_folder.addParmTemplate(vis_vec_toggle)
-    vis_folder.addParmTemplate(vis_vec_attr)
-    vis_folder.addParmTemplate(vis_col_toggle)
-    vis_folder.addParmTemplate(vis_col_attr)
-
-    tab_diag.addParmTemplate(sanitize_btn)
-    tab_diag.addParmTemplate(stats_btn)
-    tab_diag.addParmTemplate(sep_diag)
-    tab_diag.addParmTemplate(vis_folder)
-
-    # =========================================================================
-    # TAB 4: ⏳ History & Reasoning (Collapsible & Minimizable)
-    # =========================================================================
-    tab_hist = hou.FolderParmTemplate("tab_history", "⏳ History", folder_type=hou.folderType.Simple)
-    tab_hist.setConditional(hou.parmCondType.HideWhen, "{ ai_compact_mode == 1 }")
-
-    # Quick Action Toolbar for minimizing / expanding panels
-    collapse_btn = hou.ButtonParmTemplate(
-        name="ai_collapse_history_all",
-        label="🗕 Minimize All",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_collapse_history_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Minimize both the Version History stack and Reasoning Monologue panels into sleek accordion bars."
-    )
-    collapse_btn.setJoinWithNext(True)
-
-    expand_btn = hou.ButtonParmTemplate(
-        name="ai_expand_history_all",
-        label="🗖 Expand All",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_expand_history_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Expand both the Version History stack and Reasoning Monologue panels."
-    )
-
-    sep_hist_top = hou.SeparatorParmTemplate("sep_hist_top")
-
-    # Collapsible Version History Stack
-    hist_folder = hou.FolderParmTemplate(
-        name="ai_history_folder",
-        label="⏳ Time Machine Version History",
-        folder_type=hou.folderType.Collapsible
-    )
-
+    # ── 4. Version History (inline row) ───────────────────────────────────────
     prev_btn = hou.ButtonParmTemplate(
         name="ai_prev_version",
-        label="◀ Prev Version",
+        label="◀ Prev",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_prev_version_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="◀ Prev Version:\nRolls back non-destructively to the previous working VEX iteration in the Time Machine history stack."
+        help="Roll back to the previous generated VEX version."
     )
     prev_btn.setJoinWithNext(True)
 
@@ -1939,113 +1722,283 @@ def setup_ai_parameters(node: hou.Node) -> bool:
         name="ai_version_info",
         label="Version",
         num_components=1,
-        default_value=(["v1 / 1 (Initial)"]),
+        default_value=["—"],
         string_type=hou.stringParmType.Regular,
-        help="Displays current active version number, total recorded versions, and timestamp."
+        help="Current version / total versions and timestamp."
     )
+    version_info_parm.setTags({"editable": "0"})
     version_info_parm.setJoinWithNext(True)
 
     next_btn = hou.ButtonParmTemplate(
         name="ai_next_version",
-        label="▶ Next Version",
+        label="Next ▶",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_next_version_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="▶ Next Version:\nNavigates forward to the next recorded VEX iteration in the Time Machine history stack."
+        help="Step forward to the next generated VEX version."
     )
 
-    history_json_parm = hou.StringParmTemplate(
-        name="ai_history_json",
-        label="History Data",
-        num_components=1,
-        default_value=(["[]"]),
-        string_type=hou.stringParmType.Regular
+    sep_mid = hou.SeparatorParmTemplate("sep_mid")
+
+    # ── 5. Preset Menu (inline row) ───────────────────────────────────────────
+    preset_items = list(_FX_PRESETS.keys())
+    preset_labels = [_FX_PRESETS[k]["label"] for k in preset_items]
+
+    preset_menu = hou.MenuParmTemplate(
+        name="ai_preset_menu",
+        label="Preset",
+        menu_items=preset_items,
+        menu_labels=preset_labels,
+        help="Choose a built-in FX recipe to load as your starting point."
     )
-    history_json_parm.setTags({"hide": "1"})
+    preset_menu.setJoinWithNext(True)
 
-    hist_folder.addParmTemplate(prev_btn)
-    hist_folder.addParmTemplate(version_info_parm)
-    hist_folder.addParmTemplate(next_btn)
-    hist_folder.addParmTemplate(history_json_parm)
+    load_preset_btn = hou.ButtonParmTemplate(
+        name="ai_load_preset",
+        label="Load",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_load_preset_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Load the selected preset into the VEX snippet and cook immediately."
+    )
 
-    # Collapsible Reasoning Monologue (Chain of Thought)
-    thought_folder = hou.FolderParmTemplate(
-        name="ai_thought_folder",
-        label="🧠 Reasoning Monologue (Chain of Thought)",
+    sep_adv = hou.SeparatorParmTemplate("sep_adv")
+
+    # ── 6. Advanced (collapsible, closed by default) ───────────────────────────
+    adv_folder = hou.FolderParmTemplate(
+        name="ai_advanced_folder",
+        label="Advanced Options",
         folder_type=hou.folderType.Collapsible
     )
 
-    thought_parm = hou.StringParmTemplate(
-        name="ai_thought_trace",
-        label="Reasoning Trace",
-        num_components=1,
-        default_value=(["No thought trace recorded yet."]),
-        string_type=hou.stringParmType.Regular,
-        tags={"editor": "1", "multiline": "1"},
-        help="Displays the AI's internal Chain-of-Thought reasoning monologue, vector space analysis, and mathematical blueprint generated during Deep Reasoning Mode."
+    # Toggles row
+    autodetect_parm = hou.ToggleParmTemplate(
+        name="ai_autodetect",
+        label="Auto-Detect Class",
+        default_value=True,
+        help=(
+            "Automatically infers the wrangle execution class (Point, Primitive, "
+            "Detail, Vertex) from your prompt. Disable to lock the class manually."
+        )
     )
-    thought_folder.addParmTemplate(thought_parm)
+    autodetect_parm.setJoinWithNext(True)
 
-    tab_hist.addParmTemplate(collapse_btn)
-    tab_hist.addParmTemplate(expand_btn)
-    tab_hist.addParmTemplate(sep_hist_top)
-    tab_hist.addParmTemplate(hist_folder)
-    tab_hist.addParmTemplate(thought_folder)
+    reasoning_parm = hou.ToggleParmTemplate(
+        name="ai_reasoning_mode",
+        label="Deep Reasoning",
+        default_value=False,
+        help=(
+            "Deep Reasoning Mode: the AI thinks step-by-step before writing code. "
+            "Best for complex algorithms, custom physics, spatial math. "
+            "Slower (~30–90s) but significantly more accurate on hard problems."
+        )
+    )
 
-    # =========================================================================
-    # TAB 5: 🛠️ Studio Tools
-    # =========================================================================
-    tab_tools = hou.FolderParmTemplate("tab_tools", "🛠️ Studio Tools", folder_type=hou.folderType.Simple)
-    tab_tools.setConditional(hou.parmCondType.HideWhen, "{ ai_compact_mode == 1 }")
+    sep_adv2 = hou.SeparatorParmTemplate("sep_adv2")
+
+    # Utility buttons row
+    sanitize_btn = hou.ButtonParmTemplate(
+        name="ai_sanitize_guards",
+        label="🛡 Sanitize",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_sanitize_guards_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Inject safety guards (clamp acos/asin, protect sqrt/log/div-by-zero) into the VEX code."
+    )
+    sanitize_btn.setJoinWithNext(True)
+
+    stats_btn = hou.ButtonParmTemplate(
+        name="ai_inspect_stats",
+        label="📊 Stats",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_inspect_stats_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Inspect attribute statistics (min, max, mean) for all attributes in the upstream geometry."
+    )
+    stats_btn.setJoinWithNext(True)
 
     help_btn = hou.ButtonParmTemplate(
         name="ai_generate_help",
-        label="📝 Generate Help Card",
+        label="📝 Help Card",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_generate_help_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Generates an official SideFX documentation card explaining inputs, algorithms, and parameters."
+        help="Generate an official SideFX-style documentation help card for this node."
     )
     help_btn.setJoinWithNext(True)
 
     export_btn = hou.ButtonParmTemplate(
         name="ai_export_header",
-        label="💾 Export to VEX Library (.h)",
+        label="💾 Export .h",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_export_header_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Wraps snippet into a clean VEX header and saves to $HOUDINI_USER_PREF_DIR/vex/include/."
+        help="Export the VEX code as a reusable .h header file for inclusion in other wrangles."
     )
 
-    sep_tools = hou.SeparatorParmTemplate("sep_tools")
+    sep_adv3 = hou.SeparatorParmTemplate("sep_adv3")
 
+    # Viewport visualizers
+    vis_vec_toggle = hou.ToggleParmTemplate(
+        name="ai_vis_vector_toggle",
+        label="Vector Overlay",
+        default_value=False,
+        help="Draw vector arrows in the viewport for the selected vector attribute."
+    )
+    vis_vec_toggle.setJoinWithNext(True)
+
+    vis_vec_attr = hou.StringParmTemplate(
+        name="ai_vis_vector_attr",
+        label="",
+        num_components=1,
+        default_value=["v"],
+        string_type=hou.stringParmType.Regular,
+        help="Name of the vector attribute to visualize."
+    )
+
+    vis_col_toggle = hou.ToggleParmTemplate(
+        name="ai_vis_color_toggle",
+        label="Heatmap Overlay",
+        default_value=False,
+        help="Display a color heatmap in the viewport for the selected float attribute."
+    )
+    vis_col_toggle.setJoinWithNext(True)
+
+    vis_col_attr = hou.StringParmTemplate(
+        name="ai_vis_color_attr",
+        label="",
+        num_components=1,
+        default_value=["density"],
+        string_type=hou.stringParmType.Regular,
+        help="Name of the float attribute to display as a heatmap."
+    )
+
+    sep_adv4 = hou.SeparatorParmTemplate("sep_adv4")
+
+    # Model info (read-only, subtle)
     model_info_parm = hou.StringParmTemplate(
         name="ai_model_info",
-        label="🧠 Active Neural Model",
+        label="Model",
         num_components=1,
-        default_value=([get_active_ai_model_display_string()]),
+        default_value=[get_active_ai_model_display_string()],
         string_type=hou.stringParmType.Regular,
-        help="Displays the base LLM model and fine-tuned LoRA adapter currently loaded in the AI inference engine."
+        help="Active AI model loaded in the embedded inference engine."
+    )
+    model_info_parm.setTags({"editable": "0"})
+
+    # Performance (hidden)
+    perf_parm = hou.StringParmTemplate(
+        name="ai_perf",
+        label="Cook Benchmark",
+        num_components=1,
+        default_value=["—"],
+        string_type=hou.stringParmType.Regular,
+    )
+    perf_parm.setTags({"hide": "1"})
+
+    adv_folder.addParmTemplate(autodetect_parm)
+    adv_folder.addParmTemplate(reasoning_parm)
+    adv_folder.addParmTemplate(sep_adv2)
+    adv_folder.addParmTemplate(sanitize_btn)
+    adv_folder.addParmTemplate(stats_btn)
+    adv_folder.addParmTemplate(help_btn)
+    adv_folder.addParmTemplate(export_btn)
+    adv_folder.addParmTemplate(sep_adv3)
+    adv_folder.addParmTemplate(vis_vec_toggle)
+    adv_folder.addParmTemplate(vis_vec_attr)
+    adv_folder.addParmTemplate(vis_col_toggle)
+    adv_folder.addParmTemplate(vis_col_attr)
+    adv_folder.addParmTemplate(sep_adv4)
+    adv_folder.addParmTemplate(model_info_parm)
+    adv_folder.addParmTemplate(perf_parm)
+
+    # ── 7. Reasoning Trace (collapsible, closed by default) ───────────────────
+    thought_folder = hou.FolderParmTemplate(
+        name="ai_thought_folder",
+        label="Reasoning Trace",
+        folder_type=hou.folderType.Collapsible
     )
 
-    tab_tools.addParmTemplate(help_btn)
-    tab_tools.addParmTemplate(export_btn)
-    tab_tools.addParmTemplate(sep_tools)
-    tab_tools.addParmTemplate(model_info_parm)
+    thought_parm = hou.StringParmTemplate(
+        name="ai_thought_trace",
+        label="Trace",
+        num_components=1,
+        default_value=["No reasoning trace yet. Enable Deep Reasoning and Generate."],
+        string_type=hou.stringParmType.Regular,
+        tags={"editor": "1", "multiline": "1"},
+        help=(
+            "The AI's internal Chain-of-Thought reasoning: mathematical analysis, "
+            "attribute schema planning, and algorithmic blueprint. "
+            "Only populated when Deep Reasoning mode is enabled."
+        )
+    )
+    thought_folder.addParmTemplate(thought_parm)
 
-    # Assemble All 5 Tabs into Main Container
-    ai_tabs.addParmTemplate(tab_gen)
-    ai_tabs.addParmTemplate(tab_presets)
-    ai_tabs.addParmTemplate(tab_diag)
-    ai_tabs.addParmTemplate(tab_hist)
-    ai_tabs.addParmTemplate(tab_tools)
+    # ── 8. Hidden data parms (functional, not shown) ──────────────────────────
+    history_json_parm = hou.StringParmTemplate(
+        name="ai_history_json",
+        label="History",
+        num_components=1,
+        default_value=["[]"],
+        string_type=hou.stringParmType.Regular,
+    )
+    history_json_parm.setTags({"hide": "1"})
 
-    snippet_parm = ptg.find("snippet")
-    if snippet_parm:
-        ptg.insertBefore(snippet_parm, ai_tabs)
+    snip_a = hou.StringParmTemplate(
+        name="ai_snippet_a", label="Variant A",
+        num_components=1, default_value=[""],
+        string_type=hou.stringParmType.Regular,
+    )
+    snip_a.setTags({"hide": "1"})
+
+    snip_b = hou.StringParmTemplate(
+        name="ai_snippet_b", label="Variant B",
+        num_components=1, default_value=[""],
+        string_type=hou.stringParmType.Regular,
+    )
+    snip_b.setTags({"hide": "1"})
+
+    variant_parm = hou.IntParmTemplate(
+        name="ai_variant", label="Active Variant",
+        num_components=1, default_value=(0,), min=0, max=1,
+    )
+    variant_parm.setTags({"hide": "1"})
+
+    fork_btn = hou.ButtonParmTemplate(
+        name="ai_fork_branch",
+        label="Fork to A/B Switch",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_fork_branch_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Capture current snippet as Variant A, then call again after generating Variant B to create a Switch SOP comparison.",
+    )
+    fork_btn.setTags({"hide": "1"})
+
+    # ── Assemble flat panel ───────────────────────────────────────────────────
+    ai_folder.addParmTemplate(prompt_parm)
+    ai_folder.addParmTemplate(gen_btn)
+    ai_folder.addParmTemplate(refine_btn)
+    ai_folder.addParmTemplate(optimize_btn)
+    ai_folder.addParmTemplate(explain_btn)
+    ai_folder.addParmTemplate(status_parm)
+    ai_folder.addParmTemplate(sep_top)
+    ai_folder.addParmTemplate(prev_btn)
+    ai_folder.addParmTemplate(version_info_parm)
+    ai_folder.addParmTemplate(next_btn)
+    ai_folder.addParmTemplate(sep_mid)
+    ai_folder.addParmTemplate(preset_menu)
+    ai_folder.addParmTemplate(load_preset_btn)
+    ai_folder.addParmTemplate(sep_adv)
+    ai_folder.addParmTemplate(adv_folder)
+    ai_folder.addParmTemplate(thought_folder)
+    # Hidden data
+    ai_folder.addParmTemplate(history_json_parm)
+    ai_folder.addParmTemplate(snip_a)
+    ai_folder.addParmTemplate(snip_b)
+    ai_folder.addParmTemplate(variant_parm)
+    ai_folder.addParmTemplate(fork_btn)
+
+    snippet_parm_tmpl = ptg.find("snippet")
+    if snippet_parm_tmpl:
+        ptg.insertBefore(snippet_parm_tmpl, ai_folder)
     else:
-        ptg.append(ai_tabs)
+        ptg.append(ai_folder)
 
     node.setParmTemplateGroup(ptg)
     return True
-
 
 # ---------------------------------------------------------------------------
 # Callbacks
@@ -2394,7 +2347,7 @@ def on_collapse_history_clicked(kwargs):
     node = _extract_node(kwargs)
     if not node:
         return
-    for p in ("ai_history_folder", "ai_thought_folder"):
+    for p in ("ai_thought_folder", "ai_advanced_folder"):
         parm = node.parm(p)
         if parm:
             parm.set(0)
@@ -2404,7 +2357,7 @@ def on_expand_history_clicked(kwargs):
     node = _extract_node(kwargs)
     if not node:
         return
-    for p in ("ai_history_folder", "ai_thought_folder"):
+    for p in ("ai_thought_folder", "ai_advanced_folder"):
         parm = node.parm(p)
         if parm:
             parm.set(1)
