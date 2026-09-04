@@ -1630,6 +1630,14 @@ def setup_ai_parameters(node: hou.Node) -> bool:
         default_value=False,
         help="🧠 Deep Reasoning Mode (CoT):\nWhen enabled, the AI generates a step-by-step mathematical reasoning blueprint (<think> trace) before writing code. Ideal for complex multi-pass algorithms, spatial packing, and custom physics solvers.\nWhen disabled, Turbo Mode generates pure VEX in 1-2s."
     )
+    reasoning_parm.setJoinWithNext(True)
+
+    compact_parm = hou.ToggleParmTemplate(
+        name="ai_compact_mode",
+        label="🗕 Compact View",
+        default_value=False,
+        help="🗕 Compact View:\nWhen enabled, minimizes the interface into a sleek, focused workspace by hiding secondary panels (FX Presets, Diagnostics, History, and Studio Tools)."
+    )
 
     # Action Toolbar Row (Joined horizontally)
     gen_btn = hou.ButtonParmTemplate(
@@ -1692,6 +1700,7 @@ def setup_ai_parameters(node: hou.Node) -> bool:
     tab_gen.addParmTemplate(prompt_parm)
     tab_gen.addParmTemplate(autodetect_parm)
     tab_gen.addParmTemplate(reasoning_parm)
+    tab_gen.addParmTemplate(compact_parm)
     tab_gen.addParmTemplate(gen_btn)
     tab_gen.addParmTemplate(refine_btn)
     tab_gen.addParmTemplate(optimize_btn)
@@ -1704,6 +1713,7 @@ def setup_ai_parameters(node: hou.Node) -> bool:
     # TAB 2: 📚 FX Presets & Variants
     # =========================================================================
     tab_presets = hou.FolderParmTemplate("tab_presets", "📚 FX Presets", folder_type=hou.folderType.Simple)
+    tab_presets.setConditional(hou.parmCondType.HideWhen, "{ ai_compact_mode == 1 }")
 
     preset_items = list(_FX_PRESETS.keys())
     preset_labels = [_FX_PRESETS[k]["label"] for k in preset_items]
@@ -1727,7 +1737,13 @@ def setup_ai_parameters(node: hou.Node) -> bool:
 
     sep_fx = hou.SeparatorParmTemplate("sep_fx")
 
-    # A/B Variant Comparison Row
+    # A/B Variant Comparison (Collapsible)
+    variant_folder = hou.FolderParmTemplate(
+        name="ai_variant_folder",
+        label="🌿 A/B Variant Audition & Branching",
+        folder_type=hou.folderType.Collapsible
+    )
+
     variant_parm = hou.IntParmTemplate(
         name="ai_variant",
         label="Audition Variant",
@@ -1754,18 +1770,21 @@ def setup_ai_parameters(node: hou.Node) -> bool:
     snip_a = hou.StringParmTemplate("ai_snippet_a", "Snippet A", 1, default_value=([""]), tags={"hide": "1"})
     snip_b = hou.StringParmTemplate("ai_snippet_b", "Snippet B", 1, default_value=([""]), tags={"hide": "1"})
 
+    variant_folder.addParmTemplate(variant_parm)
+    variant_folder.addParmTemplate(fork_btn)
+    variant_folder.addParmTemplate(snip_a)
+    variant_folder.addParmTemplate(snip_b)
+
     tab_presets.addParmTemplate(preset_menu)
     tab_presets.addParmTemplate(load_preset_btn)
     tab_presets.addParmTemplate(sep_fx)
-    tab_presets.addParmTemplate(variant_parm)
-    tab_presets.addParmTemplate(fork_btn)
-    tab_presets.addParmTemplate(snip_a)
-    tab_presets.addParmTemplate(snip_b)
+    tab_presets.addParmTemplate(variant_folder)
 
     # =========================================================================
     # TAB 3: 🛡️ Diagnostics & Viewport
     # =========================================================================
     tab_diag = hou.FolderParmTemplate("tab_diagnostics", "🛡️ Diagnostics", folder_type=hou.folderType.Simple)
+    tab_diag.setConditional(hou.parmCondType.HideWhen, "{ ai_compact_mode == 1 }")
 
     sanitize_btn = hou.ButtonParmTemplate(
         name="ai_sanitize_guards",
@@ -1785,6 +1804,13 @@ def setup_ai_parameters(node: hou.Node) -> bool:
     )
 
     sep_diag = hou.SeparatorParmTemplate("sep_diag")
+
+    # Collapsible Viewport Visualizers
+    vis_folder = hou.FolderParmTemplate(
+        name="ai_vis_folder",
+        label="👁️ Viewport Visualizers (Vectors & Heatmaps)",
+        folder_type=hou.folderType.Collapsible
+    )
 
     vis_vec_toggle = hou.ToggleParmTemplate(
         name="ai_vis_vector_toggle",
@@ -1822,18 +1848,48 @@ def setup_ai_parameters(node: hou.Node) -> bool:
         help="Float attribute to display as heatmap."
     )
 
+    vis_folder.addParmTemplate(vis_vec_toggle)
+    vis_folder.addParmTemplate(vis_vec_attr)
+    vis_folder.addParmTemplate(vis_col_toggle)
+    vis_folder.addParmTemplate(vis_col_attr)
+
     tab_diag.addParmTemplate(sanitize_btn)
     tab_diag.addParmTemplate(stats_btn)
     tab_diag.addParmTemplate(sep_diag)
-    tab_diag.addParmTemplate(vis_vec_toggle)
-    tab_diag.addParmTemplate(vis_vec_attr)
-    tab_diag.addParmTemplate(vis_col_toggle)
-    tab_diag.addParmTemplate(vis_col_attr)
+    tab_diag.addParmTemplate(vis_folder)
 
     # =========================================================================
-    # TAB 4: ⏳ History & Reasoning
+    # TAB 4: ⏳ History & Reasoning (Collapsible & Minimizable)
     # =========================================================================
     tab_hist = hou.FolderParmTemplate("tab_history", "⏳ History", folder_type=hou.folderType.Simple)
+    tab_hist.setConditional(hou.parmCondType.HideWhen, "{ ai_compact_mode == 1 }")
+
+    # Quick Action Toolbar for minimizing / expanding panels
+    collapse_btn = hou.ButtonParmTemplate(
+        name="ai_collapse_history_all",
+        label="🗕 Minimize All",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_collapse_history_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Minimize both the Version History stack and Reasoning Monologue panels into sleek accordion bars."
+    )
+    collapse_btn.setJoinWithNext(True)
+
+    expand_btn = hou.ButtonParmTemplate(
+        name="ai_expand_history_all",
+        label="🗖 Expand All",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_expand_history_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Expand both the Version History stack and Reasoning Monologue panels."
+    )
+
+    sep_hist_top = hou.SeparatorParmTemplate("sep_hist_top")
+
+    # Collapsible Version History Stack
+    hist_folder = hou.FolderParmTemplate(
+        name="ai_history_folder",
+        label="⏳ Time Machine Version History",
+        folder_type=hou.folderType.Collapsible
+    )
 
     prev_btn = hou.ButtonParmTemplate(
         name="ai_prev_version",
@@ -1871,29 +1927,40 @@ def setup_ai_parameters(node: hou.Node) -> bool:
     )
     history_json_parm.setTags({"hide": "1"})
 
-    sep_hist = hou.SeparatorParmTemplate("sep_hist")
+    hist_folder.addParmTemplate(prev_btn)
+    hist_folder.addParmTemplate(version_info_parm)
+    hist_folder.addParmTemplate(next_btn)
+    hist_folder.addParmTemplate(history_json_parm)
+
+    # Collapsible Reasoning Monologue (Chain of Thought)
+    thought_folder = hou.FolderParmTemplate(
+        name="ai_thought_folder",
+        label="🧠 Reasoning Monologue (Chain of Thought)",
+        folder_type=hou.folderType.Collapsible
+    )
 
     thought_parm = hou.StringParmTemplate(
         name="ai_thought_trace",
-        label="🧠 Reasoning Monologue (Chain of Thought)",
+        label="Reasoning Trace",
         num_components=1,
         default_value=(["No thought trace recorded yet."]),
         string_type=hou.stringParmType.Regular,
         tags={"editor": "1", "multiline": "1"},
         help="Displays the AI's internal Chain-of-Thought reasoning monologue, vector space analysis, and mathematical blueprint generated during Deep Reasoning Mode."
     )
+    thought_folder.addParmTemplate(thought_parm)
 
-    tab_hist.addParmTemplate(prev_btn)
-    tab_hist.addParmTemplate(version_info_parm)
-    tab_hist.addParmTemplate(next_btn)
-    tab_hist.addParmTemplate(history_json_parm)
-    tab_hist.addParmTemplate(sep_hist)
-    tab_hist.addParmTemplate(thought_parm)
+    tab_hist.addParmTemplate(collapse_btn)
+    tab_hist.addParmTemplate(expand_btn)
+    tab_hist.addParmTemplate(sep_hist_top)
+    tab_hist.addParmTemplate(hist_folder)
+    tab_hist.addParmTemplate(thought_folder)
 
     # =========================================================================
     # TAB 5: 🛠️ Studio Tools
     # =========================================================================
     tab_tools = hou.FolderParmTemplate("tab_tools", "🛠️ Studio Tools", folder_type=hou.folderType.Simple)
+    tab_tools.setConditional(hou.parmCondType.HideWhen, "{ ai_compact_mode == 1 }")
 
     help_btn = hou.ButtonParmTemplate(
         name="ai_generate_help",
@@ -2286,6 +2353,26 @@ def on_next_version_clicked(kwargs):
     node = _extract_node(kwargs)
     if node:
         navigate_history_version(node, direction=+1)
+
+
+def on_collapse_history_clicked(kwargs):
+    node = _extract_node(kwargs)
+    if not node:
+        return
+    for p in ("ai_history_folder", "ai_thought_folder"):
+        parm = node.parm(p)
+        if parm:
+            parm.set(0)
+
+
+def on_expand_history_clicked(kwargs):
+    node = _extract_node(kwargs)
+    if not node:
+        return
+    for p in ("ai_history_folder", "ai_thought_folder"):
+        parm = node.parm(p)
+        if parm:
+            parm.set(1)
 
 
 def on_load_preset_clicked(kwargs):

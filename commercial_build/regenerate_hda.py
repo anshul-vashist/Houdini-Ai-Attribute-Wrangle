@@ -89,14 +89,15 @@ def main() -> None:
     finally:
         geo.destroy()
 
-    required = {"ai_status", "ai_perf", "ai_model_info", "ai_history_json", "ai_version_info", "ai_thought_trace"}
+    required = {"ai_status", "ai_perf", "ai_model_info", "ai_history_json", "ai_version_info", "ai_thought_trace", "ai_compact_mode"}
     installed = hou.hda.definitionsInFile(str(HDA_PATH))[0]
     found = {parm.name() for parm in installed.parmTemplateGroup().entriesWithoutFolders()}
     missing = required - found
     if missing:
         raise RuntimeError(f"Regenerated HDA is missing required parameters: {sorted(missing)}")
     
-    # Also synchronize all target HDA locations
+    # Also synchronize all target HDA and python locations
+    import shutil
     destinations = [
         PROJECT_ROOT / "otls" / "ai_attribwrangle.hda",
         PROJECT_ROOT / "houdini_hda_package" / "otls" / "ai_attribwrangle.hda",
@@ -105,9 +106,22 @@ def main() -> None:
     ]
     for dst in destinations:
         if dst.parent.exists():
-            import shutil
             shutil.copyfile(str(HDA_PATH), str(dst))
-            print(f"Copied to {dst}")
+            print(f"Copied HDA to {dst}")
+
+    py_source = PYTHON_DIR / "houdini_ai_wrangle.py"
+    py_destinations = [
+        PROJECT_ROOT / "commercial_build" / "houdini_ai_wrangle.py",
+        PROJECT_ROOT / "dist" / "AI_Attribute_Wrangle_v1.0" / "python" / "houdini_ai_wrangle.py",
+        PROJECT_ROOT / "houdini_hda_package" / "python" / "houdini_ai_wrangle.py",
+        PROJECT_ROOT / "houdini_hda_package" / "commercial_build" / "houdini_ai_wrangle.py",
+        PROJECT_ROOT / "houdini_hda_package" / "dist" / "AI_Attribute_Wrangle_v1.0" / "python" / "houdini_ai_wrangle.py",
+        Path("C:/Users/Anshul/Documents/houdini21.0/scripts/python/houdini_ai_wrangle.py"),
+    ]
+    for dst in py_destinations:
+        if dst.parent.exists():
+            shutil.copyfile(str(py_source), str(dst))
+            print(f"Copied Python to {dst}")
         
     print(f"Regenerated and synced {HDA_PATH}")
 
