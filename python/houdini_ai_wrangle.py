@@ -1687,7 +1687,10 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
     }
 
     # Strip stale spare parms and any existing AI folders/parms for a clean rebuild
-    for folder_name in ("ai_folder", "ai_folder2", "ai_tabs", "ai_history_tab", "ai_tools_tab", "ai_thought_tab"):
+    for folder_name in (
+        "ai_folder", "ai_folder2", "ai_tabs", "ai_history_tab", "ai_tools_tab", "ai_thought_tab",
+        "ai_history_folder", "ai_advanced_folder", "ai_thought_folder", "folder_snip_a", "folder_snip_b"
+    ):
         existing_folder = ptg.find(folder_name)
         if existing_folder:
             try:
@@ -1768,15 +1771,35 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
 
     sep_top = hou.SeparatorParmTemplate("sep_top")
 
-    # ── 4. TABS CONTAINER ─────────────────────────────────────────────────────
-    # Tab 1: History & Variants
-    history_tab = hou.FolderParmTemplate(
-        name="ai_history_tab",
-        label="History & Variants",
-        folder_type=hou.folderType.Tabs
+    # ── 4. Presets (inline row) ───────────────────────────────────────────────
+    preset_items = list(_FX_PRESETS.keys())
+    preset_labels = [_FX_PRESETS[k]["label"] for k in preset_items]
+    preset_menu = hou.MenuParmTemplate(
+        name="ai_preset_menu",
+        label="Preset",
+        menu_items=preset_items,
+        menu_labels=preset_labels,
+        help="Choose a built-in FX recipe to load as your starting point."
+    )
+    preset_menu.setJoinWithNext(True)
+
+    load_preset_btn = hou.ButtonParmTemplate(
+        name="ai_load_preset",
+        label="Load",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_load_preset_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Load the selected preset into the VEX snippet and cook immediately."
     )
 
-    # Active Variant Selector
+    sep_pre_hist = hou.SeparatorParmTemplate("sep_pre_hist")
+
+    # ── 5. History & Variants (collapsible folder) ───────────────────────────
+    history_folder = hou.FolderParmTemplate(
+        name="ai_history_folder",
+        label="History",
+        folder_type=hou.folderType.Collapsible
+    )
+
     variant_parm = hou.MenuParmTemplate(
         name="ai_variant",
         label="Active Variant",
@@ -1791,19 +1814,18 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
 
     toggle_ab_btn = hou.ButtonParmTemplate(
         name="ai_toggle_ab",
-        label="⇄ Swap A/B",
+        label="⇄ Swap",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_toggle_variants_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Quickly swap between Variant A and Variant B in the viewport."
+        help="Quickly swap between Variant A and Variant B."
     )
 
-    # Variant Action Buttons Row
     store_a_btn = hou.ButtonParmTemplate(
         name="ai_store_a",
         label="📌 Set as A",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_store_variant_a_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Capture current code into Variant A."
+        help="Save current code into Variant A."
     )
     store_a_btn.setJoinWithNext(True)
 
@@ -1812,42 +1834,11 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         label="📌 Set as B",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_store_variant_b_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Capture current code into Variant B."
-    )
-    store_b_btn.setJoinWithNext(True)
-
-    fork_btn = hou.ButtonParmTemplate(
-        name="ai_fork_branch",
-        label="🌿 Fork to Switch",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_fork_branch_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Create a Switch SOP comparing Variant A and Variant B in the network editor."
+        help="Save current code into Variant B."
     )
 
-    # Collapsible Variant Code Viewers
-    folder_snip_a = hou.FolderParmTemplate("folder_snip_a", "Variant A Code", folder_type=hou.folderType.Collapsible)
-    snip_a = hou.StringParmTemplate(
-        name="ai_snippet_a", label="Code (A)",
-        num_components=1, default_value=[""],
-        string_type=hou.stringParmType.Regular,
-        tags={"editor": "1", "editorlang": "vex", "multiline": "1"},
-        help="Code stored in Variant A."
-    )
-    folder_snip_a.addParmTemplate(snip_a)
+    sep_hist_inner = hou.SeparatorParmTemplate("sep_hist_inner")
 
-    folder_snip_b = hou.FolderParmTemplate("folder_snip_b", "Variant B Code", folder_type=hou.folderType.Collapsible)
-    snip_b = hou.StringParmTemplate(
-        name="ai_snippet_b", label="Code (B)",
-        num_components=1, default_value=[""],
-        string_type=hou.stringParmType.Regular,
-        tags={"editor": "1", "editorlang": "vex", "multiline": "1"},
-        help="Code stored in Variant B."
-    )
-    folder_snip_b.addParmTemplate(snip_b)
-
-    sep_hist = hou.SeparatorParmTemplate("sep_hist")
-
-    # Time Machine History Row
     prev_btn = hou.ButtonParmTemplate(
         name="ai_prev_version",
         label="◀ Prev",
@@ -1875,76 +1866,22 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         script_callback_language=hou.scriptLanguage.Python,
         help="Step forward to next generated VEX version in the history stack."
     )
-    next_btn.setJoinWithNext(True)
 
-    clear_hist_btn = hou.ButtonParmTemplate(
-        name="ai_clear_history",
-        label="🗑 Clear",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_clear_history_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Clear history stack for this node."
+    history_folder.addParmTemplate(variant_parm)
+    history_folder.addParmTemplate(toggle_ab_btn)
+    history_folder.addParmTemplate(store_a_btn)
+    history_folder.addParmTemplate(store_b_btn)
+    history_folder.addParmTemplate(sep_hist_inner)
+    history_folder.addParmTemplate(prev_btn)
+    history_folder.addParmTemplate(version_info_parm)
+    history_folder.addParmTemplate(next_btn)
+
+    # ── 6. Advanced Options (collapsible folder) ──────────────────────────────
+    adv_folder = hou.FolderParmTemplate(
+        name="ai_advanced_folder",
+        label="Advanced Options",
+        folder_type=hou.folderType.Collapsible
     )
-
-    copy_a_btn = hou.ButtonParmTemplate(
-        name="ai_copy_hist_a",
-        label="Load to Variant A",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_copy_history_to_a_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Copy currently loaded version into Variant A."
-    )
-    copy_a_btn.setJoinWithNext(True)
-
-    copy_b_btn = hou.ButtonParmTemplate(
-        name="ai_copy_hist_b",
-        label="Load to Variant B",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_copy_history_to_b_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Copy currently loaded version into Variant B."
-    )
-
-    history_tab.addParmTemplate(variant_parm)
-    history_tab.addParmTemplate(toggle_ab_btn)
-    history_tab.addParmTemplate(store_a_btn)
-    history_tab.addParmTemplate(store_b_btn)
-    history_tab.addParmTemplate(fork_btn)
-    history_tab.addParmTemplate(folder_snip_a)
-    history_tab.addParmTemplate(folder_snip_b)
-    history_tab.addParmTemplate(sep_hist)
-    history_tab.addParmTemplate(prev_btn)
-    history_tab.addParmTemplate(version_info_parm)
-    history_tab.addParmTemplate(next_btn)
-    history_tab.addParmTemplate(clear_hist_btn)
-    history_tab.addParmTemplate(copy_a_btn)
-    history_tab.addParmTemplate(copy_b_btn)
-
-    # Tab 2: Presets & Tools
-    tools_tab = hou.FolderParmTemplate(
-        name="ai_tools_tab",
-        label="Presets & Tools",
-        folder_type=hou.folderType.Tabs
-    )
-
-    # Preset Menu
-    preset_items = list(_FX_PRESETS.keys())
-    preset_labels = [_FX_PRESETS[k]["label"] for k in preset_items]
-    preset_menu = hou.MenuParmTemplate(
-        name="ai_preset_menu",
-        label="Preset",
-        menu_items=preset_items,
-        menu_labels=preset_labels,
-        help="Choose a built-in FX recipe to load as your starting point."
-    )
-    preset_menu.setJoinWithNext(True)
-
-    load_preset_btn = hou.ButtonParmTemplate(
-        name="ai_load_preset",
-        label="Load",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_load_preset_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Load the selected preset into the VEX snippet and cook immediately."
-    )
-
-    sep_tools1 = hou.SeparatorParmTemplate("sep_tools1")
 
     autodetect_parm = hou.ToggleParmTemplate(
         name="ai_autodetect",
@@ -1952,6 +1889,8 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         default_value=True,
         help="Automatically infers wrangle execution class (Point, Primitive, Detail, Vertex)."
     )
+
+    sep_adv2 = hou.SeparatorParmTemplate("sep_adv2")
 
     sanitize_btn = hou.ButtonParmTemplate(
         name="ai_sanitize_guards",
@@ -1988,7 +1927,7 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         help="Export VEX code as .h header."
     )
 
-    sep_tools2 = hou.SeparatorParmTemplate("sep_tools2")
+    sep_adv3 = hou.SeparatorParmTemplate("sep_adv3")
 
     model_info_parm = hou.StringParmTemplate(
         name="ai_model_info",
@@ -2000,23 +1939,20 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
     )
     model_info_parm.setTags({"editable": "0"})
 
-    tools_tab.addParmTemplate(preset_menu)
-    tools_tab.addParmTemplate(load_preset_btn)
-    tools_tab.addParmTemplate(sep_tools1)
-    tools_tab.addParmTemplate(autodetect_parm)
-    tools_tab.addParmTemplate(sanitize_btn)
-    tools_tab.addParmTemplate(stats_btn)
-    tools_tab.addParmTemplate(help_btn)
-    tools_tab.addParmTemplate(export_btn)
-    tools_tab.addParmTemplate(sep_tools2)
-    tools_tab.addParmTemplate(model_info_parm)
+    adv_folder.addParmTemplate(autodetect_parm)
+    adv_folder.addParmTemplate(sep_adv2)
+    adv_folder.addParmTemplate(sanitize_btn)
+    adv_folder.addParmTemplate(stats_btn)
+    adv_folder.addParmTemplate(help_btn)
+    adv_folder.addParmTemplate(export_btn)
+    adv_folder.addParmTemplate(sep_adv3)
+    adv_folder.addParmTemplate(model_info_parm)
 
-    # Tab 3: Reasoning Trace
-    thought_tab = hou.FolderParmTemplate(
-        name="ai_thought_tab",
+    # ── 7. Reasoning Trace (collapsible folder) ───────────────────────────────
+    thought_folder = hou.FolderParmTemplate(
+        name="ai_thought_folder",
         label="Reasoning Trace",
-        folder_type=hou.folderType.Tabs,
-        ends_tab_group=True
+        folder_type=hou.folderType.Collapsible
     )
 
     thought_parm = hou.StringParmTemplate(
@@ -2028,9 +1964,23 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         tags={"editor": "1", "multiline": "1"},
         help="Chain-of-Thought reasoning from the AI."
     )
-    thought_tab.addParmTemplate(thought_parm)
+    thought_folder.addParmTemplate(thought_parm)
 
-    # Hidden data
+    # ── 8. Hidden background data parms ──────────────────────────────────────
+    snip_a = hou.StringParmTemplate(
+        name="ai_snippet_a", label="Variant A",
+        num_components=1, default_value=[""],
+        string_type=hou.stringParmType.Regular,
+    )
+    snip_a.setTags({"hide": "1"})
+
+    snip_b = hou.StringParmTemplate(
+        name="ai_snippet_b", label="Variant B",
+        num_components=1, default_value=[""],
+        string_type=hou.stringParmType.Regular,
+    )
+    snip_b.setTags({"hide": "1"})
+
     history_json_parm = hou.StringParmTemplate(
         name="ai_history_json",
         label="History Data",
@@ -2055,9 +2005,14 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
     ai_folder.addParmTemplate(reasoning_parm)
     ai_folder.addParmTemplate(status_parm)
     ai_folder.addParmTemplate(sep_top)
-    ai_folder.addParmTemplate(history_tab)
-    ai_folder.addParmTemplate(tools_tab)
-    ai_folder.addParmTemplate(thought_tab)
+    ai_folder.addParmTemplate(preset_menu)
+    ai_folder.addParmTemplate(load_preset_btn)
+    ai_folder.addParmTemplate(sep_pre_hist)
+    ai_folder.addParmTemplate(history_folder)
+    ai_folder.addParmTemplate(adv_folder)
+    ai_folder.addParmTemplate(thought_folder)
+    ai_folder.addParmTemplate(snip_a)
+    ai_folder.addParmTemplate(snip_b)
     ai_folder.addParmTemplate(history_json_parm)
     ai_folder.addParmTemplate(perf_parm)
 
