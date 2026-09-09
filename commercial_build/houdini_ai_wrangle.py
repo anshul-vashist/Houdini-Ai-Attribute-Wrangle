@@ -106,14 +106,26 @@ def ensure_embedded_engine() -> bool:
                 return False
 
         engine_bin = os.path.join(pkg_root, "bin", "llama-server.exe")
-        base_candidates = [
-            os.path.join(pkg_root, "models", "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"),
-            os.path.join(pkg_root, "models", "Qwen3-8B-Q5_K_M.gguf"),
-            os.path.join(pkg_root, "models", "qwen3-vex.gguf"),
-            os.path.join(pkg_root, "models", "vex_brain.dat"),
-            os.path.join(pkg_root, "models", "vex_brain.gguf"),
-            os.path.join(pkg_root, "qwen3-vex.gguf"),
-        ]
+        model_dir = os.path.join(pkg_root, "models")
+        has_lora = any(
+            os.path.isfile(os.path.join(model_dir, lora))
+            for lora in ["qwen3-vex-v10-lora.gguf", "lora.gguf"]
+        )
+        if has_lora and os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")):
+            base_candidates = [
+                os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf"),
+                os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"),
+                os.path.join(model_dir, "qwen3-vex.gguf"),
+            ]
+        else:
+            base_candidates = [
+                os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"),
+                os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf"),
+                os.path.join(model_dir, "qwen3-vex.gguf"),
+                os.path.join(model_dir, "vex_brain.dat"),
+                os.path.join(model_dir, "vex_brain.gguf"),
+                os.path.join(pkg_root, "qwen3-vex.gguf"),
+            ]
         model_path = next((p for p in base_candidates if os.path.exists(p)), base_candidates[0])
 
         if not os.path.exists(engine_bin):
@@ -161,9 +173,6 @@ def get_active_ai_model_display_string() -> str:
 
     pkg_root = _package_root()
     model_dir = os.path.join(pkg_root, "models")
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf (Standalone Merged)"
-    base_name = "Qwen3-8B-Q5_K_M.gguf" if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")) else "qwen3-vex.gguf"
     lora_candidates = [
         "qwen3-vex-v10-lora.gguf",
         "lora.gguf",
@@ -175,7 +184,11 @@ def get_active_ai_model_display_string() -> str:
                 active_lora = lora
                 break
     if active_lora:
-        return f"{base_name} + LoRA: {active_lora}"
+        base_name = "Qwen3-8B-Q5_K_M.gguf" if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")) else "qwen3-vex.gguf"
+        return f"{base_name} + LoRA: {active_lora} (v10 Grandmaster - Sept 8)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf (Standalone Merged)"
+    base_name = "Qwen3-8B-Q5_K_M.gguf" if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")) else "qwen3-vex.gguf"
     return f"{base_name} (Base)"
 
 
@@ -253,7 +266,11 @@ def sanitize_vex_syntax(code: str) -> str:
     c = re.sub(r'\b(?:dist|pointdistance)\s*\(', 'distance(', c)
     c = re.sub(r'\bmag\s*\(', 'length(', c)
     c = re.sub(r'\bnorm\s*\(', 'normalize(', c)
-    return c
+    c = re.sub(r'\bquat\s*\(', 'quaternion(', c)
+    c = re.sub(r'\bvec[234]\s*\(', 'set(', c)
+    c = re.sub(r'(?<![a-zA-Z0-9_])@UV\b', 'v@uv', c)
+    c = re.sub(r'</?think>', '', c)
+    return c.strip()
 
 
 def query_llm(prompt_text: str, max_tokens: int = 800, reasoning_mode: bool = False) -> tuple[str, str]:
@@ -1605,16 +1622,30 @@ def toggle_viewport_visualizer(node: hou.Node, vis_type: str, attr_name: str, en
 # Node Parameter Setup (v4.0 — Clean & Focused)
 # ---------------------------------------------------------------------------
 
-def setup_ai_parameters(node: hou.Node) -> bool:
+def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
     if not node.type().name().endswith("wrangle"):
         if hou.isUIAvailable():
             hou.ui.displayMessage("Target node must be an Attribute / Volume / POP Wrangle.", severity=hou.severityType.Warning)
         return False
 
     ptg = node.parmTemplateGroup()
-    # Guard: ai_generate is a leaf parm Houdini won't silently rename
-    if ptg.find("ai_generate") or ptg.find("ai_folder"):
+    has_old_layout = (
+        ptg.find("ai_refine") is not None or
+        ptg.find("ai_vis_vector_toggle") is not None or
+        ptg.find("ai_optimize") is not None or
+        ptg.find("ai_explain") is not None
+    )
+    if not force and not has_old_layout and ptg.find("ai_generate") and ptg.find("ai_folder"):
         return True
+
+    if has_old_layout or force:
+        if ptg.find("ai_folder"):
+            try:
+                ptg.remove("ai_folder")
+                node.setParmTemplateGroup(ptg)
+                ptg = node.parmTemplateGroup()
+            except Exception:
+                pass
 
     # Strip stale spare parms from previous sessions
     _known_base_parms = {
@@ -1659,40 +1690,25 @@ def setup_ai_parameters(node: hou.Node) -> bool:
     )
     prompt_parm.setTags({"multiline": "1", "editor": "1", "editorlang": "vex"})
 
-    # ── 2. Action Buttons (single row) ────────────────────────────────────────
+    # ── 2. Action Button & Deep Reasoning (unified single row) ────────────────
     gen_btn = hou.ButtonParmTemplate(
         name="ai_generate",
         label="✦ Generate",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_generate_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Generate VEX from your prompt. Uses the AI model to write production-ready VEX code."
+        help="Generate VEX from your prompt. Automatically generates fresh, refines existing code, optimizes for SIMD, or adds UI sliders based on your prompt."
     )
     gen_btn.setJoinWithNext(True)
 
-    refine_btn = hou.ButtonParmTemplate(
-        name="ai_refine",
-        label="↺ Refine",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_refine_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Refine the existing VEX code based on your updated prompt. Preserves the overall structure."
-    )
-    refine_btn.setJoinWithNext(True)
-
-    optimize_btn = hou.ButtonParmTemplate(
-        name="ai_optimize",
-        label="⚡ Optimize",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_optimize_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Restructure the VEX for SIMD vectorization and maximum parallelism."
-    )
-    optimize_btn.setJoinWithNext(True)
-
-    explain_btn = hou.ButtonParmTemplate(
-        name="ai_explain",
-        label="? Document",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_explain_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Add inline comments and a block header explaining the current VEX code."
+    reasoning_parm = hou.ToggleParmTemplate(
+        name="ai_reasoning_mode",
+        label="Deep Reasoning",
+        default_value=False,
+        help=(
+            "Deep Reasoning Mode: the AI thinks step-by-step before writing code. "
+            "Turn on for complex algorithms, custom physics, spatial math, or multi-input transfer. "
+            "Turn off (Turbo) for instant interactive generation."
+        )
     )
 
     # ── 3. Status ─────────────────────────────────────────────────────────────
@@ -1779,18 +1795,6 @@ def setup_ai_parameters(node: hou.Node) -> bool:
             "Detail, Vertex) from your prompt. Disable to lock the class manually."
         )
     )
-    autodetect_parm.setJoinWithNext(True)
-
-    reasoning_parm = hou.ToggleParmTemplate(
-        name="ai_reasoning_mode",
-        label="Deep Reasoning",
-        default_value=False,
-        help=(
-            "Deep Reasoning Mode: the AI thinks step-by-step before writing code. "
-            "Best for complex algorithms, custom physics, spatial math. "
-            "Slower (~30–90s) but significantly more accurate on hard problems."
-        )
-    )
 
     sep_adv2 = hou.SeparatorParmTemplate("sep_adv2")
 
@@ -1830,43 +1834,6 @@ def setup_ai_parameters(node: hou.Node) -> bool:
         help="Export the VEX code as a reusable .h header file for inclusion in other wrangles."
     )
 
-    sep_adv3 = hou.SeparatorParmTemplate("sep_adv3")
-
-    # Viewport visualizers
-    vis_vec_toggle = hou.ToggleParmTemplate(
-        name="ai_vis_vector_toggle",
-        label="Vector Overlay",
-        default_value=False,
-        help="Draw vector arrows in the viewport for the selected vector attribute."
-    )
-    vis_vec_toggle.setJoinWithNext(True)
-
-    vis_vec_attr = hou.StringParmTemplate(
-        name="ai_vis_vector_attr",
-        label="",
-        num_components=1,
-        default_value=["v"],
-        string_type=hou.stringParmType.Regular,
-        help="Name of the vector attribute to visualize."
-    )
-
-    vis_col_toggle = hou.ToggleParmTemplate(
-        name="ai_vis_color_toggle",
-        label="Heatmap Overlay",
-        default_value=False,
-        help="Display a color heatmap in the viewport for the selected float attribute."
-    )
-    vis_col_toggle.setJoinWithNext(True)
-
-    vis_col_attr = hou.StringParmTemplate(
-        name="ai_vis_color_attr",
-        label="",
-        num_components=1,
-        default_value=["density"],
-        string_type=hou.stringParmType.Regular,
-        help="Name of the float attribute to display as a heatmap."
-    )
-
     sep_adv4 = hou.SeparatorParmTemplate("sep_adv4")
 
     # Model info (read-only, subtle)
@@ -1891,17 +1858,11 @@ def setup_ai_parameters(node: hou.Node) -> bool:
     perf_parm.setTags({"hide": "1"})
 
     adv_folder.addParmTemplate(autodetect_parm)
-    adv_folder.addParmTemplate(reasoning_parm)
     adv_folder.addParmTemplate(sep_adv2)
     adv_folder.addParmTemplate(sanitize_btn)
     adv_folder.addParmTemplate(stats_btn)
     adv_folder.addParmTemplate(help_btn)
     adv_folder.addParmTemplate(export_btn)
-    adv_folder.addParmTemplate(sep_adv3)
-    adv_folder.addParmTemplate(vis_vec_toggle)
-    adv_folder.addParmTemplate(vis_vec_attr)
-    adv_folder.addParmTemplate(vis_col_toggle)
-    adv_folder.addParmTemplate(vis_col_attr)
     adv_folder.addParmTemplate(sep_adv4)
     adv_folder.addParmTemplate(model_info_parm)
     adv_folder.addParmTemplate(perf_parm)
@@ -1970,9 +1931,7 @@ def setup_ai_parameters(node: hou.Node) -> bool:
     # ── Assemble flat panel ───────────────────────────────────────────────────
     ai_folder.addParmTemplate(prompt_parm)
     ai_folder.addParmTemplate(gen_btn)
-    ai_folder.addParmTemplate(refine_btn)
-    ai_folder.addParmTemplate(optimize_btn)
-    ai_folder.addParmTemplate(explain_btn)
+    ai_folder.addParmTemplate(reasoning_parm)
     ai_folder.addParmTemplate(status_parm)
     ai_folder.addParmTemplate(sep_top)
     ai_folder.addParmTemplate(prev_btn)
@@ -2060,19 +2019,58 @@ def on_generate_clicked(kwargs):
         else:
             context_str = f"{context_val} wrangle" if not str(context_val).endswith("wrangle") else str(context_val)
 
-    status_msg = "Deep Reasoning (Thinking & Planning)..." if is_reasoning else "Generating VEX..."
-    with hou.undos.group(f"AI VEX Generation: {task[:30]}"):
+    snippet_parm = node.parm("snippet")
+    existing_code = snippet_parm.eval().strip() if snippet_parm else ""
+
+    EDIT_KEYWORDS = [
+        "parameter", "channel", "slider", "expose", "chf", "chi", "chv", "chramp", "ui",
+        "fix", "repair", "error", "broken", "bug", "wrong", "doesn't work", "failing", "nan",
+        "modify", "change", "add", "tweak", "update", "instead", "adjust", "replace",
+        "refine", "refinement",
+        "optimize", "optimization", "speed up", "make faster", "faster", "slower", "simd", "parallel", "hoist", "vectorize",
+        "document", "explain", "comment", "inline comment", "docstring",
+        "shield", "guard", "safety", "zero-division", "clamp",
+        "invert", "reverse", "flip",
+        "mask", "group", "subset",
+        "animate", "time", "decay", "fade"
+    ]
+    RESET_KEYWORDS = ["from scratch", "reset", "fresh", "brand new", "replace entirely", "clear existing", "ignore existing"]
+
+    is_edit_intent = bool(
+        existing_code
+        and any(k in task.lower() for k in EDIT_KEYWORDS)
+        and not any(r in task.lower() for r in RESET_KEYWORDS)
+    )
+
+    if not is_edit_intent:
+        action_label = "Generation"
+    elif any(k in task.lower() for k in ["optimize", "optimization", "speed up", "make faster", "simd", "parallel", "hoist"]):
+        action_label = "Optimization"
+    elif any(k in task.lower() for k in ["document", "explain", "comment"]):
+        action_label = "Documentation"
+    elif any(k in task.lower() for k in ["parameter", "channel", "slider", "expose", "chf", "chi", "chv", "chramp"]):
+        action_label = "Parameterization"
+    elif any(k in task.lower() for k in ["fix", "repair", "error", "broken", "bug", "wrong", "doesn't work"]):
+        action_label = "Repair"
+    else:
+        action_label = "Refinement"
+
+    status_msg = "Deep Reasoning (Thinking & Planning)..." if is_reasoning else f"{action_label} VEX..."
+    with hou.undos.group(f"AI VEX {action_label}: {task[:30]}"):
         try:
             if hou.isUIAvailable():
                 hou.ui.setStatusMessage(status_msg, severity=hou.severityType.Message)
             t0 = time.time()
-            thought_trace, vex_code = generate_vex(task, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning)
+            if is_edit_intent:
+                thought_trace, vex_code = refine_vex(task, existing_code, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning)
+            else:
+                thought_trace, vex_code = generate_vex(task, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning)
             gen_time = time.time() - t0
         except Exception as e:
             if status_parm:
-                status_parm.set(f"Generation Failed: {e}")
+                status_parm.set(f"{action_label} Failed: {e}")
             if hou.isUIAvailable():
-                hou.ui.setStatusMessage(f"AI Generation Failed: {e}", severity=hou.severityType.Error)
+                hou.ui.setStatusMessage(f"AI {action_label} Failed: {e}", severity=hou.severityType.Error)
             return
 
         if thought_parm:
@@ -2126,10 +2124,11 @@ def on_generate_clicked(kwargs):
 
             mode_label = "Deep Reasoning" if is_reasoning else "Turbo"
             if status_parm:
+                action_text = f"{action_label} [{mode_label}]" if is_edit_intent else f"Compiled [{mode_label}]"
                 if healthy:
-                    status_parm.set(f"Compiled [{mode_label}] ({gen_time:.2f}s).")
+                    status_parm.set(f"{action_text} ({gen_time:.2f}s).")
                 else:
-                    status_parm.set(f"Compiled [{mode_label}]. {health_msg}")
+                    status_parm.set(f"{action_text} ({gen_time:.2f}s). {health_msg}")
             if perf_parm:
                 perf_parm.set(f"Cook: {cook_ms:.2f}ms ({npts:,} pts @ {throughput:.1f} Mpts/s)")
             if hou.isUIAvailable():

@@ -3,15 +3,15 @@
 <div align="center">
 
 ![Houdini Support](https://img.shields.io/badge/SideFX_Houdini-20.0_%7C_20.5_%7C_21.0-orange.svg)
-[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Qwen3--Houdini--Vex-yellow.svg)](https://huggingface.co/anshulVashist/Qwen3-Houdini-Vex)
-![Model Size](https://img.shields.io/badge/Model_Weights-8.71_GB_GGUF-blue.svg)
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Qwen3--8B--Houdini--VEX--v10-yellow.svg)](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10)
+![Model Size](https://img.shields.io/badge/Model_Weights-5.85_GB_Base_+_698_MB_LoRA-blue.svg)
 ![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows_x64-lightgrey.svg)
 ![CITL Verified](https://img.shields.io/badge/CITL_Validation-100%25_Compiler_Checked-brightgreen.svg)
 
 **A local-first, zero-cloud AI copilot for procedural geometry and VEX programming inside SideFX Houdini.**
 
-[📥 Download Model Weights (Hugging Face)](https://huggingface.co/anshulVashist/Qwen3-Houdini-Vex) • [🚀 Quickstart](#-quickstart--installation) • [✨ Key Features](#-key-features) • [💡 Examples](#-example-prompts--generated-vex)
+[📥 Download Model Weights (Hugging Face)](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10) • [🚀 Quickstart](#-quickstart--installation) • [✨ Key Features](#-key-features) • [💡 Examples](#-example-prompts--generated-vex)
 
 </div>
 
@@ -70,7 +70,7 @@ One click annotates any existing messy VEX code with clean, educational inline c
 
 ### Option 1: Native 1-Click GUI Setup (Recommended)
 1. Clone or download this repository.
-2. Download the model weights [`qwen3-vex.gguf`](https://huggingface.co/anshulVashist/Qwen3-Houdini-Vex/blob/main/qwen3-vex.gguf) (**8.71 GB**) from Hugging Face and place it in the `models/` folder.
+2. Download the base model [`Qwen3-8B-Q5_K_M.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/blob/main/Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf) and fine-tuned LoRA [`qwen3-vex-v10-lora.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/blob/main/qwen3-vex-v10-lora.gguf) from Hugging Face and place them in the `models/` folder.
 3. Double-click **`Setup_AI_Wrangle.exe`** (or run `python installer_gui.py`).
 4. Select your Houdini version(s) and click **"🚀 1-Click Install"**.
 5. Restart Houdini.
@@ -155,9 +155,10 @@ Houdini-Ai-Attribute-Wrangle/
 ---
 
 ## 🔗 Model Weights & Downloads
-
-* **Hugging Face Model Hub**: [https://huggingface.co/anshulVashist/Qwen3-Houdini-Vex](https://huggingface.co/anshulVashist/Qwen3-Houdini-Vex)
-* **Direct GGUF Download (8.71 GB)**: [Download `qwen3-vex.gguf`](https://huggingface.co/anshulVashist/Qwen3-Houdini-Vex/resolve/main/qwen3-vex.gguf)
+ 
+* **Hugging Face Model Hub**: [https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10)
+* **Direct LoRA GGUF Download (698 MB)**: [Download `qwen3-vex-v10-lora.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/resolve/main/qwen3-vex-v10-lora.gguf)
+* **Direct Merged Model Download (5.85 GB)**: [Download `Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/resolve/main/Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf)
 
 ---
 

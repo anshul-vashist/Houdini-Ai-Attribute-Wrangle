@@ -20,7 +20,7 @@ DEFAULT_HOST = "127.0.0.1"
 _STAGING_ROOT = os.path.join(tempfile.gettempdir(), "ai_wrangle_runtime")
 
 
-def get_recommended_gpu_layers(model_size_gb: float = 8.3) -> int:
+def get_recommended_gpu_layers(model_size_gb: float = 5.6) -> int:
     """Dynamically detects available GPU VRAM to prevent OutOfDeviceMemory crashes."""
     override = os.getenv("AI_WRANGLE_GPU_LAYERS")
     if override is not None:
@@ -64,7 +64,8 @@ class EngineManager:
     def get_model_info_string(self) -> str:
         model = self.active_model_name or "qwen3-vex.gguf"
         if self.active_lora_name:
-            return f"{model} + LoRA: {self.active_lora_name}"
+            extra = " (v10 Grandmaster - Sept 8)" if "v10" in self.active_lora_name else ""
+            return f"{model} + LoRA: {self.active_lora_name}{extra}"
         return f"{model} (Base)"
 
     def get_api_key(self) -> str | None:
