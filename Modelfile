@@ -1,4 +1,4 @@
-FROM "E:/#AI#/Houdini Attribute Wrangle/qwen3-vex.gguf"
+FROM ./models/Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf
 PARAMETER temperature 0.1
 PARAMETER top_p 0.95
 PARAMETER stop "<|im_end|>"

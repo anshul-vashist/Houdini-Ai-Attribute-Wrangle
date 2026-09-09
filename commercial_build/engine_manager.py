@@ -169,7 +169,7 @@ class EngineManager:
 
         command = [
             engine_bin_path, "--model", resolved_model_path, "--port", str(self.port),
-            "--host", self.host, "--ctx-size", "2048", "--n-gpu-layers",
+            "--host", self.host, "--ctx-size", "4096", "--n-gpu-layers",
             gpu_layers,
         ]
         # Check for fine-tuned LoRA adapter (only if the model is not already standalone merged)

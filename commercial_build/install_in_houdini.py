@@ -41,10 +41,15 @@ def main():
     fwd_root = plugin_root.as_posix()
     package_def = {
         "hpath": fwd_root,
+        "pythonpath": f"{fwd_root}/python",
         "env": [
-            {"PYTHONPATH": f"{fwd_root}/python;$PYTHONPATH"},
-            {"PATH": f"{fwd_root}/bin;$PATH"},
             {"AI_WRANGLE_ROOT": fwd_root},
+            {
+                "PATH": {
+                    "method": "prepend",
+                    "value": f"{fwd_root}/bin"
+                }
+            }
         ]
     }
 
@@ -65,25 +70,28 @@ def main():
         except Exception as e:
             print(f"Could not live-install HDA: {e}")
 
-    # Check license & Machine ID
-    mid = "UNKNOWN"
-    try:
-        import license_validator
-        mid = license_validator.MachineFingerprint.generate_machine_id()
-    except Exception:
-        pass
-
-    lic_path = plugin_root / "license" / "ai_wrangle.lic"
-    lic_status = "No license found"
-    if lic_path.exists():
-        lic_status = "Active & Installed ✅"
+    # Check model weights status
+    model_candidates = [
+        plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf",
+        plugin_root / "models" / "Qwen3-8B-Q5_K_M.gguf",
+        plugin_root / "models" / "qwen3-vex.gguf",
+    ]
+    found_model = next((m for m in model_candidates if m.exists()), None)
+    if found_model:
+        model_status = f"{found_model.name} (Installed ✅)"
+    else:
+        model_status = (
+            "Not Found ⚠️\n"
+            "   -> Download 'Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf' from Hugging Face\n"
+            "      (https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10) into 'models/'"
+        )
 
     msg = (
         "🎉 AI Attribute Wrangle Installed Successfully!\n\n"
         f"• Package Definition: {json_path}\n"
         f"• Live HDA Loaded: {'YES ✅' if hda_installed else 'Restart Required'}\n"
-        f"• Machine ID: {mid}\n"
-        f"• License Status: {lic_status}\n\n"
+        f"• AI Model: {model_status}\n"
+        "• Edition: Free Community Edition (No License Required ✅)\n\n"
         "You can now create an 'AI Attribute Wrangle' node in any /obj/geo network!"
     )
 

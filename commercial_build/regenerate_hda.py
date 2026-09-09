@@ -12,7 +12,7 @@ import hou
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PYTHON_DIR = PROJECT_ROOT / "python"
-HDA_PATH = PROJECT_ROOT / "dist" / "AI_Attribute_Wrangle_v1.0" / "hda" / "ai_attribwrangle.hda"
+HDA_PATH = PROJECT_ROOT / "otls" / "ai_attribwrangle.hda"
 
 sys.path.insert(0, str(PYTHON_DIR))
 import houdini_ai_wrangle

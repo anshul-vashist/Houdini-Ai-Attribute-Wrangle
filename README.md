@@ -4,7 +4,7 @@
 
 ![Houdini Support](https://img.shields.io/badge/SideFX_Houdini-20.0_%7C_20.5_%7C_21.0-orange.svg)
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Qwen3--8B--Houdini--VEX--v10-yellow.svg)](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10)
-![Model Size](https://img.shields.io/badge/Model_Weights-5.85_GB_Base_+_698_MB_LoRA-blue.svg)
+![Model Size](https://img.shields.io/badge/Model_Weights-5.45_GB_Standalone_Merged-blue.svg)
 ![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows_x64-lightgrey.svg)
 ![CITL Verified](https://img.shields.io/badge/CITL_Validation-100%25_Compiler_Checked-brightgreen.svg)
@@ -70,10 +70,10 @@ One click annotates any existing messy VEX code with clean, educational inline c
 
 ### Option 1: Native 1-Click GUI Setup (Recommended)
 1. Clone or download this repository.
-2. Download the base model [`Qwen3-8B-Q5_K_M.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/blob/main/Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf) and fine-tuned LoRA [`qwen3-vex-v10-lora.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/blob/main/qwen3-vex-v10-lora.gguf) from Hugging Face and place them in the `models/` folder.
-3. Double-click **`Setup_AI_Wrangle.exe`** (or run `python installer_gui.py`).
-4. Select your Houdini version(s) and click **"🚀 1-Click Install"**.
-5. Restart Houdini.
+2. Download the standalone model [`Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/resolve/main/Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf) (5.45 GB) from Hugging Face and place it in the `models/` folder.
+3. Double-click **`Install.bat`** (or run `python installer_gui.py`).
+4. Select your target Houdini version(s) and click **"🚀 1-Click Install"**.
+5. Launch SideFX Houdini.
 
 ### Option 2: 1-Click Drag-and-Drop (Inside Houdini, Zero Restart)
 1. Open SideFX Houdini.
@@ -134,19 +134,16 @@ Houdini-Ai-Attribute-Wrangle/
 │   └── 📄 ai_attribwrangle.hda        <- SideFX Houdini SOP Digital Asset
 ├── 📂 python/
 │   ├── 📄 houdini_ai_wrangle.py       <- Core SOP Controller, CITL loop, & parameter sync
-│   ├── 📄 vex_rag_engine.py           <- Domain RAG context & VEX function database
 │   ├── 📄 engine_manager.py           <- Embedded engine lifecycle & dynamic VRAM allocator
-│   ├── 📄 license_validator.py        <- Validation & hardware fingerprint engine
+│   ├── 📄 vex_rag_engine.py           <- Domain RAG context & VEX function database
+│   ├── 📄 license_validator.py        <- Machine fingerprinting & offline security
 │   └── 📄 model_vault.py              <- Model loading & decryption utilities
-├── 🚀 Setup_AI_Wrangle.exe            <- Native Win32 GUI Setup Wizard
-├── 📄 installer_gui.py                <- Standalone Tkinter Setup Wizard
+├── 🚀 Install.bat                     <- Windows 1-Click Desktop Setup Wizard
+├── 📄 installer_gui.py                <- Cross-Platform Tkinter Setup Wizard
 ├── 📄 install_in_houdini.py           <- In-Houdini 1-Click Drag & Drop Installer
-├── 📄 Setup_Launcher.cpp              <- Native GUI Bootstrap Launcher Source
-├── 📂 commercial_build/
-│   ├── 📄 package_builder.py          <- Automated Cython compiler & release bundler
-│   ├── 📄 verify_release.py           <- Release integrity & contract verification
-│   └── 📄 installer.iss               <- Inno Setup Windows installer configuration
+├── 📂 commercial_build/               <- Developer packaging, Cython compilation & Inno Setup
 ├── 📂 release/                        <- EULA, Third-Party Notices, & Documentation
+├── 📂 tools/                          <- Developer test harnesses & showcase generators
 ├── 📄 .gitignore
 ├── 📄 LICENSE                         <- Apache 2.0 License
 └── 📄 README.md
@@ -156,9 +153,9 @@ Houdini-Ai-Attribute-Wrangle/
 
 ## 🔗 Model Weights & Downloads
  
-* **Hugging Face Model Hub**: [https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10)
-* **Direct LoRA GGUF Download (698 MB)**: [Download `qwen3-vex-v10-lora.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/resolve/main/qwen3-vex-v10-lora.gguf)
-* **Direct Merged Model Download (5.85 GB)**: [Download `Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/resolve/main/Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf)
+* **Hugging Face Model Repository**: [anshulVashist/Qwen3-8B-Houdini-VEX-v10](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10)
+* **Standalone Merged Model (Recommended, 5.45 GB)**: [Download `Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/resolve/main/Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf)
+* **LoRA Adapter (Optional / Research, 698 MB)**: [Download `qwen3-vex-v10-lora.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/resolve/main/qwen3-vex-v10-lora.gguf)
 
 ---
 

@@ -60,10 +60,15 @@ def install_package_for_target(plugin_root: Path, target_pref_dir: Path) -> tupl
         fwd_root = plugin_root.as_posix()
         package_def = {
             "hpath": fwd_root,
+            "pythonpath": f"{fwd_root}/python",
             "env": [
-                {"PYTHONPATH": f"{fwd_root}/python;$PYTHONPATH"},
-                {"PATH": f"{fwd_root}/bin;$PATH"},
                 {"AI_WRANGLE_ROOT": fwd_root},
+                {
+                    "PATH": {
+                        "method": "prepend",
+                        "value": f"{fwd_root}/bin"
+                    }
+                }
             ]
         }
 
@@ -88,8 +93,8 @@ class SetupWizardApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("AI Attribute Wrangle — Setup Wizard")
-        self.root.geometry("620x560")
-        self.root.minsize(560, 500)
+        self.root.geometry("640x600")
+        self.root.minsize(580, 520)
         self.root.configure(bg="#1e1e24")
 
         if getattr(sys, "frozen", False):
@@ -98,8 +103,11 @@ class SetupWizardApp:
             self.plugin_root = Path(__file__).resolve().parent
             if (self.plugin_root / "python").exists() or (self.plugin_root / "otls").exists():
                 pass
-            elif (self.plugin_root.parent / "dist" / "AI_Attribute_Wrangle_v1.0.2").exists():
-                self.plugin_root = self.plugin_root.parent / "dist" / "AI_Attribute_Wrangle_v1.0.2"
+            elif (self.plugin_root.parent / "python").exists():
+                self.plugin_root = self.plugin_root.parent
+
+        model_file = self.plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"
+        self.model_present = model_file.exists() or any((self.plugin_root / "models").glob("*.gguf")) if (self.plugin_root / "models").exists() else False
 
         self.houdini_versions = discover_houdini_preferences()
         self.version_vars = {}
@@ -142,6 +150,27 @@ class SetupWizardApp:
             status_frame, text="No license keys or activation required. Ready to run directly in Houdini.",
             font=("Segoe UI", 8), bg="#282830", fg="#aaaaaa"
         ).pack(anchor="w")
+
+        # Model readiness row
+        model_row = tk.Frame(status_frame, bg="#282830")
+        model_row.pack(fill="x", pady=(6, 0))
+        if self.model_present:
+            tk.Label(
+                model_row, text="🧠 Model: Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf (Ready ✅)",
+                font=("Segoe UI", 8, "bold"), bg="#282830", fg="#88ff88"
+            ).pack(side="left")
+        else:
+            import webbrowser
+            tk.Label(
+                model_row, text="⚠️ Model: Missing from models/ folder",
+                font=("Segoe UI", 8, "bold"), bg="#282830", fg="#ffaa33"
+            ).pack(side="left")
+            hf_btn = tk.Button(
+                model_row, text="📥 Download from Hugging Face", font=("Segoe UI", 8, "bold"),
+                bg="#ff6600", fg="#ffffff", relief="flat", padx=6, pady=1, cursor="hand2",
+                command=lambda: webbrowser.open("https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10")
+            )
+            hf_btn.pack(side="right")
 
         # Houdini Version Selection Section
         ver_frame = tk.LabelFrame(

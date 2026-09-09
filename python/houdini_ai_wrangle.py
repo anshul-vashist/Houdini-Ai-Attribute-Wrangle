@@ -105,10 +105,27 @@ def ensure_embedded_engine() -> bool:
                 _engine_error = f"Cannot import engine_manager: {err}"
                 return False
 
-        engine_bin = os.path.join(pkg_root, "bin", "llama-server.exe")
+        import shutil
+
+        # Discover inference engine binary
+        engine_env = os.environ.get("AI_WRANGLE_ENGINE_BIN")
+        winget_engine = os.path.expanduser(
+            r"~\AppData\Local\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe"
+        )
+        engine_candidates = [
+            engine_env,
+            os.path.join(pkg_root, "bin", "llama-server.exe"),
+            shutil.which("llama-server.exe"),
+            shutil.which("llama-server"),
+            winget_engine,
+        ]
+        engine_bin = next((b for b in engine_candidates if b and os.path.isfile(b)), None)
+
+        # Discover AI model weights
+        model_env = os.environ.get("AI_WRANGLE_MODEL_PATH")
         model_dir = os.path.join(pkg_root, "models")
-        # 1. Prioritize standalone merged model if present
         base_candidates = [
+            model_env,
             os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"),
             os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf"),
             os.path.join(model_dir, "qwen3-vex.gguf"),
@@ -116,13 +133,19 @@ def ensure_embedded_engine() -> bool:
             os.path.join(model_dir, "vex_brain.gguf"),
             os.path.join(pkg_root, "qwen3-vex.gguf"),
         ]
-        model_path = next((p for p in base_candidates if os.path.exists(p)), base_candidates[0])
+        model_path = next((p for p in base_candidates if p and os.path.exists(p)), None)
 
-        if not os.path.exists(engine_bin):
-            _engine_error = f"Bundled inference executable is missing: {engine_bin}"
+        if not engine_bin or not os.path.exists(engine_bin):
+            _engine_error = (
+                f"Bundled inference executable is missing (searched: {os.path.join(pkg_root, 'bin', 'llama-server.exe')}). "
+                "Ensure bin/llama-server.exe is installed or set AI_WRANGLE_ENGINE_BIN."
+            )
             return False
-        if not os.path.exists(model_path):
-            _engine_error = f"Bundled model vault is missing: {model_path}"
+        if not model_path or not os.path.exists(model_path):
+            _engine_error = (
+                "AI model weights not found. Please download 'Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf' "
+                "from Hugging Face (https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10) into the 'models/' folder."
+            )
             return False
 
         mgr = EngineManager()
@@ -260,6 +283,23 @@ def sanitize_vex_syntax(code: str) -> str:
     c = re.sub(r'\bvec[234]\s*\(', 'set(', c)
     c = re.sub(r'(?<![a-zA-Z0-9_])@UV\b', 'v@uv', c)
     c = re.sub(r'</?think>', '', c)
+
+    # Normalize invalid 4-argument setattrib(geohandle, name, elemnum, value)
+    def _normalize_setattrib(m):
+        geo = m.group(1).strip()
+        name = m.group(2).strip()
+        elem = m.group(3).strip()
+        val = m.group(4).strip()
+        elem_lower = elem.lower()
+        if any(k in elem_lower for k in ("pt", "point", "vtx", "vertex")):
+            return f"setpointattrib({geo}, {name}, {elem}, {val})"
+        return f"setprimattrib({geo}, {name}, {elem}, {val})"
+
+    c = re.sub(
+        r'\bsetattrib\s*\(\s*([^,]+)\s*,\s*("[^"]+"|\'[^\']+\')\s*,\s*([^,]+)\s*,\s*([^,)]+)\s*\)',
+        _normalize_setattrib,
+        c
+    )
     return c.strip()
 
 

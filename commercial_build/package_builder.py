@@ -48,11 +48,11 @@ def compile_python_extensions(output_python_dir: Path) -> list[str]:
     temp_build_dir.mkdir(parents=True, exist_ok=True)
 
     sources = [
-        PROJECT_ROOT / "houdini_vex_project" / "03_houdini_integration" / "houdini_ai_wrangle.py",
-        PROJECT_ROOT / "houdini_vex_project" / "03_houdini_integration" / "vex_rag_engine.py",
-        SCRIPT_DIR / "engine_manager.py",
-        SCRIPT_DIR / "license_validator.py",
-        SCRIPT_DIR / "model_vault.py",
+        PROJECT_ROOT / "python" / "houdini_ai_wrangle.py",
+        PROJECT_ROOT / "python" / "vex_rag_engine.py",
+        PROJECT_ROOT / "python" / "engine_manager.py",
+        PROJECT_ROOT / "python" / "license_validator.py",
+        PROJECT_ROOT / "python" / "model_vault.py",
     ]
 
     for src in sources:
