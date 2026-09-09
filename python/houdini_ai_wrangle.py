@@ -92,7 +92,7 @@ def ensure_embedded_engine() -> bool:
     try:
         pkg_root = _package_root()
         import sys
-        for p in [pkg_root, os.path.join(pkg_root, "python"), os.path.join(pkg_root, "commercial_build")]:
+        for p in [pkg_root, os.path.join(pkg_root, "python")]:
             if os.path.isdir(p) and p not in sys.path:
                 sys.path.insert(0, p)
 
@@ -1509,14 +1509,24 @@ def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "s
 
 def sanitize_nan_inf_vex(code: str) -> str:
     """Injects defensive mathematical guards against NaN/Inf and division-by-zero."""
-    # 1. acos(x) -> acos(clamp(x, -1.0, 1.0))
-    code = re.sub(r'\bacos\s*\(\s*([^()]+)\s*\)', r'acos(clamp(\1, -1.0, 1.0))', code)
-    # 2. asin(x) -> asin(clamp(x, -1.0, 1.0))
-    code = re.sub(r'\basin\s*\(\s*([^()]+)\s*\)', r'asin(clamp(\1, -1.0, 1.0))', code)
-    # 3. sqrt(x) -> sqrt(max(x, 0.0))
-    code = re.sub(r'\bsqrt\s*\(\s*([^()]+)\s*\)', r'sqrt(max(\1, 0.0))', code)
-    # 4. log(x) -> log(max(x, 1e-6))
-    code = re.sub(r'\blog\s*\(\s*([^()]+)\s*\)', r'log(max(\1, 1e-6))', code)
+    balanced_arg = r'(?:[^()]+|\([^()]*\))+'
+
+    def _clamp_wrap(m, fn_name):
+        arg = m.group(1).strip()
+        if arg.startswith("clamp("):
+            return f"{fn_name}({arg})"
+        return f"{fn_name}(clamp({arg}, -1.0, 1.0))"
+
+    def _max_wrap(m, fn_name, lower_bound):
+        arg = m.group(1).strip()
+        if arg.startswith("max("):
+            return f"{fn_name}({arg})"
+        return f"{fn_name}(max({arg}, {lower_bound}))"
+
+    code = re.sub(rf'\bacos\s*\(\s*({balanced_arg})\s*\)', lambda m: _clamp_wrap(m, "acos"), code)
+    code = re.sub(rf'\basin\s*\(\s*({balanced_arg})\s*\)', lambda m: _clamp_wrap(m, "asin"), code)
+    code = re.sub(rf'\bsqrt\s*\(\s*({balanced_arg})\s*\)', lambda m: _max_wrap(m, "sqrt", "0.0"), code)
+    code = re.sub(rf'\blog\s*\(\s*({balanced_arg})\s*\)', lambda m: _max_wrap(m, "log", "1e-6"), code)
     return code
 
 

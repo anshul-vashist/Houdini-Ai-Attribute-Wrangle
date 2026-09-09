@@ -62,6 +62,18 @@ class EngineManager:
         self.active_gpu_layers = 0
 
     def get_model_info_string(self) -> str:
+        if not self.active_model_name and self.is_healthy():
+            try:
+                headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+                req = urllib.request.Request(f"{self.base_url}/v1/models", headers=headers)
+                opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                with opener.open(req, timeout=1.0) as resp:
+                    m_data = json.loads(resp.read().decode("utf-8"))
+                    models = m_data.get("data", []) or m_data.get("models", [])
+                    if models:
+                        self.active_model_name = models[0].get("id") or models[0].get("name", "")
+            except Exception:
+                pass
         model = self.active_model_name or "qwen3-vex.gguf"
         if self.active_lora_name:
             extra = " (v10 Grandmaster - Sept 8)" if "v10" in self.active_lora_name else ""
@@ -151,6 +163,7 @@ class EngineManager:
 
     def start_embedded_engine(self, engine_bin_path: str, vault_model_path: str) -> bool:
         self.last_error = ""
+        self.active_model_name = os.path.basename(vault_model_path)
         if self.is_healthy():
             return True
         if not os.path.isfile(engine_bin_path):
