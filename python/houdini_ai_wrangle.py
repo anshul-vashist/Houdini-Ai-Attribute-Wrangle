@@ -1677,7 +1677,6 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
             except Exception:
                 pass
 
-    # Strip stale spare parms from previous sessions
     _known_base_parms = {
         "snippet", "group", "grouptype", "class", "exportlist",
         "autobind", "bindings", "groupautobind", "groupbindings",
@@ -1686,8 +1685,23 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         "vex_precision", "vex_numcount", "vex_threadjobsize",
         "vex_strict", "vex_strictvariables", "ai_spare_parms",
     }
+
+    # Strip stale spare parms and any existing AI folders/parms for a clean rebuild
+    for folder_name in ("ai_folder", "ai_folder2", "ai_tabs", "ai_history_tab", "ai_tools_tab", "ai_thought_tab"):
+        existing_folder = ptg.find(folder_name)
+        if existing_folder:
+            try:
+                ptg.remove(existing_folder)
+            except Exception:
+                pass
+
     for e in list(ptg.entriesWithoutFolders()):
-        if e.name() not in _known_base_parms and not e.name().startswith("ai_"):
+        if e.name().startswith("ai_") and e.name() != "ai_spare_parms":
+            try:
+                ptg.remove(e)
+            except Exception:
+                pass
+        elif e.name() not in _known_base_parms:
             try:
                 ptg.remove(e)
             except Exception:
@@ -1754,13 +1768,92 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
 
     sep_top = hou.SeparatorParmTemplate("sep_top")
 
-    # ── 4. Version History (inline row) ───────────────────────────────────────
+    # ── 4. TABS CONTAINER ─────────────────────────────────────────────────────
+    # Tab 1: History & Variants
+    history_tab = hou.FolderParmTemplate(
+        name="ai_history_tab",
+        label="History & Variants",
+        folder_type=hou.folderType.Tabs
+    )
+
+    # Active Variant Selector
+    variant_parm = hou.MenuParmTemplate(
+        name="ai_variant",
+        label="Active Variant",
+        menu_items=("0", "1"),
+        menu_labels=("Variant A", "Variant B"),
+        default_value=0,
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_variant_changed(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Switch active VEX code between Variant A and Variant B."
+    )
+    variant_parm.setJoinWithNext(True)
+
+    toggle_ab_btn = hou.ButtonParmTemplate(
+        name="ai_toggle_ab",
+        label="⇄ Swap A/B",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_toggle_variants_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Quickly swap between Variant A and Variant B in the viewport."
+    )
+
+    # Variant Action Buttons Row
+    store_a_btn = hou.ButtonParmTemplate(
+        name="ai_store_a",
+        label="📌 Set as A",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_store_variant_a_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Capture current code into Variant A."
+    )
+    store_a_btn.setJoinWithNext(True)
+
+    store_b_btn = hou.ButtonParmTemplate(
+        name="ai_store_b",
+        label="📌 Set as B",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_store_variant_b_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Capture current code into Variant B."
+    )
+    store_b_btn.setJoinWithNext(True)
+
+    fork_btn = hou.ButtonParmTemplate(
+        name="ai_fork_branch",
+        label="🌿 Fork to Switch",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_fork_branch_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Create a Switch SOP comparing Variant A and Variant B in the network editor."
+    )
+
+    # Collapsible Variant Code Viewers
+    folder_snip_a = hou.FolderParmTemplate("folder_snip_a", "Variant A Code", folder_type=hou.folderType.Collapsible)
+    snip_a = hou.StringParmTemplate(
+        name="ai_snippet_a", label="Code (A)",
+        num_components=1, default_value=[""],
+        string_type=hou.stringParmType.Regular,
+        tags={"editor": "1", "editorlang": "vex", "multiline": "1"},
+        help="Code stored in Variant A."
+    )
+    folder_snip_a.addParmTemplate(snip_a)
+
+    folder_snip_b = hou.FolderParmTemplate("folder_snip_b", "Variant B Code", folder_type=hou.folderType.Collapsible)
+    snip_b = hou.StringParmTemplate(
+        name="ai_snippet_b", label="Code (B)",
+        num_components=1, default_value=[""],
+        string_type=hou.stringParmType.Regular,
+        tags={"editor": "1", "editorlang": "vex", "multiline": "1"},
+        help="Code stored in Variant B."
+    )
+    folder_snip_b.addParmTemplate(snip_b)
+
+    sep_hist = hou.SeparatorParmTemplate("sep_hist")
+
+    # Time Machine History Row
     prev_btn = hou.ButtonParmTemplate(
         name="ai_prev_version",
         label="◀ Prev",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_prev_version_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Roll back to the previous generated VEX version."
+        help="Roll back to previous generated VEX version in the history stack."
     )
     prev_btn.setJoinWithNext(True)
 
@@ -1780,15 +1873,60 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         label="Next ▶",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_next_version_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Step forward to the next generated VEX version."
+        help="Step forward to next generated VEX version in the history stack."
+    )
+    next_btn.setJoinWithNext(True)
+
+    clear_hist_btn = hou.ButtonParmTemplate(
+        name="ai_clear_history",
+        label="🗑 Clear",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_clear_history_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Clear history stack for this node."
     )
 
-    sep_mid = hou.SeparatorParmTemplate("sep_mid")
+    copy_a_btn = hou.ButtonParmTemplate(
+        name="ai_copy_hist_a",
+        label="Load to Variant A",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_copy_history_to_a_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Copy currently loaded version into Variant A."
+    )
+    copy_a_btn.setJoinWithNext(True)
 
-    # ── 5. Preset Menu (inline row) ───────────────────────────────────────────
+    copy_b_btn = hou.ButtonParmTemplate(
+        name="ai_copy_hist_b",
+        label="Load to Variant B",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_copy_history_to_b_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Copy currently loaded version into Variant B."
+    )
+
+    history_tab.addParmTemplate(variant_parm)
+    history_tab.addParmTemplate(toggle_ab_btn)
+    history_tab.addParmTemplate(store_a_btn)
+    history_tab.addParmTemplate(store_b_btn)
+    history_tab.addParmTemplate(fork_btn)
+    history_tab.addParmTemplate(folder_snip_a)
+    history_tab.addParmTemplate(folder_snip_b)
+    history_tab.addParmTemplate(sep_hist)
+    history_tab.addParmTemplate(prev_btn)
+    history_tab.addParmTemplate(version_info_parm)
+    history_tab.addParmTemplate(next_btn)
+    history_tab.addParmTemplate(clear_hist_btn)
+    history_tab.addParmTemplate(copy_a_btn)
+    history_tab.addParmTemplate(copy_b_btn)
+
+    # Tab 2: Presets & Tools
+    tools_tab = hou.FolderParmTemplate(
+        name="ai_tools_tab",
+        label="Presets & Tools",
+        folder_type=hou.folderType.Tabs
+    )
+
+    # Preset Menu
     preset_items = list(_FX_PRESETS.keys())
     preset_labels = [_FX_PRESETS[k]["label"] for k in preset_items]
-
     preset_menu = hou.MenuParmTemplate(
         name="ai_preset_menu",
         label="Preset",
@@ -1806,35 +1944,21 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         help="Load the selected preset into the VEX snippet and cook immediately."
     )
 
-    sep_adv = hou.SeparatorParmTemplate("sep_adv")
+    sep_tools1 = hou.SeparatorParmTemplate("sep_tools1")
 
-    # ── 6. Advanced (collapsible, closed by default) ───────────────────────────
-    adv_folder = hou.FolderParmTemplate(
-        name="ai_advanced_folder",
-        label="Advanced Options",
-        folder_type=hou.folderType.Collapsible
-    )
-
-    # Toggles row
     autodetect_parm = hou.ToggleParmTemplate(
         name="ai_autodetect",
         label="Auto-Detect Class",
         default_value=True,
-        help=(
-            "Automatically infers the wrangle execution class (Point, Primitive, "
-            "Detail, Vertex) from your prompt. Disable to lock the class manually."
-        )
+        help="Automatically infers wrangle execution class (Point, Primitive, Detail, Vertex)."
     )
 
-    sep_adv2 = hou.SeparatorParmTemplate("sep_adv2")
-
-    # Utility buttons row
     sanitize_btn = hou.ButtonParmTemplate(
         name="ai_sanitize_guards",
         label="🛡 Sanitize",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_sanitize_guards_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Inject safety guards (clamp acos/asin, protect sqrt/log/div-by-zero) into the VEX code."
+        help="Inject safety guards into VEX."
     )
     sanitize_btn.setJoinWithNext(True)
 
@@ -1843,7 +1967,7 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         label="📊 Stats",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_inspect_stats_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Inspect attribute statistics (min, max, mean) for all attributes in the upstream geometry."
+        help="Inspect attribute statistics for upstream geometry."
     )
     stats_btn.setJoinWithNext(True)
 
@@ -1852,7 +1976,7 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         label="📝 Help Card",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_generate_help_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Generate an official SideFX-style documentation help card for this node."
+        help="Generate SideFX-style documentation help card."
     )
     help_btn.setJoinWithNext(True)
 
@@ -1861,47 +1985,38 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         label="💾 Export .h",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_export_header_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Export the VEX code as a reusable .h header file for inclusion in other wrangles."
+        help="Export VEX code as .h header."
     )
 
-    sep_adv4 = hou.SeparatorParmTemplate("sep_adv4")
+    sep_tools2 = hou.SeparatorParmTemplate("sep_tools2")
 
-    # Model info (read-only, subtle)
     model_info_parm = hou.StringParmTemplate(
         name="ai_model_info",
         label="Model",
         num_components=1,
         default_value=[get_active_ai_model_display_string()],
         string_type=hou.stringParmType.Regular,
-        help="Active AI model loaded in the embedded inference engine."
+        help="Active AI model loaded in embedded inference engine."
     )
     model_info_parm.setTags({"editable": "0"})
 
-    # Performance (hidden)
-    perf_parm = hou.StringParmTemplate(
-        name="ai_perf",
-        label="Cook Benchmark",
-        num_components=1,
-        default_value=["—"],
-        string_type=hou.stringParmType.Regular,
-    )
-    perf_parm.setTags({"hide": "1"})
+    tools_tab.addParmTemplate(preset_menu)
+    tools_tab.addParmTemplate(load_preset_btn)
+    tools_tab.addParmTemplate(sep_tools1)
+    tools_tab.addParmTemplate(autodetect_parm)
+    tools_tab.addParmTemplate(sanitize_btn)
+    tools_tab.addParmTemplate(stats_btn)
+    tools_tab.addParmTemplate(help_btn)
+    tools_tab.addParmTemplate(export_btn)
+    tools_tab.addParmTemplate(sep_tools2)
+    tools_tab.addParmTemplate(model_info_parm)
 
-    adv_folder.addParmTemplate(autodetect_parm)
-    adv_folder.addParmTemplate(sep_adv2)
-    adv_folder.addParmTemplate(sanitize_btn)
-    adv_folder.addParmTemplate(stats_btn)
-    adv_folder.addParmTemplate(help_btn)
-    adv_folder.addParmTemplate(export_btn)
-    adv_folder.addParmTemplate(sep_adv4)
-    adv_folder.addParmTemplate(model_info_parm)
-    adv_folder.addParmTemplate(perf_parm)
-
-    # ── 7. Reasoning Trace (collapsible, closed by default) ───────────────────
-    thought_folder = hou.FolderParmTemplate(
-        name="ai_thought_folder",
+    # Tab 3: Reasoning Trace
+    thought_tab = hou.FolderParmTemplate(
+        name="ai_thought_tab",
         label="Reasoning Trace",
-        folder_type=hou.folderType.Collapsible
+        folder_type=hou.folderType.Tabs,
+        ends_tab_group=True
     )
 
     thought_parm = hou.StringParmTemplate(
@@ -1911,74 +2026,40 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         default_value=["No reasoning trace yet. Enable Deep Reasoning and Generate."],
         string_type=hou.stringParmType.Regular,
         tags={"editor": "1", "multiline": "1"},
-        help=(
-            "The AI's internal Chain-of-Thought reasoning: mathematical analysis, "
-            "attribute schema planning, and algorithmic blueprint. "
-            "Only populated when Deep Reasoning mode is enabled."
-        )
+        help="Chain-of-Thought reasoning from the AI."
     )
-    thought_folder.addParmTemplate(thought_parm)
+    thought_tab.addParmTemplate(thought_parm)
 
-    # ── 8. Hidden data parms (functional, not shown) ──────────────────────────
+    # Hidden data
     history_json_parm = hou.StringParmTemplate(
         name="ai_history_json",
-        label="History",
+        label="History Data",
         num_components=1,
         default_value=["[]"],
         string_type=hou.stringParmType.Regular,
     )
     history_json_parm.setTags({"hide": "1"})
 
-    snip_a = hou.StringParmTemplate(
-        name="ai_snippet_a", label="Variant A",
-        num_components=1, default_value=[""],
+    perf_parm = hou.StringParmTemplate(
+        name="ai_perf",
+        label="Cook Benchmark",
+        num_components=1,
+        default_value=["—"],
         string_type=hou.stringParmType.Regular,
     )
-    snip_a.setTags({"hide": "1"})
+    perf_parm.setTags({"hide": "1"})
 
-    snip_b = hou.StringParmTemplate(
-        name="ai_snippet_b", label="Variant B",
-        num_components=1, default_value=[""],
-        string_type=hou.stringParmType.Regular,
-    )
-    snip_b.setTags({"hide": "1"})
-
-    variant_parm = hou.IntParmTemplate(
-        name="ai_variant", label="Active Variant",
-        num_components=1, default_value=(0,), min=0, max=1,
-    )
-    variant_parm.setTags({"hide": "1"})
-
-    fork_btn = hou.ButtonParmTemplate(
-        name="ai_fork_branch",
-        label="Fork to A/B Switch",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_fork_branch_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Capture current snippet as Variant A, then call again after generating Variant B to create a Switch SOP comparison.",
-    )
-    fork_btn.setTags({"hide": "1"})
-
-    # ── Assemble flat panel ───────────────────────────────────────────────────
+    # Assemble panel
     ai_folder.addParmTemplate(prompt_parm)
     ai_folder.addParmTemplate(gen_btn)
     ai_folder.addParmTemplate(reasoning_parm)
     ai_folder.addParmTemplate(status_parm)
     ai_folder.addParmTemplate(sep_top)
-    ai_folder.addParmTemplate(prev_btn)
-    ai_folder.addParmTemplate(version_info_parm)
-    ai_folder.addParmTemplate(next_btn)
-    ai_folder.addParmTemplate(sep_mid)
-    ai_folder.addParmTemplate(preset_menu)
-    ai_folder.addParmTemplate(load_preset_btn)
-    ai_folder.addParmTemplate(sep_adv)
-    ai_folder.addParmTemplate(adv_folder)
-    ai_folder.addParmTemplate(thought_folder)
-    # Hidden data
+    ai_folder.addParmTemplate(history_tab)
+    ai_folder.addParmTemplate(tools_tab)
+    ai_folder.addParmTemplate(thought_tab)
     ai_folder.addParmTemplate(history_json_parm)
-    ai_folder.addParmTemplate(snip_a)
-    ai_folder.addParmTemplate(snip_b)
-    ai_folder.addParmTemplate(variant_parm)
-    ai_folder.addParmTemplate(fork_btn)
+    ai_folder.addParmTemplate(perf_parm)
 
     snippet_parm_tmpl = ptg.find("snippet")
     if snippet_parm_tmpl:
@@ -2442,7 +2523,7 @@ def on_variant_changed(kwargs):
     variant_parm = node.parm("ai_variant")
     if not variant_parm:
         return
-    variant_idx = variant_parm.eval()
+    variant_idx = int(variant_parm.eval())
     snippet_parm = node.parm("snippet")
     if not snippet_parm:
         return
@@ -2452,21 +2533,118 @@ def on_variant_changed(kwargs):
     curr_code = snippet_parm.eval()
 
     if variant_idx == 1:
-        if snip_a and curr_code:
-            snip_a.set(curr_code)
         target_code = snip_b.eval() if snip_b else ""
+        if not target_code.strip() and curr_code.strip():
+            if snip_b:
+                snip_b.set(curr_code)
+            target_code = curr_code
     else:
-        if snip_b and curr_code:
-            snip_b.set(curr_code)
         target_code = snip_a.eval() if snip_a else ""
+        if not target_code.strip() and curr_code.strip():
+            if snip_a:
+                snip_a.set(curr_code)
+            target_code = curr_code
 
-    if target_code:
+    if target_code.strip():
         snippet_parm.set(target_code)
         sync_spare_parameters(node, target_code)
         force_refresh_wrangle(node)
         status_parm = _get_status_parm(node)
         if status_parm:
-            status_parm.set(f"Active: Variant {'B' if variant_idx==1 else 'A'}.")
+            status_parm.set(f"Active Variant: {'Variant B' if variant_idx == 1 else 'Variant A'}.")
+
+
+def on_store_variant_a_clicked(kwargs):
+    node = _extract_node(kwargs)
+    if not node:
+        return
+    snippet_parm = node.parm("snippet")
+    snip_a = node.parm("ai_snippet_a")
+    if snippet_parm and snip_a:
+        code = snippet_parm.eval()
+        snip_a.set(code)
+        if node.parm("ai_variant"):
+            node.parm("ai_variant").set(0)
+        status_parm = _get_status_parm(node)
+        if status_parm:
+            status_parm.set("Current code saved to Variant A ✅")
+        if hou.isUIAvailable():
+            hou.ui.setStatusMessage("Saved current code to Variant A.", severity=hou.severityType.Message)
+
+
+def on_store_variant_b_clicked(kwargs):
+    node = _extract_node(kwargs)
+    if not node:
+        return
+    snippet_parm = node.parm("snippet")
+    snip_b = node.parm("ai_snippet_b")
+    if snippet_parm and snip_b:
+        code = snippet_parm.eval()
+        snip_b.set(code)
+        if node.parm("ai_variant"):
+            node.parm("ai_variant").set(1)
+        status_parm = _get_status_parm(node)
+        if status_parm:
+            status_parm.set("Current code saved to Variant B ✅")
+        if hou.isUIAvailable():
+            hou.ui.setStatusMessage("Saved current code to Variant B.", severity=hou.severityType.Message)
+
+
+def on_toggle_variants_clicked(kwargs):
+    node = _extract_node(kwargs)
+    if not node:
+        return
+    variant_parm = node.parm("ai_variant")
+    if not variant_parm:
+        return
+    current_val = int(variant_parm.eval())
+    new_val = 1 if current_val == 0 else 0
+    variant_parm.set(new_val)
+    on_variant_changed(kwargs)
+
+
+def on_clear_history_clicked(kwargs):
+    node = _extract_node(kwargs)
+    if not node:
+        return
+    if hou.isUIAvailable():
+        if not hou.ui.displayConfirmation("Are you sure you want to clear all version history for this node?"):
+            return
+    hist_parm = _get_history_parm(node)
+    if hist_parm:
+        hist_parm.set("[]")
+    info_parm = _get_info_parm(node)
+    if info_parm:
+        info_parm.set("—")
+    status_parm = _get_status_parm(node)
+    if status_parm:
+        status_parm.set("Version history cleared.")
+
+
+def on_copy_history_to_a_clicked(kwargs):
+    node = _extract_node(kwargs)
+    if not node:
+        return
+    snippet_parm = node.parm("snippet")
+    snip_a = node.parm("ai_snippet_a")
+    if snippet_parm and snip_a:
+        snip_a.set(snippet_parm.eval())
+        status_parm = _get_status_parm(node)
+        if status_parm:
+            status_parm.set("Loaded version copied to Variant A ✅")
+
+
+def on_copy_history_to_b_clicked(kwargs):
+    node = _extract_node(kwargs)
+    if not node:
+        return
+    snippet_parm = node.parm("snippet")
+    snip_b = node.parm("ai_snippet_b")
+    if snippet_parm and snip_b:
+        snip_b.set(snippet_parm.eval())
+        status_parm = _get_status_parm(node)
+        if status_parm:
+            status_parm.set("Loaded version copied to Variant B ✅")
 
 
 def on_fork_branch_clicked(kwargs):
