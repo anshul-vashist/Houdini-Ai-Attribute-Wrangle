@@ -1718,7 +1718,7 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
             "UI channels (chf, chv, chramp), and natural language task descriptions."
         )
     )
-    prompt_parm.setTags({"multiline": "1", "editor": "1", "editorlang": "vex"})
+    prompt_parm.setTags({"multiline": "1"})
 
     # ── 2. Action Button & Deep Reasoning (unified single row) ────────────────
     gen_btn = hou.ButtonParmTemplate(
