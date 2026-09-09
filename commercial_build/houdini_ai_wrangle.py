@@ -107,25 +107,15 @@ def ensure_embedded_engine() -> bool:
 
         engine_bin = os.path.join(pkg_root, "bin", "llama-server.exe")
         model_dir = os.path.join(pkg_root, "models")
-        has_lora = any(
-            os.path.isfile(os.path.join(model_dir, lora))
-            for lora in ["qwen3-vex-v10-lora.gguf", "lora.gguf"]
-        )
-        if has_lora and os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")):
-            base_candidates = [
-                os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf"),
-                os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"),
-                os.path.join(model_dir, "qwen3-vex.gguf"),
-            ]
-        else:
-            base_candidates = [
-                os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"),
-                os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf"),
-                os.path.join(model_dir, "qwen3-vex.gguf"),
-                os.path.join(model_dir, "vex_brain.dat"),
-                os.path.join(model_dir, "vex_brain.gguf"),
-                os.path.join(pkg_root, "qwen3-vex.gguf"),
-            ]
+        # 1. Prioritize standalone merged model if present
+        base_candidates = [
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf"),
+            os.path.join(model_dir, "qwen3-vex.gguf"),
+            os.path.join(model_dir, "vex_brain.dat"),
+            os.path.join(model_dir, "vex_brain.gguf"),
+            os.path.join(pkg_root, "qwen3-vex.gguf"),
+        ]
         model_path = next((p for p in base_candidates if os.path.exists(p)), base_candidates[0])
 
         if not os.path.exists(engine_bin):
@@ -173,6 +163,8 @@ def get_active_ai_model_display_string() -> str:
 
     pkg_root = _package_root()
     model_dir = os.path.join(pkg_root, "models")
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf (Standalone Merged v10.1)"
     lora_candidates = [
         "qwen3-vex-v10-lora.gguf",
         "lora.gguf",
@@ -186,8 +178,6 @@ def get_active_ai_model_display_string() -> str:
     if active_lora:
         base_name = "Qwen3-8B-Q5_K_M.gguf" if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")) else "qwen3-vex.gguf"
         return f"{base_name} + LoRA: {active_lora} (v10 Grandmaster - Sept 8)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf (Standalone Merged)"
     base_name = "Qwen3-8B-Q5_K_M.gguf" if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")) else "qwen3-vex.gguf"
     return f"{base_name} (Base)"
 

@@ -66,6 +66,8 @@ class EngineManager:
         if self.active_lora_name:
             extra = " (v10 Grandmaster - Sept 8)" if "v10" in self.active_lora_name else ""
             return f"{model} + LoRA: {self.active_lora_name}{extra}"
+        if "Houdini-VEX" in model:
+            return f"{model} (Standalone Merged v10.1)"
         return f"{model} (Base)"
 
     def get_api_key(self) -> str | None:
@@ -170,17 +172,19 @@ class EngineManager:
             "--host", self.host, "--ctx-size", "4096", "--n-gpu-layers",
             gpu_layers,
         ]
-        # Check for fine-tuned LoRA adapter (v10 Grandmaster)
-        model_dir = os.path.dirname(vault_model_path)
-        lora_candidates = [
-            os.path.join(model_dir, "qwen3-vex-v10-lora.gguf"),
-            os.path.join(model_dir, "lora.gguf"),
-        ]
-        for lora_path in lora_candidates:
-            if os.path.isfile(lora_path):
-                command.extend(["--lora", lora_path])
-                self.active_lora_name = os.path.basename(lora_path)
-                break
+        # Check for fine-tuned LoRA adapter (only if the model is not already standalone merged)
+        is_already_merged = "Houdini-VEX" in os.path.basename(vault_model_path) or "merged" in os.path.basename(vault_model_path).lower()
+        if not is_already_merged:
+            model_dir = os.path.dirname(vault_model_path)
+            lora_candidates = [
+                os.path.join(model_dir, "qwen3-vex-v10-lora.gguf"),
+                os.path.join(model_dir, "lora.gguf"),
+            ]
+            for lora_path in lora_candidates:
+                if os.path.isfile(lora_path):
+                    command.extend(["--lora", lora_path])
+                    self.active_lora_name = os.path.basename(lora_path)
+                    break
         if resolved_model_path.endswith(".dat"):
             command.append("--no-mmap")
         if self.api_key:
