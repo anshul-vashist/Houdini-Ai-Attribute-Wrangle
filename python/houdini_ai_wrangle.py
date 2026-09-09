@@ -1774,11 +1774,20 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
     # ── 4. Presets (inline row) ───────────────────────────────────────────────
     preset_items = list(_FX_PRESETS.keys())
     preset_labels = [_FX_PRESETS[k]["label"] for k in preset_items]
+    preset_menu_script = (
+        "import houdini_ai_wrangle\n"
+        "items = []\n"
+        "for k, v in houdini_ai_wrangle._FX_PRESETS.items():\n"
+        "    items.extend([k, v['label']])\n"
+        "return items"
+    )
     preset_menu = hou.MenuParmTemplate(
         name="ai_preset_menu",
         label="Preset",
         menu_items=preset_items,
         menu_labels=preset_labels,
+        item_generator_script=preset_menu_script,
+        item_generator_script_language=hou.scriptLanguage.Python,
         help="Choose a built-in FX recipe to load as your starting point."
     )
     preset_menu.setJoinWithNext(True)
