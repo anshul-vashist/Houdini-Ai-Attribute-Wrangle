@@ -141,7 +141,6 @@ Houdini-Ai-Attribute-Wrangle/
 ├── 🚀 Install.bat                     <- Windows 1-Click Desktop Setup Wizard
 ├── 📄 installer_gui.py                <- Cross-Platform Tkinter Setup Wizard
 ├── 📄 install_in_houdini.py           <- In-Houdini 1-Click Drag & Drop Installer
-├── 📂 commercial_build/               <- Developer packaging, Cython compilation & Inno Setup
 ├── 📂 release/                        <- EULA, Third-Party Notices, & Documentation
 ├── 📂 tools/                          <- Developer test harnesses & showcase generators
 ├── 📄 .gitignore
