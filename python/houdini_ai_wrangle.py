@@ -341,51 +341,67 @@ def _heal_truncated_vex(code: str) -> str:
 
 def _resolve_chramp_polymorphic_ambiguity(code: str) -> str:
     """Rewrites inline chramp() calls inside set*attrib() to use typed local variables.
-
-    VEX's setpointattrib/setprimattrib/setvertexattrib have multiple overloads
-    (float, vector, int, string). When chramp() is passed directly, the compiler
-    reports 'Ambiguous call to function'. This extracts the chramp() call into a
-    typed variable assignment placed on the line before.
+    Handles arbitrarily nested expressions inside chramp() like clamp(length(v)/40.0, 0, 1).
     """
-    pattern = re.compile(
-        r'(set(?:point|prim|vertex|detail)attrib\s*\([^,]+,\s*)'   # func(geo,
-        r'("(?:Cd|cd|color|colour)")'                               # "Cd"  (color attrs)
-        r'(\s*,[^,]+,\s*)'                                          # , idx,
-        r'(chramp\s*\([^)]*\))'                                     # chramp("name", val)
-        r'(\s*,\s*"[^"]*"\s*\))',                                    # , "set")
-        re.IGNORECASE
-    )
+    func_re = re.compile(r'\b(set(?:point|prim|vertex|detail)attrib)\s*\(')
+    result = []
+    i = 0
+    counter = 0
 
-    counter = [0]
+    while i < len(code):
+        m = func_re.search(code, i)
+        if not m:
+            result.append(code[i:])
+            break
 
-    def _replace_with_typed_var(m):
-        counter[0] += 1
-        var_name = f"__chramp_col_{counter[0]}"
-        chramp_expr = m.group(4)
-        typed_decl = f"vector {var_name} = {chramp_expr};\n"
-        return typed_decl + m.group(1) + m.group(2) + m.group(3) + var_name + m.group(5)
+        start_pos = m.start()
+        open_pos = m.end() - 1  # '('
+        result.append(code[i:start_pos])
 
-    code = pattern.sub(_replace_with_typed_var, code)
+        # Find matching ')' for set*attrib(...)
+        depth = 1
+        j = open_pos + 1
+        while j < len(code) and depth > 0:
+            if code[j] == '(': depth += 1
+            elif code[j] == ')': depth -= 1
+            j += 1
 
-    # Handle the general case for non-Cd attributes (use float cast)
-    pattern_general = re.compile(
-        r'(set(?:point|prim|vertex|detail)attrib\s*\([^,]+,\s*)'   # func(geo,
-        r'("[^"]*")'                                                # "attr_name"
-        r'(\s*,[^,]+,\s*)'                                          # , idx,
-        r'(chramp\s*\([^)]*\))'                                     # chramp("name", val)
-        r'(\s*,\s*"[^"]*"\s*\))',                                    # , "set")
-    )
+        if depth != 0:
+            result.append(code[start_pos:j])
+            i = j
+            continue
 
-    def _replace_general(m):
-        counter[0] += 1
-        var_name = f"__chramp_val_{counter[0]}"
-        chramp_expr = m.group(4)
-        typed_decl = f"float {var_name} = {chramp_expr};\n"
-        return typed_decl + m.group(1) + m.group(2) + m.group(3) + var_name + m.group(5)
+        inner_args_str = code[open_pos + 1:j - 1]
 
-    code = pattern_general.sub(_replace_general, code)
+        # Check if chramp is inside arguments
+        if 'chramp' in inner_args_str:
+            ch_match = re.search(r'\bchramp\s*\(', inner_args_str)
+            if ch_match:
+                ch_open = ch_match.end() - 1
+                ch_depth = 1
+                k = ch_open + 1
+                while k < len(inner_args_str) and ch_depth > 0:
+                    if inner_args_str[k] == '(': ch_depth += 1
+                    elif inner_args_str[k] == ')': ch_depth -= 1
+                    k += 1
 
-    return code
+                if ch_depth == 0:
+                    full_chramp_call = inner_args_str[ch_match.start():k]
+                    is_color = bool(re.search(r'["\'](?:Cd|cd|color|colour)["\']', inner_args_str))
+                    counter += 1
+                    var_name = f"__chramp_col_{counter}" if is_color else f"__chramp_val_{counter}"
+                    var_type = "vector" if is_color else "float"
+
+                    decl = f"{var_type} {var_name} = {full_chramp_call};\n"
+                    new_inner = inner_args_str[:ch_match.start()] + var_name + inner_args_str[k:]
+                    result.append(f"{decl}{m.group(1)}({new_inner})")
+                    i = j
+                    continue
+
+        result.append(code[start_pos:j])
+        i = j
+
+    return ''.join(result)
 
 
 def query_llm(prompt_text: str, max_tokens: int = 1536, reasoning_mode: bool = False) -> tuple[str, str]:
@@ -1039,9 +1055,11 @@ def auto_detect_context(prompt: str, node: hou.Node = None) -> tuple[int, str]:
     # 3. Vertex wrangle checks — MUST be checked BEFORE primitive to prevent
     #    "vertex normals weighted by face angle" from matching "face" in primitive keywords.
     _VERTEX_KEYWORDS = [
-        "vertex wrangle", "vertex normal", "vertex normals", "texture coordinate",
-        "run over vertices", "vertex uv", "per vertex", "each vertex", "vertex color",
-        "vertex attribute", "vertex tangent", "uv seam", "uv island"
+        "vertex wrangle", "vertex normal", "vertex normals",
+        "texture coordinate", "texture coordinates",
+        "uv coordinate", "uv coordinates", "planar uv", "uv mapping",
+        "run over vertices", "vertex uv", "vertex uvs", "per vertex", "each vertex",
+        "vertex color", "vertex attribute", "vertex tangent", "uv seam", "uv island"
     ]
     if any(re.search(rf"\b{re.escape(k)}\b", p) for k in _VERTEX_KEYWORDS):
         if not ("point" in p and "vertex attribute" in p):
