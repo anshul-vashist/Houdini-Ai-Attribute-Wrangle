@@ -304,7 +304,39 @@ def sanitize_vex_syntax(code: str) -> str:
     # Resolve chramp() polymorphic ambiguity in set*attrib() calls.
     c = _resolve_chramp_polymorphic_ambiguity(c)
 
+    # Heal any truncation from token limit exhaustion (unclosed braces, trailing cutoffs)
+    c = _heal_truncated_vex(c)
+
     return c.strip()
+
+
+def _heal_truncated_vex(code: str) -> str:
+    """Detects and repairs truncated VEX code from token limit cutoffs."""
+    if not code:
+        return ""
+    lines = code.splitlines()
+    if not lines:
+        return code
+
+    # Strip trailing incomplete statement cut off mid-token (e.g. "float pscale")
+    while lines:
+        last = lines[-1].strip()
+        if not last:
+            lines.pop()
+            continue
+        if last.endswith((';', '}', '{', '*/')):
+            break
+        lines.pop()
+
+    healed = "\n".join(lines).strip()
+
+    # Balance unclosed curly braces
+    open_braces = healed.count('{')
+    close_braces = healed.count('}')
+    if open_braces > close_braces:
+        healed += "\n" + ("}\n" * (open_braces - close_braces))
+
+    return healed
 
 
 def _resolve_chramp_polymorphic_ambiguity(code: str) -> str:
@@ -356,7 +388,7 @@ def _resolve_chramp_polymorphic_ambiguity(code: str) -> str:
     return code
 
 
-def query_llm(prompt_text: str, max_tokens: int = 800, reasoning_mode: bool = False) -> tuple[str, str]:
+def query_llm(prompt_text: str, max_tokens: int = 1536, reasoning_mode: bool = False) -> tuple[str, str]:
     """
     Queries AI inference engine.
     Priority 1: Embedded Standalone Engine (127.0.0.1:58421 - Zero Dependencies)
@@ -367,15 +399,14 @@ def query_llm(prompt_text: str, max_tokens: int = 800, reasoning_mode: bool = Fa
     system_prompt = REASONING_SYSTEM_PROMPT if reasoning_mode else TURBO_SYSTEM_PROMPT
     
     # 1. Start and query the bundled standalone engine (llama-server on 58421).
-    # It is the supported commercial runtime.  Ollama is an opt-in developer
-    # fallback, never an undeclared customer dependency.
     engine_ready = ensure_embedded_engine()
     embedded_url = "http://127.0.0.1:58421/completion"
     
+    pred_tokens = max(max_tokens, 2048 if reasoning_mode else 1536)
     asst_prefix = "<|im_start|>assistant\n<think>\n" if reasoning_mode else "<|im_start|>assistant\n"
     embedded_payload = {
         "prompt": f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{prompt_text}<|im_end|>\n{asst_prefix}",
-        "n_predict": 512 if not reasoning_mode else 1024,
+        "n_predict": pred_tokens,
         "temperature": 0.2 if reasoning_mode else 0.1,
         "top_p": 0.95,
         "repeat_penalty": 1.15,
@@ -415,8 +446,8 @@ def query_llm(prompt_text: str, max_tokens: int = 800, reasoning_mode: bool = Fa
         "system": system_prompt,
         "stream": False,
         "options": {
-            "num_predict": 512 if not reasoning_mode else 1024,
-            "num_ctx": 2048,
+            "num_predict": pred_tokens,
+            "num_ctx": 4096,
             "temperature": 0.2 if reasoning_mode else 0.1,
             "top_p": 0.95
         }
