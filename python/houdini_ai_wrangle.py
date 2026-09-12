@@ -300,7 +300,60 @@ def sanitize_vex_syntax(code: str) -> str:
         _normalize_setattrib,
         c
     )
+
+    # Resolve chramp() polymorphic ambiguity in set*attrib() calls.
+    c = _resolve_chramp_polymorphic_ambiguity(c)
+
     return c.strip()
+
+
+def _resolve_chramp_polymorphic_ambiguity(code: str) -> str:
+    """Rewrites inline chramp() calls inside set*attrib() to use typed local variables.
+
+    VEX's setpointattrib/setprimattrib/setvertexattrib have multiple overloads
+    (float, vector, int, string). When chramp() is passed directly, the compiler
+    reports 'Ambiguous call to function'. This extracts the chramp() call into a
+    typed variable assignment placed on the line before.
+    """
+    pattern = re.compile(
+        r'(set(?:point|prim|vertex|detail)attrib\s*\([^,]+,\s*)'   # func(geo,
+        r'("(?:Cd|cd|color|colour)")'                               # "Cd"  (color attrs)
+        r'(\s*,[^,]+,\s*)'                                          # , idx,
+        r'(chramp\s*\([^)]*\))'                                     # chramp("name", val)
+        r'(\s*,\s*"[^"]*"\s*\))',                                    # , "set")
+        re.IGNORECASE
+    )
+
+    counter = [0]
+
+    def _replace_with_typed_var(m):
+        counter[0] += 1
+        var_name = f"__chramp_col_{counter[0]}"
+        chramp_expr = m.group(4)
+        typed_decl = f"vector {var_name} = {chramp_expr};\n"
+        return typed_decl + m.group(1) + m.group(2) + m.group(3) + var_name + m.group(5)
+
+    code = pattern.sub(_replace_with_typed_var, code)
+
+    # Handle the general case for non-Cd attributes (use float cast)
+    pattern_general = re.compile(
+        r'(set(?:point|prim|vertex|detail)attrib\s*\([^,]+,\s*)'   # func(geo,
+        r'("[^"]*")'                                                # "attr_name"
+        r'(\s*,[^,]+,\s*)'                                          # , idx,
+        r'(chramp\s*\([^)]*\))'                                     # chramp("name", val)
+        r'(\s*,\s*"[^"]*"\s*\))',                                    # , "set")
+    )
+
+    def _replace_general(m):
+        counter[0] += 1
+        var_name = f"__chramp_val_{counter[0]}"
+        chramp_expr = m.group(4)
+        typed_decl = f"float {var_name} = {chramp_expr};\n"
+        return typed_decl + m.group(1) + m.group(2) + m.group(3) + var_name + m.group(5)
+
+    code = pattern_general.sub(_replace_general, code)
+
+    return code
 
 
 def query_llm(prompt_text: str, max_tokens: int = 800, reasoning_mode: bool = False) -> tuple[str, str]:
@@ -906,45 +959,91 @@ def introspect_geometry(node: hou.Node) -> str:
     return "Live Node & Geometry Context:\n" + "\n".join(lines + rule_lines)
 
 
-def auto_detect_context(prompt: str) -> tuple[int, str]:
-    """Intelligently determines wrangle class from prompt intent."""
+def auto_detect_context(prompt: str, node: hou.Node = None) -> tuple[int, str]:
+    """Intelligently determines wrangle class from prompt intent and input geometry presence."""
     p = prompt.lower()
     
+    # Check if input 0 has valid incoming geometry
+    has_input_0_geo = False
+    if node is not None:
+        try:
+            in0 = node.input(0)
+            if in0 is not None:
+                g0 = in0.geometry()
+                if g0:
+                    npts = len(g0.points())
+                    nprims = len(g0.prims())
+                    vols = [pr for pr in g0.prims() if pr.type() in (hou.primType.Volume, hou.primType.VDB)]
+                    if npts > 0 or nprims > 0 or vols:
+                        has_input_0_geo = True
+        except Exception:
+            has_input_0_geo = False
+
     # 1. Detail wrangle checks (curves from scratch, attractors, mesh generation, global aggregation)
     is_detail_generation = any(re.search(rf"\b{re.escape(k)}\b", p) for k in [
         "detail wrangle", "detail context", "from scratch", "create mesh", "generate curve", "create curve",
         "lorenz", "attractor", "spiral", "knot", "helix", "polyline", "mobius", "minimal surface",
-        "global attribute", "whole geometry", "global calculation"
-    ]) or ("create points" in p) or ("generate points" in p) or ("stitch points" in p) or ("connect points into" in p)
+        "global attribute", "whole geometry", "global calculation", "create points", "generate points",
+        "stitch points", "connect points into", "synthesize", "spawn", "build from scratch", "make curve"
+    ])
     
     if is_detail_generation:
         return 0, "detail wrangle"
+
+    # 2. If input 0 has NO geometry, a point/prim wrangle CANNOT run in Houdini!
+    # Point wrangles execute 0 times on 0 input points. Therefore, any generative task MUST be detail!
+    if not has_input_0_geo:
+        # Respect explicit class overrides in prompt
+        if any(re.search(rf"\b{re.escape(k)}\b", p) for k in ["primitive wrangle", "prim wrangle"]):
+            return 1, "primitive wrangle"
+        if any(re.search(rf"\b{re.escape(k)}\b", p) for k in ["vertex wrangle"]):
+            return 3, "vertex wrangle"
+        if any(re.search(rf"\b{re.escape(k)}\b", p) for k in ["point wrangle"]):
+            return 2, "point wrangle"
         
-    # 2. Point operations
+        # When input 0 is empty/disconnected, default to detail wrangle so VEX runs and produces geometry!
+        return 0, "detail wrangle"
+
+    # --- When input geometry exists, detect context from prompt keywords ---
+    # 3. Vertex wrangle checks — MUST be checked BEFORE primitive to prevent
+    #    "vertex normals weighted by face angle" from matching "face" in primitive keywords.
+    _VERTEX_KEYWORDS = [
+        "vertex wrangle", "vertex normal", "vertex normals", "texture coordinate",
+        "run over vertices", "vertex uv", "per vertex", "each vertex", "vertex color",
+        "vertex attribute", "vertex tangent", "uv seam", "uv island"
+    ]
+    if any(re.search(rf"\b{re.escape(k)}\b", p) for k in _VERTEX_KEYWORDS):
+        if not ("point" in p and "vertex attribute" in p):
+            return 3, "vertex wrangle"
+
+    # 4. Primitive wrangle checks — exclude point-level sampling queries
+    _PRIM_EXCLUDE_CONTEXTS = {"xyzdist", "primuv", "surface query", "closest surface",
+                              "polygon mesh", "prim_normal", "primattrib", "primintrinsic"}
+    if not any(k in p for k in _PRIM_EXCLUDE_CONTEXTS):
+        _PRIM_KEYWORDS = [
+            "primitive wrangle", "prim wrangle",
+            "set primitive", "primitive color", "primitive attribute",
+            "each primitive", "every primitive", "per primitive",
+            "primitive", "primitives", "prims",
+            "removeprim", "primpoints", "primvertexcount",
+            "perimeter", "face area", "prim area", "polygon area",
+            "neighbor face", "polygon face", "polygon normal",
+            "checkerboard face", "delete small faces", "small faces",
+            "based on area"
+        ]
+        if any(re.search(rf"\b{re.escape(k)}\b", p) for k in _PRIM_KEYWORDS):
+            return 1, "primitive wrangle"
+
+    # 5. Point operations (when input geometry exists)
     is_point_operation = any(k in p for k in [
         "each point", "every point", "per point", "all points", "particles",
         "point normal", "point position", "point color", "point velocity", "displace each point",
-        "project each point", "sample the gradient", "scatter", "nearpoints", "pcopen", "pcfind"
+        "project each point", "sample the gradient", "scatter", "nearpoints", "pcopen", "pcfind",
+        "deform", "advect", "relax", "smooth", "displace", "color", "noise"
     ])
 
-    # If it is clearly an operation iterating over points, return point wrangle
     if is_point_operation:
         return 2, "point wrangle"
-
-    # 3. Primitive wrangle checks (face operations, polygon culling, perimeter/area calculation)
-    if not ("xyzdist" in p or "primuv" in p or "surface query" in p or "closest surface" in p or "polygon mesh" in p):
-        if any(re.search(rf"\b{re.escape(k)}\b", p) for k in [
-            "primitive wrangle", "primitive", "primitives", "prim", "prims", "face", "faces",
-            "removeprim", "primpoints", "primvertexcount", "perimeter", "face area", "neighbor face",
-            "polygon face", "polygon normal", "checkerboard face"
-        ]):
-            return 1, "primitive wrangle"
-
-    # 4. Vertex wrangle checks (vertex UVs, texture coordinates, vertex attributes)
-    if any(re.search(rf"\b{re.escape(k)}\b", p) for k in [
-        "vertex wrangle", "texture coordinate", "run over vertices", "vertex uv"
-    ]) or ("vertex attribute" in p and "point" not in p):
-        return 3, "vertex wrangle"
 
     return 2, "point wrangle"
 
@@ -1286,19 +1385,24 @@ def navigate_history_version(node: hou.Node, direction: int):
 # ---------------------------------------------------------------------------
 
 def parse_vex_channels(vex_code: str) -> dict[str, str]:
+    # Strip comments before parsing to prevent phantom spare parameters from
+    # commented-out channel calls like: // float amp = chf("amp");
+    stripped = re.sub(r'/\*.*?\*/', '', vex_code, flags=re.DOTALL)
+    stripped = re.sub(r'//[^\n]*', '', stripped)
+
     channels = {}
-    for m in re.finditer(r'chramp\s*\(\s*["\']([^"\']+)["\']', vex_code):
+    for m in re.finditer(r'chramp\s*\(\s*["\']([^"\']+)["\']', stripped):
         channels[m.group(1)] = "ramp"
-    for m in re.finditer(r'(?:chv|chp)\s*\(\s*["\']([^"\']+)["\']', vex_code):
+    for m in re.finditer(r'(?:chv|chp)\s*\(\s*["\']([^"\']+)["\']', stripped):
         name = m.group(1)
         if name not in channels: channels[name] = "vector"
-    for m in re.finditer(r'chi\s*\(\s*["\']([^"\']+)["\']', vex_code):
+    for m in re.finditer(r'chi\s*\(\s*["\']([^"\']+)["\']', stripped):
         name = m.group(1)
         if name not in channels: channels[name] = "int"
-    for m in re.finditer(r'chs\s*\(\s*["\']([^"\']+)["\']', vex_code):
+    for m in re.finditer(r'chs\s*\(\s*["\']([^"\']+)["\']', stripped):
         name = m.group(1)
         if name not in channels: channels[name] = "string"
-    for m in re.finditer(r'(?:chf|ch)\s*\(\s*["\']([^"\']+)["\']', vex_code):
+    for m in re.finditer(r'(?:chf|ch)\s*\(\s*["\']([^"\']+)["\']', stripped):
         name = m.group(1)
         if name not in channels: channels[name] = "float"
     return channels
@@ -1508,30 +1612,60 @@ def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "s
 # ---------------------------------------------------------------------------
 
 def sanitize_nan_inf_vex(code: str) -> str:
-    """Injects defensive mathematical guards against NaN/Inf and division-by-zero."""
-    balanced_arg = r'(?:[^()]+|\([^()]*\))+'
+    """Injects defensive mathematical guards against NaN/Inf and division-by-zero.
 
-    def _clamp_wrap(m, fn_name):
-        arg = m.group(1).strip()
-        if arg.startswith("clamp("):
-            return f"{fn_name}({arg})"
-        return f"{fn_name}(clamp({arg}, -1.0, 1.0))"
+    Uses balanced parenthesis matching to correctly handle nested function calls
+    like acos(dot(normalize(v@N), {0,1,0})).
+    """
+    def _guard_func(code, func_name, wrapper_fmt):
+        """Find all occurrences of func_name(...) and wrap inner arg with wrapper_fmt."""
+        result = []
+        i = 0
+        func_re = re.compile(rf'\b{func_name}\s*\(')
+        while i < len(code):
+            m = func_re.search(code, i)
+            if not m:
+                result.append(code[i:])
+                break
+            result.append(code[i:m.start()])
+            open_pos = m.end() - 1
+            depth = 1
+            j = open_pos + 1
+            while j < len(code) and depth > 0:
+                if code[j] == '(':
+                    depth += 1
+                elif code[j] == ')':
+                    depth -= 1
+                j += 1
+            if depth != 0:
+                result.append(code[m.start():j])
+                i = j
+                continue
+            inner_arg = code[open_pos + 1:j - 1].strip()
+            guarded_arg = wrapper_fmt.format(inner_arg)
+            result.append(f"{func_name}({guarded_arg})")
+            i = j
+        return ''.join(result)
 
-    def _max_wrap(m, fn_name, lower_bound):
-        arg = m.group(1).strip()
-        if arg.startswith("max("):
-            return f"{fn_name}({arg})"
-        return f"{fn_name}(max({arg}, {lower_bound}))"
-
-    code = re.sub(rf'\bacos\s*\(\s*({balanced_arg})\s*\)', lambda m: _clamp_wrap(m, "acos"), code)
-    code = re.sub(rf'\basin\s*\(\s*({balanced_arg})\s*\)', lambda m: _clamp_wrap(m, "asin"), code)
-    code = re.sub(rf'\bsqrt\s*\(\s*({balanced_arg})\s*\)', lambda m: _max_wrap(m, "sqrt", "0.0"), code)
-    code = re.sub(rf'\blog\s*\(\s*({balanced_arg})\s*\)', lambda m: _max_wrap(m, "log", "1e-6"), code)
+    # 1. acos(x) -> acos(clamp(x, -1.0, 1.0))
+    code = _guard_func(code, 'acos', 'clamp({0}, -1.0, 1.0)')
+    # 2. asin(x) -> asin(clamp(x, -1.0, 1.0))
+    code = _guard_func(code, 'asin', 'clamp({0}, -1.0, 1.0)')
+    # 3. sqrt(x) -> sqrt(max(x, 0.0))
+    code = _guard_func(code, 'sqrt', 'max({0}, 0.0)')
+    # 4. log(x) -> log(max(x, 1e-6))
+    code = _guard_func(code, 'log', 'max({0}, 1e-6)')
     return code
 
 
 def scan_geometry_health(node: hou.Node) -> tuple[bool, str]:
-    """Inspects cooked geometry for any NaN or Inf floats in point/primitive attributes."""
+    """Inspects cooked geometry for any NaN or Inf floats in point/primitive attributes.
+
+    Uses stride-based sampling across the entire point cloud (up to 10,000 samples)
+    for representative coverage on high-density geometry.
+    """
+    _MAX_SAMPLES = 10000
+
     try:
         geo = node.geometry()
         if not geo:
@@ -1540,12 +1674,22 @@ def scan_geometry_health(node: hou.Node) -> tuple[bool, str]:
         nan_issues = []
         inf_issues = []
 
+        all_points = geo.points()
+        total_pts = len(all_points)
+
+        # Stride-based sampling: evenly sample across the full point cloud
+        if total_pts <= _MAX_SAMPLES:
+            sample_points = all_points
+        else:
+            stride = total_pts / _MAX_SAMPLES
+            sample_points = [all_points[int(i * stride)] for i in range(_MAX_SAMPLES)]
+
         # Check point attributes
         for attr in geo.pointAttribs():
             dt = attr.dataType()
             if dt != hou.attribData.Float:
                 continue
-            for pt in geo.points()[:2000]:  # sample up to 2000 points
+            for pt in sample_points:
                 vals = pt.attribValue(attr)
                 v_list = vals if isinstance(vals, (tuple, list)) else [vals]
                 has_nan = any(math.isnan(v) for v in v_list)
@@ -1563,9 +1707,11 @@ def scan_geometry_health(node: hou.Node) -> tuple[bool, str]:
                 msg_parts.append(f"NaN in @{', @'.join(nan_issues)}")
             if inf_issues:
                 msg_parts.append(f"Inf in @{', @'.join(inf_issues)}")
-            return False, f"⚠️ Health Alert: Detected {'; '.join(msg_parts)}!"
+            scanned_str = f" (scanned {min(total_pts, _MAX_SAMPLES)}/{total_pts} points)"
+            return False, f"⚠️ Health Alert: Detected {'; '.join(msg_parts)}!{scanned_str}"
 
-        return True, "✅ Geometry Healthy: 0 NaNs / 0 Infs detected."
+        scanned_str = f" (scanned {min(total_pts, _MAX_SAMPLES)}/{total_pts} points)"
+        return True, f"✅ Geometry Healthy: 0 NaNs / 0 Infs detected.{scanned_str}"
     except Exception as e:
         return True, f"Scan skipped: {e}"
 
@@ -2090,7 +2236,7 @@ def on_generate_clicked(kwargs):
     CLASS_TOKEN_MAP = {0: "detail", 1: "primitive", 2: "point", 3: "vertex"}
 
     if autodetect_parm and autodetect_parm.eval() and class_parm:
-        detected_idx, detected_str = auto_detect_context(task)
+        detected_idx, detected_str = auto_detect_context(task, node=node)
         token_name = CLASS_TOKEN_MAP.get(detected_idx, "point")
         try:
             class_parm.set(token_name)
