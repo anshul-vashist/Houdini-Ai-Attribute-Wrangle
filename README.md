@@ -152,7 +152,7 @@ Houdini-Ai-Attribute-Wrangle/
 
 ## 🔗 Model Weights & Downloads
  
-* **Hugging Face Model Repository**: [anshulVashist/Qwen3-8B-Houdini-VEX-v10](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10)
+* **Hugging Face Model Repository**: [anshulVashist/Qwen3-8B-Houdini-VEX-v10](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10) | [anshulVashist/Qwen3-8B-Houdini-VEX-v11](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v11)
 * **Standalone Merged Model (Recommended, 5.45 GB)**: [Download `Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/resolve/main/Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf)
 * **LoRA Adapter (Optional / Research, 698 MB)**: [Download `qwen3-vex-v10-lora.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10/resolve/main/qwen3-vex-v10-lora.gguf)
 
