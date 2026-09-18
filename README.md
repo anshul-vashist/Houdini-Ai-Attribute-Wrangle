@@ -139,6 +139,9 @@ vector tangent_z = set(0.0, grad.z, 1.0);
 
 ```
 Houdini-Ai-Attribute-Wrangle/
+├── 📂 bin/                            <- Standalone C++ Inference Engine (llama.cpp)
+│   ├── 📄 llama-server.exe            <- Local server sidecar (Port 58421)
+│   └── 📄 ggml-*.dll / llama.dll      <- Vulkan & CPU hardware acceleration runtimes
 ├── 📂 otls/
 │   └── 📄 ai_attribwrangle.hda        <- SideFX Houdini SOP Digital Asset
 ├── 📂 python/
@@ -147,6 +150,7 @@ Houdini-Ai-Attribute-Wrangle/
 │   ├── 📄 vex_rag_engine.py           <- Domain RAG context & VEX function database
 │   ├── 📄 license_validator.py        <- Machine fingerprinting & offline security
 │   └── 📄 model_vault.py              <- Model loading & decryption utilities
+├── 📄 ai_attribwrangle.json           <- Portable Houdini package definition
 ├── 🚀 Install.bat                     <- Windows 1-Click Desktop Setup Wizard
 ├── 📄 installer_gui.py                <- Cross-Platform Tkinter Setup Wizard
 ├── 📄 install_in_houdini.py           <- In-Houdini 1-Click Drag & Drop Installer
@@ -156,6 +160,19 @@ Houdini-Ai-Attribute-Wrangle/
 ├── 📄 LICENSE                         <- Apache 2.0 License
 └── 📄 README.md
 ```
+
+---
+
+## ⚙️ AI Inference Engine (Powered by llama.cpp)
+
+**AI Attribute Wrangle** includes an embedded, zero-external-dependency local inference sidecar powered by **`llama.cpp`** (`bin/llama-server.exe`):
+- **Port `58421`**: Launched seamlessly in the background with hidden windows (`CREATE_NO_WINDOW`).
+- **Hardware Acceleration**: Automatically utilizes your GPU via Vulkan / CUDA with dynamic VRAM detection (`nvidia-smi`), leaving safe headroom for Houdini viewport playback and renderers.
+- **WinGet Fallback**: If you prefer a system-wide llama.cpp runtime, simply run:
+  ```powershell
+  winget install ggml.llamacpp
+  ```
+  The plugin will automatically detect it and use it.
 
 ---
 
