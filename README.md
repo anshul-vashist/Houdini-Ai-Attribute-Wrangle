@@ -80,6 +80,15 @@ One click annotates any existing messy VEX code with clean, educational inline c
 2. Drag and drop **`install_in_houdini.py`** into your Houdini viewport or Python Shell (or select `File -> Run Script`).
 3. The node is installed and loaded live into your active session immediately!
 
+### Option 3: Manual Package Setup (Git Clone into packages/)
+If you cloned or extracted this repository directly into your Houdini `packages/` directory:
+1. Copy **`ai_attribwrangle.json`** from this repository into your parent `packages/` folder (`$HOUDINI_USER_PREF_DIR/packages/ai_attribwrangle.json`).
+2. If `bin/llama-server.exe` is not already bundled, install the inference engine in 5 seconds via PowerShell:
+   ```powershell
+   winget install ggml.llamacpp
+   ```
+3. Launch SideFX Houdini!
+
 ---
 
 ## 🎯 How to Use in Houdini

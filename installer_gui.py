@@ -60,8 +60,13 @@ def install_package_for_target(plugin_root: Path, target_pref_dir: Path) -> tupl
         fwd_root = plugin_root.as_posix()
         package_def = {
             "hpath": fwd_root,
-            "pythonpath": f"{fwd_root}/python",
             "env": [
+                {
+                    "PYTHONPATH": {
+                        "method": "prepend",
+                        "value": f"{fwd_root}/python"
+                    }
+                },
                 {"AI_WRANGLE_ROOT": fwd_root},
                 {
                     "PATH": {
@@ -106,8 +111,18 @@ class SetupWizardApp:
             elif (self.plugin_root.parent / "python").exists():
                 self.plugin_root = self.plugin_root.parent
 
-        model_file = self.plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"
-        self.model_present = model_file.exists() or any((self.plugin_root / "models").glob("*.gguf")) if (self.plugin_root / "models").exists() else False
+        model_file = self.plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf"
+        if not model_file.exists():
+            model_file = self.plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"
+        self.detected_model = model_file
+        self.model_present = model_file.exists() or (any((self.plugin_root / "models").glob("*.gguf")) if (self.plugin_root / "models").exists() else False)
+
+        # Check engine binary
+        bin_file = self.plugin_root / "bin" / "llama-server.exe"
+        winget_bin = Path(os.path.expanduser(
+            r"~\AppData\Local\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe"
+        ))
+        self.engine_present = bin_file.exists() or winget_bin.exists() or (shutil.which("llama-server.exe") is not None)
 
         self.houdini_versions = discover_houdini_preferences()
         self.version_vars = {}
@@ -155,8 +170,9 @@ class SetupWizardApp:
         model_row = tk.Frame(status_frame, bg="#282830")
         model_row.pack(fill="x", pady=(6, 0))
         if self.model_present:
+            m_name = self.detected_model.name if hasattr(self, "detected_model") and self.detected_model.exists() else "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf"
             tk.Label(
-                model_row, text="🧠 Model: Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf (Ready ✅)",
+                model_row, text=f"🧠 Model: {m_name} (Ready ✅)",
                 font=("Segoe UI", 8, "bold"), bg="#282830", fg="#88ff88"
             ).pack(side="left")
         else:
@@ -171,6 +187,26 @@ class SetupWizardApp:
                 command=lambda: webbrowser.open("https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10")
             )
             hf_btn.pack(side="right")
+
+        # Engine readiness row
+        engine_row = tk.Frame(status_frame, bg="#282830")
+        engine_row.pack(fill="x", pady=(4, 0))
+        if self.engine_present:
+            tk.Label(
+                engine_row, text="⚙️ Engine: llama-server.exe (Ready ✅)",
+                font=("Segoe UI", 8, "bold"), bg="#282830", fg="#88ff88"
+            ).pack(side="left")
+        else:
+            tk.Label(
+                engine_row, text="⚠️ Engine: llama-server.exe missing from bin/",
+                font=("Segoe UI", 8, "bold"), bg="#282830", fg="#ffaa33"
+            ).pack(side="left")
+            wg_btn = tk.Button(
+                engine_row, text="⚡ Install via WinGet", font=("Segoe UI", 8, "bold"),
+                bg="#3388ff", fg="#ffffff", relief="flat", padx=6, pady=1, cursor="hand2",
+                command=self._install_winget_engine
+            )
+            wg_btn.pack(side="right")
 
         # Houdini Version Selection Section
         ver_frame = tk.LabelFrame(
@@ -246,6 +282,17 @@ class SetupWizardApp:
                 self.houdini_versions.append((f"Custom: {p.name} ({p})", p))
                 self._log(f"Added custom directory: {p}")
                 messagebox.showinfo("Directory Added", f"Added custom Houdini target:\n{p}")
+
+    def _install_winget_engine(self):
+        try:
+            cmd = "winget install ggml.llamacpp --accept-source-agreements --accept-package-agreements; pause"
+            subprocess.Popen(
+                ["powershell", "-NoExit", "-Command", cmd],
+                creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0
+            )
+            self._log("Launched PowerShell to install llama.cpp via WinGet...")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not launch WinGet: {e}")
 
     def _perform_install(self):
         selected_paths = [path for path, var in self.version_vars.items() if var.get()]

@@ -28,6 +28,24 @@ if %ERRORLEVEL% equ 0 (
     exit /b 0
 )
 
+for /d %%H in ("C:\Program Files\Side Effects Software\Houdini*") do (
+    if exist "%%H\python311\pythonw.exe" (
+        echo Launching Setup Wizard via Houdini Python...
+        start "" "%%H\python311\pythonw.exe" installer_gui.py
+        exit /b 0
+    )
+    if exist "%%H\python310\pythonw.exe" (
+        echo Launching Setup Wizard via Houdini Python...
+        start "" "%%H\python310\pythonw.exe" installer_gui.py
+        exit /b 0
+    )
+    if exist "%%H\python39\pythonw.exe" (
+        echo Launching Setup Wizard via Houdini Python...
+        start "" "%%H\python39\pythonw.exe" installer_gui.py
+        exit /b 0
+    )
+)
+
 echo [WARNING] Python was not found in your system PATH.
 echo.
 echo You can still install in 1 click directly inside Houdini:

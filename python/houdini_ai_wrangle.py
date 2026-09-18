@@ -118,7 +118,20 @@ def ensure_embedded_engine() -> bool:
             shutil.which("llama-server.exe"),
             shutil.which("llama-server"),
             winget_engine,
+            r"C:\Program Files\llama.cpp\llama-server.exe",
         ]
+        # Wildcard search for any WinGet llama-server installation
+        try:
+            import glob
+            wg_matches = glob.glob(
+                os.path.expanduser(r"~\AppData\Local\Microsoft\WinGet\Packages\*llama*\**\llama-server.exe"),
+                recursive=True
+            )
+            if wg_matches:
+                engine_candidates.extend(wg_matches)
+        except Exception:
+            pass
+
         engine_bin = next((b for b in engine_candidates if b and os.path.isfile(b)), None)
 
         # Discover AI model weights
@@ -126,6 +139,10 @@ def ensure_embedded_engine() -> bool:
         model_dir = os.path.join(pkg_root, "models")
         base_candidates = [
             model_env,
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf"),
+            os.path.join(model_dir, "qwen3-8b.Q5_K_M.gguf"),
+            os.path.join(model_dir, "qwen3-8b.Q8_0.gguf"),
             os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"),
             os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf"),
             os.path.join(model_dir, "qwen3-vex.gguf"),
@@ -137,14 +154,18 @@ def ensure_embedded_engine() -> bool:
 
         if not engine_bin or not os.path.exists(engine_bin):
             _engine_error = (
-                f"Bundled inference executable is missing (searched: {os.path.join(pkg_root, 'bin', 'llama-server.exe')}). "
-                "Ensure bin/llama-server.exe is installed or set AI_WRANGLE_ENGINE_BIN."
+                f"Inference engine 'llama-server.exe' not found.\n"
+                f"• Searched path: {os.path.join(pkg_root, 'bin', 'llama-server.exe')}\n\n"
+                "To fix in 10 seconds:\n"
+                "1. Open PowerShell / Command Prompt and run:\n"
+                "   winget install ggml.llamacpp\n"
+                "2. OR place 'llama-server.exe' inside your plugin 'bin/' folder."
             )
             return False
         if not model_path or not os.path.exists(model_path):
             _engine_error = (
-                "AI model weights not found. Please download 'Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf' "
-                "from Hugging Face (https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10) into the 'models/' folder."
+                "AI model weights not found. Please place 'Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf' "
+                "into the 'models/' folder."
             )
             return False
 
@@ -186,6 +207,10 @@ def get_active_ai_model_display_string() -> str:
 
     pkg_root = _package_root()
     model_dir = os.path.join(pkg_root, "models")
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf (Standalone Merged v11 Grandmaster)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf (Standalone Merged v11 Grandmaster Q8)"
     if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf")):
         return "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf (Standalone Merged v10.1)"
     lora_candidates = [
@@ -242,13 +267,8 @@ def extract_thought_and_code(raw_output: str) -> tuple[str, str]:
             thought_trace = thought_part
             code = parts[1].strip()
         else:
-            content_after = raw.replace("<think>", "").strip()
-            if ";" in content_after or "@" in content_after:
-                code = content_after
-                thought_trace = ""
-            else:
-                thought_trace = content_after
-                code = ""
+            thought_trace = raw.replace("<think>", "").strip()
+            code = ""
     elif "</think>" in raw:
         parts = raw.split("</think>", 1)
         thought_trace = parts[0].strip()
@@ -271,18 +291,36 @@ def sanitize_vex_syntax(code: str) -> str:
     if not code:
         return ""
     c = code.strip()
-    c = re.sub(r'\bcurlnoise(?:2d|3d|4d)\b', 'curlnoise', c)
-    c = re.sub(r'\bsnoise(?:2d|3d|4d)\b', 'snoise', c)
-    c = re.sub(r'\bpnoise(?:2d|3d|4d)\b', 'pnoise', c)
-    c = re.sub(r'\bxnoise(?:2d|3d|4d)\b', 'xnoise', c)
-    c = re.sub(r'\bprimcenter\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)', r'primuv(\1, "P", \2, set(0.5, 0.5, 0.0))', c)
-    c = re.sub(r'\b(?:dist|pointdistance)\s*\(', 'distance(', c)
-    c = re.sub(r'\bmag\s*\(', 'length(', c)
-    c = re.sub(r'\bnorm\s*\(', 'normalize(', c)
-    c = re.sub(r'\bquat\s*\(', 'quaternion(', c)
+    c = re.sub(r'\bcurlnoise(?:2d|3d|4d)?\b', 'curlnoise', c, flags=re.IGNORECASE)
+    c = re.sub(r'\bsnoise(?:2d|3d|4d)?\b', 'snoise', c, flags=re.IGNORECASE)
+    c = re.sub(r'\bpnoise(?:2d|3d|4d)?\b', 'pnoise', c, flags=re.IGNORECASE)
+    c = re.sub(r'\bxnoise(?:2d|3d|4d)?\b', 'xnoise', c, flags=re.IGNORECASE)
+    c = re.sub(r'\bprimcenter\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)', r'primuv(\1, "P", \2, set(0.5, 0.5, 0.0))', c, flags=re.IGNORECASE)
+    c = re.sub(r'\b(?:dist|pointdistance)\s*\(', 'distance(', c, flags=re.IGNORECASE)
+    c = re.sub(r'\bmag\s*\(', 'length(', c, flags=re.IGNORECASE)
+    c = re.sub(r'\bnorm\s*\(', 'normalize(', c, flags=re.IGNORECASE)
+    c = re.sub(r'\bquat\s*\(', 'quaternion(', c, flags=re.IGNORECASE)
     c = re.sub(r'\bvec[234]\s*\(', 'set(', c)
     c = re.sub(r'(?<![a-zA-Z0-9_])@UV\b', 'v@uv', c)
     c = re.sub(r'</?think>', '', c)
+
+    # Normalize accidental C-style foreach loops (e.g. foreach (int i = 0; i < len; i++)) to standard for loops
+    c = re.sub(r'\bforeach\s*\(\s*(?:int\s+)?([a-zA-Z0-9_]+\s*=[^;]+;[^;]+;[^)]+)\)', r'for (int \1)', c)
+
+    # Normalize 3-argument nearpoint(input, pt, int_seed_var) where 3rd argument is an integer point index instead of float maxdist
+    def _normalize_nearpoint(m):
+        geo = m.group(1).strip()
+        pos = m.group(2).strip()
+        arg3 = m.group(3).strip()
+        if any(k in arg3.lower() for k in ("pt", "seed", "[", "point", "prim")):
+            return f"nearpoint({geo}, {pos})"
+        return m.group(0)
+
+    c = re.sub(
+        r'\bnearpoint\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)',
+        _normalize_nearpoint,
+        c
+    )
 
     # Normalize invalid 4-argument setattrib(geohandle, name, elemnum, value)
     def _normalize_setattrib(m):
@@ -303,6 +341,20 @@ def sanitize_vex_syntax(code: str) -> str:
 
     # Resolve chramp() polymorphic ambiguity in set*attrib() calls.
     c = _resolve_chramp_polymorphic_ambiguity(c)
+
+    # Clean up bogus isvalidindex checks and simplify file-path ramp strings to clean parameter names
+    c = re.sub(r'if\s*\(!isvalidindex\s*\([^)]+\)\)\s*\{[^}]*\}', '', c)
+    c = re.sub(r'string\s+ramp_name\s*=\s*"[^"]*/([^/.]+)[^"]*";', r'string ramp_name = "\1";', c)
+    c = re.sub(r'chramp\s*\(\s*["\'][^"\']*/([^"\'/]+)\.ramp["\']', r'chramp("\1"', c)
+
+    # Inline local string variables passed into chramp(var, ...) so Houdini can build the ramp UI parameter
+    str_vars = dict(re.findall(r'string\s+([a-zA-Z0-9_]+)\s*=\s*["\']([^"\']+)["\'];', c))
+    for var, val in str_vars.items():
+        c = re.sub(rf'\bchramp\s*\(\s*{var}\s*,', f'chramp("{val}",', c)
+
+    # Auto-repair strict inequality trial division loop bound bug: d * d < n -> d * d <= n
+    c = re.sub(r'(\b[a-zA-Z0-9_]+\s*\*\s*[a-zA-Z0-9_]+\s*)<\s*([a-zA-Z0-9_]+)\s*;', r'\1<= \2;', c)
+    c = re.sub(r'(\b[a-zA-Z0-9_]+\s*)<\s*(sqrt\s*\([^)]+\))\s*;', r'\1<= \2;', c)
 
     # Heal any truncation from token limit exhaustion (unclosed braces, trailing cutoffs)
     c = _heal_truncated_vex(c)
@@ -404,7 +456,7 @@ def _resolve_chramp_polymorphic_ambiguity(code: str) -> str:
     return ''.join(result)
 
 
-def query_llm(prompt_text: str, max_tokens: int = 1536, reasoning_mode: bool = False) -> tuple[str, str]:
+def query_llm(prompt_text: str, max_tokens: int = 1024, reasoning_mode: bool = False) -> tuple[str, str]:
     """
     Queries AI inference engine.
     Priority 1: Embedded Standalone Engine (127.0.0.1:58421 - Zero Dependencies)
@@ -418,8 +470,8 @@ def query_llm(prompt_text: str, max_tokens: int = 1536, reasoning_mode: bool = F
     engine_ready = ensure_embedded_engine()
     embedded_url = "http://127.0.0.1:58421/completion"
     
-    pred_tokens = max(max_tokens, 2048 if reasoning_mode else 1536)
-    asst_prefix = "<|im_start|>assistant\n<think>\n" if reasoning_mode else "<|im_start|>assistant\n"
+    pred_tokens = max_tokens if max_tokens else (1280 if reasoning_mode else 512)
+    asst_prefix = "<|im_start|>assistant\n<think>\n" if reasoning_mode else "<|im_start|>assistant\n<think>\n</think>\n"
     embedded_payload = {
         "prompt": f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{prompt_text}<|im_end|>\n{asst_prefix}",
         "n_predict": pred_tokens,
@@ -438,11 +490,12 @@ def query_llm(prompt_text: str, max_tokens: int = 1536, reasoning_mode: bool = F
             data = json.dumps(embedded_payload).encode("utf-8")
             req = urllib.request.Request(embedded_url, data=data, headers=headers)
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-            with opener.open(req, timeout=120) as resp:
+            with opener.open(req, timeout=300) as resp:
                 res_data = json.loads(resp.read().decode("utf-8"))
                 raw = res_data.get("content", "")
                 if raw:
-                    return extract_thought_and_code(raw)
+                    full_raw = ("<think>\n" + raw) if (reasoning_mode and "<think>" not in raw) else raw
+                    return extract_thought_and_code(full_raw)
                 raise RuntimeError("Bundled inference engine returned an empty response.")
         except Exception as exc:
             _engine_error = f"Bundled inference request failed: {exc}"
@@ -1034,7 +1087,13 @@ def auto_detect_context(prompt: str, node: hou.Node = None) -> tuple[int, str]:
         "stitch points", "connect points into", "synthesize", "spawn", "build from scratch", "make curve"
     ])
     
-    if is_detail_generation:
+    # If input 0 has geometry and prompt explicitly describes deforming/displacing existing points,
+    # do NOT treat it as detail generation from scratch unless "detail" or "from scratch" is explicitly requested.
+    is_point_deformation_on_existing = has_input_0_geo and any(k in p for k in [
+        "displace", "deform", "offset", "distort", "move points", "displace points", "deform points"
+    ]) and not any(k in p for k in ["detail wrangle", "detail context", "from scratch", "create curve", "generate curve", "create mesh"])
+
+    if is_detail_generation and not is_point_deformation_on_existing:
         return 0, "detail wrangle"
 
     # 2. If input 0 has NO geometry, a point/prim wrangle CANNOT run in Houdini!
@@ -1066,18 +1125,21 @@ def auto_detect_context(prompt: str, node: hou.Node = None) -> tuple[int, str]:
             return 3, "vertex wrangle"
 
     # 4. Primitive wrangle checks — exclude point-level sampling queries
-    _PRIM_EXCLUDE_CONTEXTS = {"xyzdist", "primuv", "surface query", "closest surface",
-                              "polygon mesh", "prim_normal", "primattrib", "primintrinsic"}
+    _PRIM_EXCLUDE_CONTEXTS = {"xyzdist", "primuv", "project points", "sample surface", "closest surface"}
     if not any(k in p for k in _PRIM_EXCLUDE_CONTEXTS):
         _PRIM_KEYWORDS = [
             "primitive wrangle", "prim wrangle",
             "set primitive", "primitive color", "primitive attribute",
             "each primitive", "every primitive", "per primitive",
             "primitive", "primitives", "prims",
+            "face", "faces", "polygon", "polygons", "poly", "polys",
+            "quad", "quads", "triangle", "triangles", "tris", "facet", "facets",
             "removeprim", "primpoints", "primvertexcount",
             "perimeter", "face area", "prim area", "polygon area",
             "neighbor face", "polygon face", "polygon normal",
             "checkerboard face", "delete small faces", "small faces",
+            "delete face", "delete faces", "remove face", "remove faces",
+            "delete prim", "delete prims", "remove prim", "remove prims",
             "based on area"
         ]
         if any(re.search(rf"\b{re.escape(k)}\b", p) for k in _PRIM_KEYWORDS):
@@ -1131,6 +1193,9 @@ _VERB_PATTERNS = {
     "repel":       "Push away: dir = normalize(@P - target); @P += dir * force;",
     "scatter":     "Use addpoint() in a detail wrangle with random distributions.",
     "relax":       "Use nearpoints averaging to push points apart (blue noise relaxation).",
+    "intersection": "Compute surface distance to input 1: float d = xyzdist(1, @P, prim, uv); mask = clamp(1.0 - (d / chf('intersection_width')), 0, 1); set contact color at d=0.",
+    "intersect":   "Compute surface distance to input 1: float d = xyzdist(1, @P, prim, uv); mask = clamp(1.0 - (d / chf('intersection_width')), 0, 1); set contact color at d=0.",
+    "contact":     "Compute surface distance to input 1: float d = xyzdist(1, @P, prim, uv); mask = clamp(1.0 - (d / chf('intersection_width')), 0, 1); set contact color at d=0.",
 
     # Topology
     "cull":        "Remove elements failing a condition via removepoint/removeprim.",
@@ -1151,6 +1216,11 @@ _VERB_PATTERNS = {
     "collide":     "Use intersect() to detect surface collision, then resolve.",
     "orbit":       "Compute tangential velocity perpendicular to radius vector.",
     "spring":      "Use Hooke's law: force = -k * (length - rest_length) * dir;",
+
+    # Mathematical & Algorithmic
+    "prime":       "For primality test: numbers <= 1 are composite, 2 is prime, evens > 2 are composite. In trial division, use d * d <= n (not <) or d <= sqrt(n) so perfect squares like 4 and 9 are correctly marked composite.",
+    "fibonacci":   "Generate Fibonacci sequence iteratively: int a = 0, b = 1; for (int i = 0; i < n; i++) { int c = a + b; a = b; b = c; }",
+    "modulo":      "Use % operator for modular arithmetic: if (n % d == 0)",
 }
 
 
@@ -1187,10 +1257,11 @@ def _build_init_guards(task: str, geo_context: str) -> str:
     return "\n".join(guards[:3])
 
 
-def generate_vex(task: str, context: str = "point wrangle", geo_context: str = "", reasoning_mode: bool = False) -> tuple[str, str]:
+def generate_vex(task: str, context: str = "point wrangle", geo_context: str = "", reasoning_mode: bool = False, enable_rag: bool | None = None) -> tuple[str, str]:
     """Generates pure VEX code with optional Deep Reasoning thought trace and RAG Ground Truth."""
     prompt_parts = []
-    if get_vex_rag_engine:
+    use_rag = enable_rag if enable_rag is not None else (os.getenv("AI_WRANGLE_ENABLE_RAG", "1") != "0")
+    if use_rag and get_vex_rag_engine:
         try:
             rag = get_vex_rag_engine()
             rag_block = rag.build_rag_context_block(task)
@@ -1222,10 +1293,11 @@ def generate_vex(task: str, context: str = "point wrangle", geo_context: str = "
     return query_llm(full_prompt, reasoning_mode=reasoning_mode)
 
 
-def refine_vex(refinement_task: str, existing_code: str, context: str = "point wrangle", geo_context: str = "", reasoning_mode: bool = False) -> tuple[str, str]:
+def refine_vex(refinement_task: str, existing_code: str, context: str = "point wrangle", geo_context: str = "", reasoning_mode: bool = False, enable_rag: bool | None = None) -> tuple[str, str]:
     """Performs multi-turn iterative modification on existing VEX code."""
     prompt_parts = []
-    if get_vex_rag_engine:
+    use_rag = enable_rag if enable_rag is not None else (os.getenv("AI_WRANGLE_ENABLE_RAG", "1") != "0")
+    if use_rag and get_vex_rag_engine:
         try:
             rag = get_vex_rag_engine()
             rag_block = rag.build_rag_context_block(f"{refinement_task} {existing_code}")
@@ -1248,7 +1320,8 @@ def refine_vex(refinement_task: str, existing_code: str, context: str = "point w
 def repair_vex(task: str, context: str, faulty_code: str, compiler_error: str) -> tuple[str, str]:
     """Autonomous 1-Shot CITL Self-Repair using live compiler feedback and RAG Ground Truth."""
     prompt_parts = []
-    if get_vex_rag_engine:
+    enable_rag = os.getenv("AI_WRANGLE_ENABLE_RAG", "1") != "0"
+    if enable_rag and get_vex_rag_engine:
         try:
             rag = get_vex_rag_engine()
             rag_block = rag.build_rag_context_block(f"{task} {compiler_error}")
@@ -1870,7 +1943,7 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         ptg.find("ai_optimize") is not None or
         ptg.find("ai_explain") is not None
     )
-    if not force and not has_old_layout and ptg.find("ai_generate") and ptg.find("ai_folder"):
+    if not force and not has_old_layout and ptg.find("ai_generate") and ptg.find("ai_folder") and ptg.find("ai_use_rag"):
         return True
 
     if has_old_layout or force:
@@ -2153,7 +2226,15 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
     )
     model_info_parm.setTags({"editable": "0"})
 
+    use_rag_parm = hou.ToggleParmTemplate(
+        name="ai_use_rag",
+        label="SideFX Micro-RAG",
+        default_value=True,
+        help="When enabled, injects official SideFX VEX function signatures and architectural reference patterns into the prompt. Turn off to test pure neural model weights."
+    )
+
     adv_folder.addParmTemplate(autodetect_parm)
+    adv_folder.addParmTemplate(use_rag_parm)
     adv_folder.addParmTemplate(sep_adv2)
     adv_folder.addParmTemplate(sanitize_btn)
     adv_folder.addParmTemplate(stats_btn)
@@ -2263,6 +2344,8 @@ def on_generate_clicked(kwargs):
     prompt_parm = node.parm("ai_prompt")
     autodetect_parm = node.parm("ai_autodetect")
     reasoning_parm = node.parm("ai_reasoning_mode")
+    rag_parm = node.parm("ai_use_rag")
+    enable_rag = bool(rag_parm.eval()) if rag_parm else (os.getenv("AI_WRANGLE_ENABLE_RAG", "1") != "0")
     thought_parm = node.parm("ai_thought_trace")
     status_parm = _get_status_parm(node)
     perf_parm = node.parm("ai_perf")
@@ -2342,9 +2425,9 @@ def on_generate_clicked(kwargs):
                 hou.ui.setStatusMessage(status_msg, severity=hou.severityType.Message)
             t0 = time.time()
             if is_edit_intent:
-                thought_trace, vex_code = refine_vex(task, existing_code, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning)
+                thought_trace, vex_code = refine_vex(task, existing_code, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning, enable_rag=enable_rag)
             else:
-                thought_trace, vex_code = generate_vex(task, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning)
+                thought_trace, vex_code = generate_vex(task, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning, enable_rag=enable_rag)
             gen_time = time.time() - t0
         except Exception as e:
             if status_parm:
@@ -2363,6 +2446,29 @@ def on_generate_clicked(kwargs):
 
         # 1. Automated pre-compilation AST & regex sanitization
         vex_code = sanitize_vex_syntax(vex_code)
+
+        # Context Alignment Guard: if code clearly targets primitives (@primnum/removeprim without pointprimitives),
+        # ensure the node runs over primitives so @primnum does not evaluate to 0!
+        if class_parm:
+            curr_class = class_parm.eval()
+            if curr_class == 2 and ("@primnum" in vex_code or "removeprim(" in vex_code) and "pointprimitives" not in vex_code:
+                try:
+                    class_parm.set("primitive")
+                except Exception:
+                    class_parm.set(1)
+            elif curr_class == 1 and ("@ptnum" in vex_code and "@primnum" not in vex_code and "removeprim" not in vex_code):
+                if not any(k in task.lower() for k in ["face", "faces", "prim", "prims", "primitive", "primitives", "polygon", "polygons"]):
+                    try:
+                        class_parm.set("point")
+                    except Exception:
+                        class_parm.set(2)
+            elif curr_class in (0, "detail") and ("@P" in vex_code or "@ptnum" in vex_code or "@N" in vex_code) and "addpoint" not in vex_code and "addprim" not in vex_code and "setdetailattrib" not in vex_code:
+                try:
+                    in0 = node.input(0)
+                    if in0 and in0.geometry() and len(in0.geometry().points()) > 0:
+                        class_parm.set("point")
+                except Exception:
+                    pass
 
         # 2. Multi-Pass Autonomous CITL Self-Healing Loop (Up to 3 Retries)
         max_citl_retries = 3
@@ -2418,10 +2524,11 @@ def on_generate_clicked(kwargs):
             if snippet_parm:
                 snippet_parm.set(vex_code)
             if status_parm:
-                first_line_err = error.splitlines()[0] if error else 'Syntax warning'
+                meaningful_lines = [l.strip() for l in (error or "").splitlines() if l.strip() and "invalid source" not in l.lower()]
+                first_line_err = meaningful_lines[0] if meaningful_lines else (error.splitlines()[0] if error else 'Syntax warning')
                 status_parm.set(f"Compile Warning: {first_line_err}")
             if hou.isUIAvailable():
-                hou.ui.setStatusMessage(f"AI VEX Warning: {error.splitlines()[0] if error else ''}", severity=hou.severityType.Warning)
+                hou.ui.setStatusMessage(f"AI VEX Warning: {first_line_err}", severity=hou.severityType.Warning)
 
 
 def on_refine_clicked(kwargs):
@@ -2472,6 +2579,28 @@ def on_refine_clicked(kwargs):
 
         # 1. Automated pre-compilation AST & regex sanitization
         vex_code = sanitize_vex_syntax(vex_code)
+
+        # Context Alignment Guard:
+        if class_parm:
+            curr_class = class_parm.eval()
+            if curr_class == 2 and ("@primnum" in vex_code or "removeprim(" in vex_code) and "pointprimitives" not in vex_code:
+                try:
+                    class_parm.set("primitive")
+                except Exception:
+                    class_parm.set(1)
+            elif curr_class == 1 and ("@ptnum" in vex_code and "@primnum" not in vex_code and "removeprim" not in vex_code):
+                if not any(k in refinement_task.lower() for k in ["face", "faces", "prim", "prims", "primitive", "primitives", "polygon", "polygons"]):
+                    try:
+                        class_parm.set("point")
+                    except Exception:
+                        class_parm.set(2)
+            elif curr_class in (0, "detail") and ("@P" in vex_code or "@ptnum" in vex_code or "@N" in vex_code) and "addpoint" not in vex_code and "addprim" not in vex_code and "setdetailattrib" not in vex_code:
+                try:
+                    in0 = node.input(0)
+                    if in0 and in0.geometry() and len(in0.geometry().points()) > 0:
+                        class_parm.set("point")
+                except Exception:
+                    pass
 
         # 2. Multi-Pass Autonomous CITL Self-Healing Loop (Up to 3 Retries)
         max_citl_retries = 3

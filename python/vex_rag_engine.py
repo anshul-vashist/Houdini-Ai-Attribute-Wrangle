@@ -89,7 +89,8 @@ for (int i = 0; i < count; i++) {
     setpointattrib(0, "orient", pt, orient, "set");
     setpointattrib(0, "curveu", pt, u, "set");
     setpointattrib(0, "pscale", pt, lerp(chf("pscale_start"), chf("pscale_end"), pow(u, 1.5)), "set");
-    setpointattrib(0, "Cd", pt, chramp("color_ramp", u), "set");
+    vector ramp_col = chramp("color_ramp", u);
+    setpointattrib(0, "Cd", pt, ramp_col, "set");
 
     prev_P = P;
     prev_T = T;
@@ -328,7 +329,8 @@ for (int i = 0; i < num_pts; i++) {
     
     setpointattrib(0, "curveu", pt, u, "set");
     setpointattrib(0, "pscale", pt, chf("wire_radius"), "set");
-    setpointattrib(0, "Cd", pt, chramp("cable_ramp", u), "set");
+    vector ramp_col = chramp("cable_ramp", u);
+    setpointattrib(0, "Cd", pt, ramp_col, "set");
 }"""
     },
 
@@ -364,7 +366,8 @@ for (int step = 0; step < total_steps; step++) {
     setpointattrib(0, "curveu", pt, u, "set");
     setpointattrib(0, "v", pt, v, "set");
     setpointattrib(0, "speed", pt, length(v), "set");
-    setpointattrib(0, "Cd", pt, chramp("velocity_ramp", clamp(length(v) / 40.0, 0.0, 1.0)), "set");
+    vector ramp_col = chramp("velocity_ramp", clamp(length(v) / 40.0, 0.0, 1.0));
+    setpointattrib(0, "Cd", pt, ramp_col, "set");
     setpointattrib(0, "pscale", pt, fit01(u, 0.04, 0.01), "set");
 }"""
     },
@@ -395,7 +398,8 @@ for (int i = 0; i < total_points; i++) {
     int pt = addpoint(0, pos);
     setpointattrib(0, "N", pt, nml, "set");
     setpointattrib(0, "pscale", pt, chf("particle_radius"), "set");
-    setpointattrib(0, "Cd", pt, chramp("latitude_ramp", fit(y, -1.0, 1.0, 0.0, 1.0)), "set");
+    vector ramp_col = chramp("latitude_ramp", fit(y, -1.0, 1.0, 0.0, 1.0));
+    setpointattrib(0, "Cd", pt, ramp_col, "set");
 }"""
     },
 
@@ -426,7 +430,8 @@ for (int i = 0; i < count; i++) {
     vector nml = normalize(set(x * 0.2, 1.0, z * 0.2));
     setpointattrib(0, "N", pt, nml, "set");
     setpointattrib(0, "pscale", pt, fit01(sqrt(u), 0.02, 0.06), "set");
-    setpointattrib(0, "Cd", pt, chramp("botanical_ramp", u), "set");
+    vector ramp_col = chramp("botanical_ramp", u);
+    setpointattrib(0, "Cd", pt, ramp_col, "set");
 }"""
     },
 
@@ -469,7 +474,11 @@ if (n_nbrs > 0) {
     steer = f_sep * w_sep + f_ali * w_ali + normalize(center_coh) * w_coh;
 }
 
-v@v = clamp_length(v@v + steer * @TimeInc, 0.1, max_speed);
+vector new_v = v@v + steer * @TimeInc;
+float spd = length(new_v);
+if (spd > max_speed) new_v = normalize(new_v) * max_speed;
+else if (spd < 0.1 && spd > 1e-5) new_v = normalize(new_v) * 0.1;
+v@v = new_v;
 @P += v@v * @TimeInc;
 p@orient = quaternion(maketransform(normalize(v@v), set(0, 1, 0)));"""
     },
@@ -517,7 +526,7 @@ int hedge = pointhedge(0, @ptnum);
 int is_boundary = 0;
 
 while (hedge != -1) {
-    int opposite = hedge_equivelem(0, hedge);
+    int opposite = hedge_nextequiv(0, hedge);
     if (opposite == -1) {
         is_boundary = 1;
         break;
@@ -596,7 +605,7 @@ for (int y = 0; y < res; y++) {
 
     # ── 18. Ray-Mesh Intersection & Reflection ──
     "ray_mesh_intersection_reflect": {
-        "triggers": ("intersect", "raycast", "reflection", "refraction", "snell", "fresnel", "bounce ray", "surface hit", "ray trace"),
+        "triggers": ("raycast", "ray trace", "ray intersect", "shoot ray", "reflection", "refraction", "snell", "fresnel", "bounce ray"),
         "title": "Ray-Mesh Intersection & Surface Reflection (Point Wrangle)",
         "context": "point wrangle",
         "blueprint": """// -- Blueprint: Ray-Mesh Intersection & Surface Reflection (Point Wrangle) --
@@ -621,6 +630,31 @@ if (hit_prim != -1) {
 } else {
     i@hit = 0;
 }"""
+    },
+
+    # ── 18b. Geometry Surface Contact & Intersection Mask ──
+    "surface_intersection_contact": {
+        "triggers": ("intersection", "intersecting", "contact", "touching", "penetrating", "penetration", "overlap", "surface distance", "contact mask", "cut through", "intersect"),
+        "title": "Geometry Surface Contact & Intersection Mask (Point Wrangle)",
+        "context": "point wrangle",
+        "blueprint": """// -- Blueprint: Geometry Surface Contact & Intersection Mask (Point Wrangle) --
+int close_prim;
+vector close_uv;
+float dist = xyzdist(1, @P, close_prim, close_uv);
+
+float width = chf("intersection_width");
+if (width <= 0.0) width = 0.08;
+
+// Falloff: 1.0 at contact line (dist = 0), falling to 0.0 at width
+float falloff = clamp(1.0 - (dist / width), 0.0, 1.0);
+falloff = smooth(0.0, 1.0, falloff);
+
+vector base_col = set(0.15, 0.15, 0.15);
+vector red_contact = set(1.0, 0.0, 0.0);
+
+@Cd = lerp(base_col, red_contact, falloff);
+i@is_intersecting = (dist < width) ? 1 : 0;
+f@contact_dist = dist;"""
     },
 
     # ── 19. Principal Component Analysis (PCA) ──
@@ -912,7 +946,8 @@ while (len(stack_P) > 0) {
     
     float u = float(depth) / float(max_depth);
     setpointattrib(0, "pscale", pt1, lerp(chf("trunk_pscale"), 0.01, u), "set");
-    setpointattrib(0, "Cd", pt1, chramp("bark_leaf_ramp", u), "set");
+    vector ramp_col = chramp("bark_leaf_ramp", u);
+    setpointattrib(0, "Cd", pt1, ramp_col, "set");
     
     if (depth < max_depth) {
         // Spawn bifurcating branches
@@ -978,7 +1013,7 @@ for (int i = 0; i < npoints(0); i++) {
 int hedge = pointhedge(0, @ptnum);
 int is_border = 0;
 while (hedge != -1) {
-    if (hedge_equivelem(0, hedge) == -1) { is_border = 1; break; }
+    if (hedge_nextequiv(0, hedge) == -1) { is_border = 1; break; }
     hedge = pointhedgenext(0, hedge);
 }
 
@@ -1014,11 +1049,11 @@ if (!is_border) {
         "context": "point wrangle",
         "blueprint": """// -- Blueprint: Dual Quaternion Rigid Transform Blending --
 // Real quaternion q0 (rotation) and dual quaternion qd (translation: 0.5 * t * q0)
-vector4 q_rot1 = chv4("rot_quat_1"); if (length(q_rot1) == 0.0) q_rot1 = set(0, 0, 0, 1);
+vector4 q_rot1 = chp("rot_quat_1"); if (length(q_rot1) == 0.0) q_rot1 = set(0, 0, 0, 1);
 vector t1 = chv("trans_1");
 vector4 q_dual1 = 0.5 * qmultiply(set(t1.x, t1.y, t1.z, 0.0), q_rot1);
 
-vector4 q_rot2 = chv4("rot_quat_2"); if (length(q_rot2) == 0.0) q_rot2 = set(0, 0, 0, 1);
+vector4 q_rot2 = chp("rot_quat_2"); if (length(q_rot2) == 0.0) q_rot2 = set(0, 0, 0, 1);
 vector t2 = chv("trans_2");
 vector4 q_dual2 = 0.5 * qmultiply(set(t2.x, t2.y, t2.z, 0.0), q_rot2);
 
@@ -1033,7 +1068,8 @@ q_r_blend /= norm_r;
 q_d_blend /= norm_r;
 
 // Extract blended rigid transformation
-vector blended_t = 2.0 * qmultiply(q_d_blend, set(-q_r_blend.x, -q_r_blend.y, -q_r_blend.z, q_r_blend.w)).xyz;
+vector4 t_quat = 2.0 * qmultiply(q_d_blend, set(-q_r_blend.x, -q_r_blend.y, -q_r_blend.z, q_r_blend.w));
+vector blended_t = set(t_quat.x, t_quat.y, t_quat.z);
 @P = qrotate(q_r_blend, @P) + blended_t;
 p@orient = q_r_blend;"""
     },
@@ -1218,7 +1254,9 @@ float total_len = 0.0;
 append(cum_lengths, 0.0);
 
 for (int i = 1; i < n_in; i++) {
-    total_len += distance(point(0, "P", i - 1), point(0, "P", i));
+    vector p_prev = point(0, "P", i - 1);
+    vector p_curr = point(0, "P", i);
+    total_len += distance(p_prev, p_curr);
     append(cum_lengths, total_len);
 }
 
@@ -1236,7 +1274,9 @@ for (int s = 0; s < num_samples; s++) {
     float seg_len = cum_lengths[seg + 1] - cum_lengths[seg];
     float u = (seg_len > 1e-5) ? (target_d - cum_lengths[seg]) / seg_len : 0.0;
     
-    vector P_new = lerp(point(0, "P", seg), point(0, "P", seg + 1), u);
+    vector p_a = point(0, "P", seg);
+    vector p_b = point(0, "P", seg + 1);
+    vector P_new = lerp(p_a, p_b, u);
     int pt = addpoint(0, P_new);
     addvertex(0, prim, pt);
     setpointattrib(0, "curveu", pt, float(s) / float(num_samples - 1), "set");
@@ -1354,7 +1394,9 @@ vector f_spring = {0, 0, 0};
 foreach (int n; nbrs) {
     vector diff = point(0, "P", n) - @P;
     float dist = length(diff);
-    float rest_len = distance(point(0, "rest", @ptnum), point(0, "rest", n));
+    vector r_self = point(0, "rest", @ptnum);
+    vector r_other = point(0, "rest", n);
+    float rest_len = (length(r_self) > 0.0 || length(r_other) > 0.0) ? distance(r_self, r_other) : dist;
     if (dist > 1e-5) {
         vector dir = diff / dist;
         float stretch = dist - rest_len;
@@ -1404,7 +1446,8 @@ for (int side = -1; side <= 1; side += 2) {
             vector barb_P = root_P + set(float(side) * v_frac * vane_w, v_frac * 0.2, -pow(v_frac, 2.0) * 0.1);
             int pt_seg = addpoint(0, barb_P);
             addvertex(0, barb_prim, pt_seg);
-            setpointattrib(0, "Cd", pt_seg, chramp("feather_iridescence", u), "set");
+            vector ramp_col = chramp("feather_iridescence", u);
+            setpointattrib(0, "Cd", pt_seg, ramp_col, "set");
         }
     }
 }"""
@@ -1494,8 +1537,12 @@ class VEXRAGEngine:
         for key, rec in self.recipes.items():
             score = 0
             for trig in rec["triggers"]:
-                if trig in p_lower:
-                    score += 1
+                if " " in trig:
+                    if trig in p_lower:
+                        score += 2
+                else:
+                    if re.search(rf"\b{re.escape(trig)}\b", p_lower):
+                        score += 2
             if score > 0:
                 matched.append((rec, score))
         matched.sort(key=lambda x: x[1], reverse=True)
@@ -1515,8 +1562,8 @@ class VEXRAGEngine:
         topic_triggers = {
             ("set attribute", "setpointattrib", "setprimattrib", "setdetailattrib", "set point", "set prim", "accumulate attribute", "write attribute"): 
                 ["setpointattrib", "setprimattrib", "setdetailattrib", "addattrib", "setattribtypeinfo"],
-            ("closest", "projection", "surface query", "distance to surface", "nearest surface", "snap to surface"): 
-                ["xyzdist", "primuv", "minpos", "surfacedist"],
+            ("intersection", "intersecting", "contact", "touching", "penetrating", "penetration", "overlap", "closest", "projection", "surface query", "distance to surface", "nearest surface", "snap to surface"): 
+                ["xyzdist", "primuv", "minpos", "nearpoint", "surfacedist"],
             ("point cloud", "pc filter", "pc filter color", "pc import", "pointcloud"): 
                 ["pcopen", "pciterate", "pcimport", "pcfilter", "pcclose", "pcfind", "pcfind_radius"],
             ("neighbors", "neighbor points", "k nearest", "nearpoints", "nearpoint"): 
@@ -1529,7 +1576,7 @@ class VEXRAGEngine:
                 ["svd", "polardecomp", "eigenvalues", "diagonal", "trace"],
             ("volume", "sdf", "vdb", "gradient", "density", "sample volume", "curl", "vorticity", "divergence", "rk4", "viscosity", "bfecc"): 
                 ["volumesample", "volumesamplev", "volumegradient", "volumeindex", "volumeindexv", "nametoprim", "volumeres", "volumevoxelsize"],
-            ("ray", "raycast", "intersect", "reflection", "refraction", "fresnel", "bounce", "snell"): 
+            ("ray", "raycast", "ray trace", "ray intersect", "shoot ray", "reflection", "refraction", "fresnel", "bounce", "snell"): 
                 ["intersect", "intersect_all", "reflect", "refract", "fresnel"],
             ("array", "sort", "reverse", "resize", "insert", "append", "push", "pop"): 
                 ["append", "sort", "reverse", "resize", "insert", "find", "push", "pop", "len", "slice"],
@@ -1554,7 +1601,17 @@ class VEXRAGEngine:
         }
 
         for keywords, funcs in topic_triggers.items():
-            if any(k in p_lower for k in keywords):
+            hit = False
+            for k in keywords:
+                if " " in k:
+                    if k in p_lower:
+                        hit = True
+                        break
+                else:
+                    if re.search(rf"\b{re.escape(k)}\b", p_lower):
+                        hit = True
+                        break
+            if hit:
                 for f in funcs:
                     if f in self.catalog and not any(f == mf[0] for mf in matched_funcs):
                         matched_funcs.append((f, 8))

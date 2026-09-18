@@ -7,6 +7,7 @@
 
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -41,8 +42,13 @@ def main():
     fwd_root = plugin_root.as_posix()
     package_def = {
         "hpath": fwd_root,
-        "pythonpath": f"{fwd_root}/python",
         "env": [
+            {
+                "PYTHONPATH": {
+                    "method": "prepend",
+                    "value": f"{fwd_root}/python"
+                }
+            },
             {"AI_WRANGLE_ROOT": fwd_root},
             {
                 "PATH": {
@@ -70,8 +76,25 @@ def main():
         except Exception as e:
             print(f"Could not live-install HDA: {e}")
 
+    # Check inference engine binary status
+    bin_path = plugin_root / "bin" / "llama-server.exe"
+    winget_engine = Path(os.path.expanduser(
+        r"~\AppData\Local\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe"
+    ))
+    has_bin = bin_path.exists() or winget_engine.exists() or (shutil.which("llama-server.exe") is not None)
+    if has_bin:
+        engine_status = "llama-server.exe (Installed ✅)"
+    else:
+        engine_status = (
+            "Not Found ⚠️\n"
+            "   -> Fix: Open PowerShell and run: winget install ggml.llamacpp\n"
+            "   -> Or place 'llama-server.exe' inside 'bin/'"
+        )
+
     # Check model weights status
     model_candidates = [
+        plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf",
+        plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf",
         plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf",
         plugin_root / "models" / "Qwen3-8B-Q5_K_M.gguf",
         plugin_root / "models" / "qwen3-vex.gguf",
@@ -82,14 +105,14 @@ def main():
     else:
         model_status = (
             "Not Found ⚠️\n"
-            "   -> Download 'Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf' from Hugging Face\n"
-            "      (https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10) into 'models/'"
+            "   -> Place 'Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf' into 'models/'"
         )
 
     msg = (
         "🎉 AI Attribute Wrangle Installed Successfully!\n\n"
         f"• Package Definition: {json_path}\n"
         f"• Live HDA Loaded: {'YES ✅' if hda_installed else 'Restart Required'}\n"
+        f"• AI Engine: {engine_status}\n"
         f"• AI Model: {model_status}\n"
         "• Edition: Free Community Edition (No License Required ✅)\n\n"
         "You can now create an 'AI Attribute Wrangle' node in any /obj/geo network!"

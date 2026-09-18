@@ -47,3 +47,5 @@ _qa_houdini_pref/
 backup/
 *.hda.bak*
 bin/
+.agents/
+skills-lock.json

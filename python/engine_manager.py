@@ -20,7 +20,7 @@ DEFAULT_HOST = "127.0.0.1"
 _STAGING_ROOT = os.path.join(tempfile.gettempdir(), "ai_wrangle_runtime")
 
 
-def get_recommended_gpu_layers(model_size_gb: float = 5.6) -> int:
+def get_recommended_gpu_layers(model_size_gb: float = 5.45) -> int:
     """Dynamically detects available GPU VRAM to prevent OutOfDeviceMemory crashes."""
     override = os.getenv("AI_WRANGLE_GPU_LAYERS")
     if override is not None:
@@ -29,20 +29,31 @@ def get_recommended_gpu_layers(model_size_gb: float = 5.6) -> int:
         except ValueError:
             pass
     try:
+        creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        cmd = ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,nounits,noheader"]
+        if sys.platform == "win32" and not shutil.which("nvidia-smi"):
+            for cand in [r"C:\Windows\System32\nvidia-smi.exe", r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"]:
+                if os.path.isfile(cand):
+                    cmd[0] = cand
+                    break
         out = subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,nounits,noheader"],
-            text=True, stderr=subprocess.DEVNULL, timeout=2.0
+            cmd,
+            text=True, stderr=subprocess.DEVNULL, timeout=5.0,
+            creationflags=creation_flags
         ).strip()
         free_vram_mb = int(out.splitlines()[0])
         # Model has ~36 transformer layers; estimate per-layer VRAM requirements:
-        layer_size_mb = max(100, int((model_size_gb * 1024) / 36))
-        # Keep 1.2 GB safe headroom for Houdini OpenGL/Vulkan viewport, UI, and OS compositor
-        safe_vram_budget = max(0, free_vram_mb - 1200)
+        layer_size_mb = max(80, int((model_size_gb * 1024) / 36))
+        # Keep 800 MB safe headroom for Houdini OpenGL/Vulkan viewport, UI, and OS compositor
+        safe_vram_budget = max(0, free_vram_mb - 800)
         max_layers = min(36, safe_vram_budget // layer_size_mb)
+        # Avoid split CPU-GPU bottleneck: if >= 28 layers fit, offload all 36
+        if max_layers >= 28 or free_vram_mb >= 5200:
+            return 36
         return max(0, max_layers)
     except Exception:
-        # Safe default fallback for systems without nvidia-smi or CPU-only workflows
-        return 12
+        # High-performance default: offload all 36 layers
+        return 36
 
 
 class EngineManager:
@@ -76,8 +87,10 @@ class EngineManager:
                 pass
         model = self.active_model_name or "qwen3-vex.gguf"
         if self.active_lora_name:
-            extra = " (v10 Grandmaster - Sept 8)" if "v10" in self.active_lora_name else ""
+            extra = " (v11 Grandmaster)" if "v11" in self.active_lora_name else (" (v10 Grandmaster - Sept 8)" if "v10" in self.active_lora_name else "")
             return f"{model} + LoRA: {self.active_lora_name}{extra}"
+        if "v11" in model:
+            return f"{model} (Standalone Merged v11 Grandmaster)"
         if "Houdini-VEX" in model:
             return f"{model} (Standalone Merged v10.1)"
         return f"{model} (Base)"
