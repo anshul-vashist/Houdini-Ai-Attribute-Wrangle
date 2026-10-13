@@ -15,7 +15,22 @@ import urllib.error
 import urllib.request
 
 
-DEFAULT_PORT = 58421
+def get_working_port(preferred: int = 58421, fallback: int = 58321) -> int:
+    env_port = os.getenv("AI_WRANGLE_PORT")
+    if env_port:
+        try:
+            return int(env_port)
+        except ValueError:
+            pass
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", preferred))
+        s.close()
+        return preferred
+    except OSError:
+        return fallback
+
+DEFAULT_PORT = get_working_port()
 DEFAULT_HOST = "127.0.0.1"
 _STAGING_ROOT = os.path.join(tempfile.gettempdir(), "ai_wrangle_runtime")
 
@@ -89,8 +104,70 @@ class EngineManager:
         if self.active_lora_name:
             extra = " (v11 Grandmaster)" if "v11" in self.active_lora_name else (" (v10 Grandmaster - Sept 8)" if "v10" in self.active_lora_name else "")
             return f"{model} + LoRA: {self.active_lora_name}{extra}"
+        if "v42" in model:
+            return f"{model} (Standalone Merged v42 Master - Organic CITL Self-Repair)"
+        if "v41" in model:
+            return f"{model} (Standalone Merged v41 Master - SFT-Grounded RLVR)"
+        if "v39" in model:
+            return f"{model} (Standalone Merged v39 Master - Bulletproof Intelligence)"
+        if "v38" in model:
+            return f"{model} (Standalone Merged v38 Master - Axiomatic Reasoning)"
+        if "v37" in model:
+            return f"{model} (Standalone Merged v37 Master)"
+        if "v36" in model:
+            return f"{model} (Standalone Merged v36 Master)"
+        if "v35" in model:
+            return f"{model} (Standalone Merged v35 Master)"
+        if "v34" in model:
+            return f"{model} (Standalone Merged v34 Master)"
+        if "v33" in model:
+            return f"{model} (Standalone Merged v33 Master)"
+        if "v32" in model:
+            return f"{model} (Standalone Merged v32 Master)"
+        if "v31" in model:
+            return f"{model} (Standalone Merged v31 Master)"
+        if "v30" in model:
+            return f"{model} (Standalone Merged v30 Master)"
+        if "v29" in model:
+            return f"{model} (Standalone Merged v29 Master)"
+        if "v28" in model:
+            return f"{model} (Standalone Merged v28 Master)"
+        if "v27" in model:
+            return f"{model} (Standalone Merged v27 Master)"
+        if "v26" in model:
+            return f"{model} (Standalone Merged v26 Master)"
+        if "v25" in model:
+            return f"{model} (Standalone Merged v25 Master)"
+        if "v24" in model:
+            return f"{model} (Standalone Merged v24 Master)"
+        if "v23" in model:
+            return f"{model} (Standalone Merged v23 Master)"
+        if "v22" in model:
+            return f"{model} (Standalone Merged v22 Master)"
+        if "v21" in model:
+            return f"{model} (Standalone Merged v21 Master)"
+        if "v20" in model:
+            return f"{model} (Standalone Merged v20 Master)"
+        if "v19" in model:
+            return f"{model} (Standalone Merged v19 Master)"
+        if "v18" in model:
+            return f"{model} (Standalone Merged v18 Master)"
+        if "v17" in model:
+            return f"{model} (Standalone Merged v17 Master)"
+        if "v16" in model:
+            return f"{model} (Standalone Merged v16 Master)"
+        if "v15" in model:
+            return f"{model} (Standalone Merged v15 Master)"
+        if "v14" in model:
+            return f"{model} (Standalone Merged v14 Master)"
+        if "v13" in model:
+            return f"{model} (Standalone Merged v13 Master)"
         if "v11" in model:
             return f"{model} (Standalone Merged v11 Grandmaster)"
+        import re
+        v_match = re.search(r"v(\d+)", model)
+        if v_match:
+            return f"{model} (Standalone Merged v{v_match.group(1)} Master)"
         if "Houdini-VEX" in model:
             return f"{model} (Standalone Merged v10.1)"
         return f"{model} (Base)"
@@ -176,9 +253,24 @@ class EngineManager:
 
     def start_embedded_engine(self, engine_bin_path: str, vault_model_path: str) -> bool:
         self.last_error = ""
-        self.active_model_name = os.path.basename(vault_model_path)
+        target_model = os.path.basename(vault_model_path)
         if self.is_healthy():
-            return True
+            current_info = self.get_model_info_string()
+            if target_model in current_info or (self.active_model_name and target_model == self.active_model_name):
+                return True
+            # Model mismatch: stop running instance and switch to requested model
+            self.stop_engine()
+            if sys.platform == "win32":
+                try:
+                    subprocess.run(
+                        ["powershell", "-Command", "Stop-Process -Name 'llama-server' -Force -ErrorAction SilentlyContinue"],
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
+                except Exception:
+                    pass
+                time.sleep(1.0)
+
+        self.active_model_name = target_model
         if not os.path.isfile(engine_bin_path):
             self.last_error = f"Engine executable not found: {engine_bin_path}"
             return False
@@ -196,7 +288,7 @@ class EngineManager:
         command = [
             engine_bin_path, "--model", resolved_model_path, "--port", str(self.port),
             "--host", self.host, "--ctx-size", "4096", "--n-gpu-layers",
-            gpu_layers,
+            gpu_layers, "--no-warmup", "--parallel", "1",
         ]
         # Check for fine-tuned LoRA adapter (only if the model is not already standalone merged)
         is_already_merged = "Houdini-VEX" in os.path.basename(vault_model_path) or "merged" in os.path.basename(vault_model_path).lower()
@@ -258,3 +350,18 @@ class EngineManager:
         self._staging_model_path = None
         if staging_dir:
             shutil.rmtree(staging_dir, ignore_errors=True)
+
+    def switch_model(self, engine_bin_path: str, vault_model_path: str) -> bool:
+        """Gracefully switch active engine to a different model weights file."""
+        self.stop_engine()
+        if sys.platform == "win32":
+            try:
+                subprocess.run(
+                    ["powershell", "-Command", "Stop-Process -Name 'llama-server' -Force -ErrorAction SilentlyContinue"],
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+            except Exception:
+                pass
+            time.sleep(1.0)
+        return self.start_embedded_engine(engine_bin_path, vault_model_path)
+

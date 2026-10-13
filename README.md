@@ -3,7 +3,7 @@
 <div align="center">
 
 ![Houdini Support](https://img.shields.io/badge/SideFX_Houdini-20.0_%7C_20.5_%7C_21.0-orange.svg)
-[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Qwen3--8B--Houdini--VEX--v10-yellow.svg)](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10)
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Qwen3--8B--Houdini--VEX--v46-yellow.svg)](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v46)
 ![Model Size](https://img.shields.io/badge/Model_Weights-5.45_GB_Standalone_Merged-blue.svg)
 ![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows_x64-lightgrey.svg)
@@ -11,7 +11,7 @@
 
 **A local-first, zero-cloud AI copilot for procedural geometry and VEX programming inside SideFX Houdini.**
 
-[📥 Download Model Weights (Hugging Face)](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10) • [🚀 Quickstart](#-quickstart--installation) • [✨ Key Features](#-key-features) • [💡 Examples](#-example-prompts--generated-vex)
+[📥 Download Model Weights (Hugging Face)](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v46) • [🚀 Quickstart](#-quickstart--installation) • [✨ Key Features](#-key-features) • [💡 Examples](#-example-prompts--generated-vex)
 
 </div>
 

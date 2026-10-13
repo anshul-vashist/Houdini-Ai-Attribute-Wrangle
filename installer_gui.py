@@ -111,11 +111,43 @@ class SetupWizardApp:
             elif (self.plugin_root.parent / "python").exists():
                 self.plugin_root = self.plugin_root.parent
 
-        model_file = self.plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf"
-        if not model_file.exists():
-            model_file = self.plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"
-        self.detected_model = model_file
-        self.model_present = model_file.exists() or (any((self.plugin_root / "models").glob("*.gguf")) if (self.plugin_root / "models").exists() else False)
+        # Discover models
+        models_dir = self.plugin_root / "models"
+        if not models_dir.exists() and (Path(__file__).resolve().parent / "models").exists():
+            models_dir = Path(__file__).resolve().parent / "models"
+
+        model_candidates = [
+            models_dir / "Qwen3-8B-Houdini-VEX-v23-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v22-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v21-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v20-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v19-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v18-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v17-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v16-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v15-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v14-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v13-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf",
+            models_dir / "qwen3-8b.Q8_0.gguf",
+            models_dir / "qwen3-8b.Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf",
+            models_dir / "Qwen3-8B-Q5_K_M.gguf",
+            models_dir / "qwen3-vex.gguf",
+        ]
+        found_model = next((m for m in model_candidates if m.is_file()), None)
+        if not found_model and models_dir.is_dir():
+            non_lora_ggufs = [f for f in models_dir.glob("*.gguf") if "lora" not in f.name.lower()]
+            if non_lora_ggufs:
+                found_model = sorted(non_lora_ggufs, key=lambda f: f.stat().st_size, reverse=True)[0]
+            else:
+                all_ggufs = list(models_dir.glob("*.gguf"))
+                if all_ggufs:
+                    found_model = sorted(all_ggufs, key=lambda f: f.stat().st_size, reverse=True)[0]
+
+        self.detected_model = found_model
+        self.model_present = found_model is not None and found_model.is_file()
 
         # Check engine binary
         bin_file = self.plugin_root / "bin" / "llama-server.exe"
@@ -169,8 +201,8 @@ class SetupWizardApp:
         # Model readiness row
         model_row = tk.Frame(status_frame, bg="#282830")
         model_row.pack(fill="x", pady=(6, 0))
-        if self.model_present:
-            m_name = self.detected_model.name if hasattr(self, "detected_model") and self.detected_model.exists() else "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf"
+        if self.model_present and self.detected_model:
+            m_name = self.detected_model.name
             tk.Label(
                 model_row, text=f"🧠 Model: {m_name} (Ready ✅)",
                 font=("Segoe UI", 8, "bold"), bg="#282830", fg="#88ff88"

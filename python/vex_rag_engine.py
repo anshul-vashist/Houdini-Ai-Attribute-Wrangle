@@ -15,6 +15,14 @@ import os
 import re
 import json
 
+try:
+    from vex_ground_truth_signatures import VEX_GROUND_TRUTH_SIGNATURES
+except ImportError:
+    try:
+        from .vex_ground_truth_signatures import VEX_GROUND_TRUTH_SIGNATURES
+    except ImportError:
+        VEX_GROUND_TRUTH_SIGNATURES = {}
+
 _DATA_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "vex_1115_compact.json")
 
 def load_1115_catalog():
@@ -29,14 +37,18 @@ def load_1115_catalog():
         r"C:\Users\Anshul\Documents\houdini21.0\scripts\data\vex_1115_compact.json",
         r"E:\#AI#\Houdini Attribute Wrangle\data\vex_1115_compact.json",
     ]
+    catalog = {}
     for p in candidate_paths:
         if os.path.exists(p):
             try:
                 with open(p, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    catalog = json.load(f)
+                    break
             except Exception:
                 pass
-    return {}
+    if VEX_GROUND_TRUTH_SIGNATURES:
+        catalog.update(VEX_GROUND_TRUTH_SIGNATURES)
+    return catalog
 
 # ---------------------------------------------------------------------------
 # 40 Master Architectural Blueprints (Production Scaffolds for Houdini VEX)
@@ -171,7 +183,7 @@ f@pscale = fit01(f@chem_b, 0.02, 0.1);"""
 
     # ── 4. Conformal Surface Projections ──
     "surface_projection_primuv": {
-        "triggers": ("xyzdist", "primuv", "project to surface", "conform", "shrinkwrap", "stick to surface", "nearest surface", "surface snap"),
+        "triggers": ("xyzdist", "primuv", "project to surface", "project onto surface", "project points onto surface", "project each point onto", "conform", "shrinkwrap", "stick to surface", "nearest surface", "surface snap", "closest surface", "surface of input 1"),
         "title": "Conformal Surface Projection & Attribute Interpolation (Point Wrangle)",
         "context": "point wrangle",
         "blueprint": """// -- Blueprint: Conformal Surface Projection & Attribute Interpolation --
@@ -188,6 +200,50 @@ if (hit_prim != -1) {
     v@N = normalize(lerp(v@N, target_N, blend));
     f@dist = d;
     @Cd = chramp("distance_ramp", fit(d, 0.0, chf("max_dist"), 0.0, 1.0));
+}"""
+    },
+
+    "attribute_transfer_nearest": {
+        "triggers": ("transfer color", "transfer attribute", "transfer from input 1", "sample attribute from input 1", "sample color from input 1", "attribute transfer", "copy attribute", "nearest point color"),
+        "title": "Nearest Point & Distance Attribute Transfer from Input 1 (Point Wrangle)",
+        "context": "point wrangle",
+        "blueprint": """// -- Blueprint: Attribute Transfer from Input 1 (Point Wrangle) --
+int nearest_pt = nearpoint(1, @P);
+if (nearest_pt != -1) {
+    if (hasattrib(1, "point", "Cd")) {
+        @Cd = point(1, "Cd", nearest_pt);
+    }
+    if (hasattrib(1, "point", "v")) {
+        v@v = point(1, "v", nearest_pt);
+    }
+}"""
+    },
+
+    # ── 5. Motion Path & Curve Trajectory Tracking ──
+    "motion_path_follow_curve": {
+        "triggers": ("follow path", "follow curve", "follow line", "move along curve", "path follow", "track path", "slide on curve", "curve trajectory", "drive along path", "animate along curve", "animate along guide", "animate along path", "guide curve", "follow the curve", "animate the mesh along"),
+        "title": "Motion Path & Curve Trajectory Tracking with Mesh Shape Invariant (Point Wrangle)",
+        "context": "point wrangle",
+        "blueprint": """// -- Blueprint: Motion Path Trajectory Tracking (Point Wrangle) --
+// Translates and aligns Input 0 geometry along Input 1 curve trajectory
+float speed = chf("speed");
+if (speed == 0.0) speed = 0.5;
+
+float u = frac(@Time * speed);
+// Sample target position along Input 1 curve
+vector path_pos = primuv(1, "P", 0, set(u, 0.0, 0.0));
+
+// Centroid Invariant: Translate mesh relative to center to preserve 3D shape
+vector center = getbbox_center(0);
+@P += (path_pos - center);
+
+// Optional: Align orientation along curve tangent
+int align_tangent = chi("align_tangent");
+if (align_tangent) {
+    float du = 0.001;
+    vector p_next = primuv(1, "P", 0, set(clamp(u + du, 0.0, 1.0), 0.0, 0.0));
+    vector tangent = normalize(p_next - path_pos);
+    v@N = tangent;
 }"""
     },
 
@@ -228,9 +284,20 @@ f@density = float(n_found);
 @Cd = chramp("density_ramp", fit(float(n_found), 0.0, float(max_pts), 0.0, 1.0));"""
     },
 
-    # ── 6. Orthonormal Orientation Frames ──
+    # ── 6. Dihedral & Spin Quaternion Alignment ──
+    "dihedral_spin_quaternion": {
+        "triggers": ("dihedral", "spin quaternion", "align orient", "qmultiply"),
+        "title": "Dihedral Alignment & Spin Quaternions (@orient) (Point Wrangle)",
+        "context": "point wrangle",
+        "blueprint": """// -- Blueprint: Dihedral Alignment & Spin Quaternions (@orient) --
+vector4 q_align = dihedral(set(0, 1, 0), normalize(v@v));
+vector4 q_spin = quaternion(chf("speed") * @Time, normalize(v@v));
+p@orient = qmultiply(q_spin, q_align);"""
+    },
+
+    # ── 6b. Orthonormal Orientation Frames ──
     "quaternion_orientation_frames": {
-        "triggers": ("orient", "quaternion", "rotation", "tangent", "normal", "dihedral", "lookat", "aim", "instance orient"),
+        "triggers": ("orthonormal", "basis frame", "tangent basis", "lookat", "aim", "instance orient", "coordinate frame"),
         "title": "Orthonormal Orientation Quaternions (@orient) (Point Wrangle)",
         "context": "point wrangle",
         "blueprint": """// -- Blueprint: Orthonormal Orientation Quaternions (@orient) --
@@ -246,7 +313,7 @@ p@orient = quaternion(m_orient);"""
 
     # ── 7. Level-Set Volume SDFs ──
     "volume_sdf_projection": {
-        "triggers": ("sdf", "collision", "volumesample", "volumegradient", "penetration", "project out", "containment", "level set"),
+        "triggers": ("sdf", "collision", "volumesample", "volumegradient", "penetration", "project out", "containment", "level set", "push points outside", "push points away", "sdf collision", "sdf collider", "collide with sdf"),
         "title": "Volume Signed Distance Field (SDF) Collision & Projection (Point Wrangle)",
         "context": "point wrangle",
         "blueprint": """// -- Blueprint: Volume SDF Sampling, Collision & Gradient Projection --
@@ -260,15 +327,6 @@ if (dist < margin) {
     if (grad_len > 1e-5) {
         vector nml = normalize(grad);
         @P += nml * (margin - dist);
-        
-        float v_norm = dot(v@v, nml);
-        if (v_norm < 0.0) {
-            vector tangent = normalize(v@v - nml * v_norm);
-            float bounce = chf("bounce"); if (bounce <= 0.0) bounce = 0.5;
-            float friction = clamp(chf("friction"), 0.0, 1.0);
-            v@v = tangent * (1.0 - friction) - nml * (v_norm * bounce);
-        }
-        @Cd = set(1.2, 0.65, 0.1);
     }
 }"""
     },
@@ -1520,6 +1578,82 @@ if (dist < margin) {
         @Cd = set(1.2, 0.3, 0.1);
     }
 }"""
+    },
+
+    # ── 41. Axis & Planar Geometry Clipping / Slicing ──
+    "cull_axis_planar_clip": {
+        "triggers": ("clip", "slice", "cut plane", "clipping", "half along", "+x", "-x", "+y", "-y", "+z", "-z", "cull plane", "cut in half", "slice mesh"),
+        "title": "Axis & Planar Geometry Clipping (Point Wrangle)",
+        "context": "point wrangle",
+        "blueprint": """// -- Blueprint: Planar / Axis Geometry Clipping (Point Wrangle) --
+float clip_val = chf("clip_position");
+
+// Clipping along +X axis (remove points where @P.x > clip_val):
+if (@P.x > clip_val) {
+    removepoint(0, @ptnum);
+}"""
+    },
+
+    # ── 42. Lonely, Isolated & Unshared Point Culling ──
+    "cull_lonely_isolated_points": {
+        "triggers": ("lonely", "isolated", "unshared", "floating points", "no neighbors", "zero neighbors", "disconnected", "stray points", "dangling"),
+        "title": "Remove Lonely, Isolated & Unshared Points (Point Wrangle)",
+        "context": "point wrangle",
+        "blueprint": """// -- Blueprint: Remove Lonely / Isolated / Unshared Points (Point Wrangle) --
+// Check topological connectivity: points with zero connected edges/neighbors:
+if (neighbourcount(0, @ptnum) == 0) {
+    removepoint(0, @ptnum);
+}"""
+    },
+
+    # ── 43. Bounding Box Spatial Culling ──
+    "cull_bounding_box": {
+        "triggers": ("outside box", "inside box", "bounds", "bounding box", "cull outside", "keep inside box", "kill points outside"),
+        "title": "Bounding Box Spatial Filtering & Culling (Point Wrangle)",
+        "context": "point wrangle",
+        "blueprint": """// -- Blueprint: Bounding Box Spatial Filtering (Point Wrangle) --
+vector bmin = chv("box_min");
+vector bmax = chv("box_max");
+
+// Fallback to geometry bounding box if uninitialized
+if (length(bmin) == 0.0 && length(bmax) == 0.0) {
+    getbbox(0, bmin, bmax);
+}
+
+if (@P.x < bmin.x || @P.x > bmax.x ||
+    @P.y < bmin.y || @P.y > bmax.y ||
+    @P.z < bmin.z || @P.z > bmax.z) {
+    removepoint(0, @ptnum);
+}"""
+    },
+
+    # ── 44. Random Percentage Decimation ──
+    "cull_random_decimation": {
+        "triggers": ("delete half", "delete random", "cull random", "decimate", "random delete", "remove half", "random cull"),
+        "title": "Random Percentage Point Decimation (Point Wrangle)",
+        "context": "point wrangle",
+        "blueprint": """// -- Blueprint: Random Percentage Decimation (Point Wrangle) --
+float delete_ratio = chf("delete_ratio");
+if (delete_ratio == 0.0) delete_ratio = 0.5;
+
+if (rand(@ptnum + chi("seed")) < delete_ratio) {
+    removepoint(0, @ptnum);
+}"""
+    },
+
+    # ── 45. Proximity / Min-Distance Point Culling ──
+    "cull_proximity_points": {
+        "triggers": ("too close", "merge close", "fuse points", "proximity cull", "radius cull", "min distance"),
+        "title": "Proximity & Minimum Distance Point Culling (Point Wrangle)",
+        "context": "point wrangle",
+        "blueprint": """// -- Blueprint: Proximity Point Culling (Point Wrangle) --
+float min_dist = chf("min_distance");
+if (min_dist == 0.0) min_dist = 0.1;
+
+int nearby[] = nearpoints(0, @P, min_dist, 2);
+if (len(nearby) > 1 && nearby[1] < @ptnum) {
+    removepoint(0, @ptnum);
+}"""
     }
 }
 
@@ -1531,73 +1665,100 @@ class VEXRAGEngine:
     def reload(self):
         self.catalog = load_1115_catalog()
 
-    def retrieve_recipes_for_task(self, prompt: str) -> list:
+    def retrieve_recipes_for_task(self, prompt: str, context: str = "point wrangle") -> list:
         p_lower = prompt.lower()
+        ctx_lower = context.lower()
+        is_point = "point" in ctx_lower
+        is_detail = "detail" in ctx_lower
+        is_prim = "prim" in ctx_lower
+        from_scratch = any(w in p_lower for w in ("from scratch", "synthesize", "add points", "create points", "generate curve", "generate mesh"))
+
         matched = []
         for key, rec in self.recipes.items():
+            rec_ctx = rec.get("context", "all").lower()
+
+            # Strict Context Isolation:
+            # Never inject a detail wrangle template into a point wrangle query
+            # unless the user explicitly requested generating geometry from scratch.
+            if is_point and "detail" in rec_ctx and not from_scratch:
+                continue
+            if is_detail and "point" in rec_ctx and "detail" not in rec_ctx and not from_scratch:
+                continue
+            if is_prim and "prim" not in rec_ctx and rec_ctx != "all":
+                continue
+
             score = 0
             for trig in rec["triggers"]:
                 if " " in trig:
                     if trig in p_lower:
-                        score += 2
+                        score += 3
                 else:
                     if re.search(rf"\b{re.escape(trig)}\b", p_lower):
                         score += 2
+
             if score > 0:
                 matched.append((rec, score))
-        matched.sort(key=lambda x: x[1], reverse=True)
-        return [m[0] for m in matched[:2]]
 
-    def retrieve_signatures_for_task(self, prompt: str, max_results: int = 8) -> list:
+        matched.sort(key=lambda x: x[1], reverse=True)
+        return [m[0] for m in matched[:1]]
+
+    def retrieve_signatures_for_task(self, prompt: str, context: str = "point wrangle", max_results: int = 6) -> list:
         p_lower = prompt.lower()
         matched_funcs = []
 
-        # 1. Exact function name keyword matching
+        # Common English and basic math words to suppress from naive keyword matching
+        suppressed_exact = {
+            "set", "add", "clip", "split", "scatter", "smooth", "area", "cone", "cos",
+            "sin", "tan", "dot", "exp", "find", "floor", "frac", "join", "len", "lerp",
+            "log", "max", "min", "pop", "push", "rand", "sign", "sort", "sqrt", "sum",
+            "time", "turn", "type", "unit", "wall", "wave", "wire", "wrap", "poly",
+            "line", "curve", "surf", "norm", "point", "prim", "vertex", "detail",
+            "remove", "delete", "diff", "drop", "grid", "has", "hex", "id", "map",
+            "mask", "mid", "mod", "near", "open", "pack", "path", "plan", "proj",
+            "ramp", "ray", "read", "ring", "rot", "save", "size", "skew", "slow",
+            "solv", "span", "sph", "spin", "step"
+        }
+
+        # 1. Exact function name keyword matching (only specific high-value VEX functions)
         for func_name in self.catalog.keys():
+            if func_name in suppressed_exact or len(func_name) <= 3:
+                continue
             pattern = rf"\b{re.escape(func_name)}\b"
             if re.search(pattern, p_lower):
                 matched_funcs.append((func_name, 20))
 
-        # 2. Semantic topic matching across all 40 domains
+        # 2. Semantic topic matching across production domains
         topic_triggers = {
+            ("cull", "delete", "remove", "kill", "prune", "filter", "drop", "slice", "cut", "discard"): 
+                ["removepoint", "removeprim", "removevertex"],
+            ("lonely", "isolated", "unshared", "no neighbors", "zero neighbors", "disconnected", "stray", "dangling"): 
+                ["neighbourcount", "neighbours", "pointprims", "removepoint"],
             ("set attribute", "setpointattrib", "setprimattrib", "setdetailattrib", "set point", "set prim", "accumulate attribute", "write attribute"): 
                 ["setpointattrib", "setprimattrib", "setdetailattrib", "addattrib", "setattribtypeinfo"],
-            ("intersection", "intersecting", "contact", "touching", "penetrating", "penetration", "overlap", "closest", "projection", "surface query", "distance to surface", "nearest surface", "snap to surface"): 
+            ("closest", "projection", "surface query", "distance to surface", "nearest surface", "snap to surface"): 
                 ["xyzdist", "primuv", "minpos", "nearpoint", "surfacedist"],
             ("point cloud", "pc filter", "pc filter color", "pc import", "pointcloud"): 
-                ["pcopen", "pciterate", "pcimport", "pcfilter", "pcclose", "pcfind", "pcfind_radius"],
-            ("neighbors", "neighbor points", "k nearest", "nearpoints", "nearpoint"): 
-                ["nearpoints", "nearpoint", "neighbours", "neighbourcount", "neighbour"],
+                ["pcopen", "pciterate", "pcimport", "pcfilter", "pcclose", "pcfind"],
+            ("neighbors", "neighbor points", "k nearest", "nearpoints"): 
+                ["nearpoints", "nearpoint", "neighbours", "neighbourcount"],
             ("half edge", "halfedge", "boundary", "open mesh", "edge loop", "crease", "boundary edge", "seam"): 
-                ["pointhedge", "pointhedgenext", "hedge_nextequiv", "hedge_dstpoint", "hedge_isprimary", "hedge_prim", "hedge_srcpoint", "hedge_equivelem"],
-            ("quaternion", "orient", "rotation", "rotate", "lookat", "slerp", "dihedral", "aim"): 
-                ["quaternion", "qrotate", "qmultiply", "slerp", "dihedral", "lookat", "maketransform", "eulertoquaternion"],
+                ["pointhedge", "pointhedgenext", "hedge_nextequiv", "hedge_dstpoint", "hedge_prim"],
+            ("quaternion", "orient", "rotation", "rotate", "lookat", "slerp", "dihedral"): 
+                ["quaternion", "qrotate", "qmultiply", "slerp", "dihedral", "lookat", "maketransform"],
             ("eigen", "eigenvalues", "covariance", "decomposition", "svd", "polar", "pca"): 
-                ["svd", "polardecomp", "eigenvalues", "diagonal", "trace"],
-            ("volume", "sdf", "vdb", "gradient", "density", "sample volume", "curl", "vorticity", "divergence", "rk4", "viscosity", "bfecc"): 
-                ["volumesample", "volumesamplev", "volumegradient", "volumeindex", "volumeindexv", "nametoprim", "volumeres", "volumevoxelsize"],
-            ("ray", "raycast", "ray trace", "ray intersect", "shoot ray", "reflection", "refraction", "fresnel", "bounce", "snell"): 
-                ["intersect", "intersect_all", "reflect", "refract", "fresnel"],
-            ("array", "sort", "reverse", "resize", "insert", "append", "push", "pop"): 
-                ["append", "sort", "reverse", "resize", "insert", "find", "push", "pop", "len", "slice"],
-            ("create points", "generate curve", "add points", "spiral", "knot", "polygon", "mesh", "ribbon", "tendril", "catenary", "feather"): 
-                ["addpoint", "addprim", "addvertex", "removeprim", "setprimintrinsic"],
-            ("group", "point group", "prim group", "in group", "add to group"): 
-                ["setpointgroup", "setprimgroup", "inpointgroup", "inprimgroup", "pointgroup", "primgroup"],
-            ("matrix", "transform", "invert", "transpose", "determinant", "affine"): 
-                ["ident", "invert", "transpose", "determinant", "scale", "translate", "rotate"],
-            ("string", "format", "sprintf", "concat", "regex"): 
-                ["sprintf", "concat", "split", "startswith", "endswith", "strip", "match"],
-            ("color", "palette", "rgb", "hsv", "harmonics", "gradient"): 
-                ["rgbtohsv", "hsvtorgb", "chramp", "chrampeval"],
-            ("bounding box", "bbox", "relbbox", "normalize coordinates"): 
-                ["relbbox", "getbbox_min", "getbbox_max", "getbbox_size", "getbbox_center"],
+                ["svd", "polardecomp", "eigenvalues"],
+            ("volume", "sdf", "vdb", "gradient", "density", "sample volume"): 
+                ["volumesample", "volumesamplev", "volumegradient", "volumeindex", "volumeres", "volumevoxelsize"],
+            ("ray", "raycast", "ray trace", "ray intersect", "shoot ray", "reflection"): 
+                ["intersect", "intersect_all"],
+            ("create points", "generate curve", "add points", "from scratch"): 
+                ["addpoint", "addprim", "addvertex"],
+            ("bounding box", "bbox", "relbbox", "bounds"): 
+                ["getbbox", "getbbox_min", "getbbox_max", "getbbox_size", "getbbox_center", "relbbox"],
             ("channel", "chf", "chi", "chv", "chramp", "ramp", "parameter"): 
-                ["chf", "chi", "chv", "chramp", "chs", "chrampeval"],
-            ("noise", "perlin", "simplex", "worley", "curl noise", "anoise"): 
-                ["noise", "curlnoise", "anoise", "snoise", "wnoise", "pnoise", "flownoise"],
-            ("math", "trig", "fit", "clamp", "smooth", "lerp", "cross", "dot", "distance", "length", "cosh", "sinh"): 
-                ["fit", "clamp", "lerp", "cross", "dot", "normalize", "distance", "smooth", "asin", "acos", "atan2", "cosh", "sinh"]
+                ["chf", "chi", "chv", "chramp", "chs", "chp"],
+            ("noise", "curl noise", "anoise", "snoise"): 
+                ["curlnoise", "anoise", "snoise"]
         }
 
         for keywords, funcs in topic_triggers.items():
@@ -1614,7 +1775,7 @@ class VEXRAGEngine:
             if hit:
                 for f in funcs:
                     if f in self.catalog and not any(f == mf[0] for mf in matched_funcs):
-                        matched_funcs.append((f, 8))
+                        matched_funcs.append((f, 10))
 
         matched_funcs.sort(key=lambda x: x[1], reverse=True)
         top_funcs = [f[0] for f in matched_funcs[:max_results]]
@@ -1622,13 +1783,19 @@ class VEXRAGEngine:
         retrieved_signatures = []
         for f in top_funcs:
             for sig in self.catalog.get(f, []):
+                # Filter out noisy placeholder signatures that lack parameter types
+                if "<type> " in sig and "(...)" in sig:
+                    continue
+                # Filter out shading-only functions from SOP wrangle
+                if "(Context: displace" in sig or "(Context: surface" in sig or "(Context: fog" in sig or "(Context: light" in sig:
+                    continue
                 retrieved_signatures.append(sig)
 
-        return retrieved_signatures[:12]
+        return retrieved_signatures[:8]
 
-    def build_rag_context_block(self, prompt: str) -> str:
+    def build_rag_context_block(self, prompt: str, context: str = "point wrangle") -> str:
         blocks = []
-        recipes = self.retrieve_recipes_for_task(prompt)
+        recipes = self.retrieve_recipes_for_task(prompt, context=context)
         if recipes:
             for rec in recipes:
                 blocks.append(
@@ -1636,14 +1803,14 @@ class VEXRAGEngine:
                     f"```c\n{rec['blueprint']}\n```\n"
                     "Note: Use the structural architecture above as a blueprint. Adapt equations and channels to the user's specific prompt."
                 )
-            
-        sigs = self.retrieve_signatures_for_task(prompt)
+
+        sigs = self.retrieve_signatures_for_task(prompt, context=context)
         if sigs:
             lines = ["Official SideFX VEX Function Signatures (Ground Truth Reference):"]
             for s in sigs:
                 lines.append(f"  - {s}")
             blocks.append("\n".join(lines))
-            
+
         return "\n\n".join(blocks)
 
 _rag_engine = VEXRAGEngine()

@@ -13,6 +13,7 @@ Features:
   9. 🛡️ Autonomous 1-Shot CITL Self-Repair
   10. 🛠️ 1-Click Shelf Tool Suite
 """
+from __future__ import annotations
 
 import os
 import json
@@ -21,7 +22,20 @@ import time
 import math
 import urllib.request
 import urllib.error
-import hou
+try:
+    import hou
+except ImportError:
+    hou = None
+
+try:
+    from PySide6 import QtWidgets, QtCore, QtGui
+except ImportError:
+    try:
+        from PySide2 import QtWidgets, QtCore, QtGui
+    except ImportError:
+        QtWidgets = None
+        QtCore = None
+        QtGui = None
 
 try:
     from .vex_rag_engine import get_vex_rag_engine
@@ -38,24 +52,64 @@ LOCAL_API_URL = os.getenv("HOUDINI_VEX_AI_URL", "http://127.0.0.1:11434/api/gene
 LOCAL_MODEL_NAME = os.getenv("HOUDINI_VEX_AI_MODEL", "qwen3-vex:latest")
 
 TURBO_SYSTEM_PROMPT = (
-    "You are Houdini VEX Copilot, an expert AI programming assistant fine-tuned and created by Anshul Vashist.\n"
-    "Write pure, high-performance Houdini VEX code to solve the user's task in the specified context.\n"
-    "Rules:\n"
-    "  1. Output pure VEX code without markdown formatting or conversational text.\n"
-    "  2. Use standard Houdini VEX types and constructors: vector, vector4, matrix3, matrix, set(x, y, z).\n"
-    "  3. In detail wrangles with loops, always hoist parameter channel calls (chf, chi, chv, chramp) outside the loop."
+    "You are an expert SideFX Houdini VEX programmer and technical director.\n"
+    "Output only valid Houdini VEX code with no markdown fences or conversational text.\n"
+    "Follow these hard VEX API rules:\n"
+    "- Mesh vs Single Point Invariant: In Point Wrangles, when moving or deforming a 3D mesh along a path/curve from Input 1, never assign '@P = target_pos;' which collapses all mesh vertices to a single point. Always apply relative centroid translation: '@P += (target_pos - getbbox_center(0));'.\n"
+    "- Multi-Input Queries: Strictly query the correct input index (Input 0 for self/neighbours, Input 1 for external guide curve, collision surface, or volume).\n"
+    "- Conditionals: Strictly use C-style if/else or ternary (cond ? a : b). Never use Python ternary ('a if cond else b').\n"
+    "- Parallel SIMD Execution: In Point Wrangles operate directly on @ptnum. In Primitive Wrangles operate directly on @primnum. Do not loop over all points or primitives unless in a Detail Wrangle.\n"
+    "- Attribute Binding: Export attributes with explicit type prefixes: f@mass, i@id, v@pos, s@name, p@orient, 4@transform. Never rely on dead local variables.\n"
+    "- Vector Rotation: Rotate vectors using quaternion(radians(angle), axis) and qrotate(q, v), or a matrix transform. Never call rotate() directly on a vector.\n"
+    "- Parameter Hoisting: Strictly do not use 'param.float' or 'param.vector'. Use float freq = chf(\"freq\"); vector off = chv(\"offset\"); or local variable declarations.\n"
+    "- Array Sizing: Strictly use len(array) for array length. Never use array.size(), size(array), or sizeof().\n"
+    "- Array Appending: Strictly use functional append(array, value). Never use array.append(value) or array.push(value).\n"
+    "- Dynamic Vectors: Strictly construct dynamic vectors using set(x, y, z). Never use curly braces {x, y, z} with non-constant variables or vector(x, y, z).\n"
+    "- Math Constants: Strictly use uppercase PI (e.g. 2.0 * PI). Lowercase pi is not defined.\n"
+    "- Point Cloud iteration: int handle = pcopen(0, \"P\", @P, search_rad, maxpts); while (pciterate(handle)) { vector p; pcimport(handle, \"P\", p); ... } pcclose(handle);\n"
+    "- Point Cloud array: int pts[] = pcfind(0, \"P\", @P, rad, maxpts); foreach (int pt; pts) { vector col = point(0, \"Cd\", pt); ... }\n"
+    "- Surface queries: int hit_prim; vector hit_uv; float dist = xyzdist(1, @P, hit_prim, hit_uv); vector pos = primuv(1, \"P\", hit_prim, hit_uv);\n"
+    "- Curve creation: int prim = addprim(0, \"polyline\"); int pt = addpoint(0, pos); addvertex(0, prim, pt);\n"
+    "- Volume sampling: vector grad = volumegradient(1, \"density\", @P); float dens = volumesample(1, \"density\", @P);\n"
+    "- Topology: int nbs[] = neighbours(0, @ptnum); int num_nbs = neighbourcount(0, @ptnum);\n"
+    "- Groups: setpointgroup(0, \"group_name\", @ptnum, 1); inpointgroup(0, \"group_name\", @ptnum);\n"
+    "- Half-Edge Traversal: int hedge = pointhedge(0, @ptnum); while (hedge != -1) { if (hedge_nextequiv(0, hedge) == hedge) { setpointgroup(0, \"boundary\", @ptnum, 1); break; } hedge = pointhedgenext(0, hedge); }\n"
+    "- Quaternions: vector4 q_align = dihedral({0,1,0}, normalize(v@v)); vector4 q_spin = quaternion(angle, axis); p@orient = qmultiply(q_spin, q_align);\n"
+    "- Math functions: square is pow(x, 2.0) or x * x. Smooth interpolation is smooth(min, max, val). Value remapping is fit(val, omin, omax, nmin, nmax).\n"
+    "- Standard Bindings: access position via @P, normal via @N, velocity via v@v, color via @Cd."
 )
 
 REASONING_SYSTEM_PROMPT = (
-    "You are Houdini VEX Copilot, an expert AI programming assistant fine-tuned and created by Anshul Vashist.\n"
-    "When presented with a task, FIRST think through the problem in an explicit <think>...</think> block:\n"
-    "  1. Analyze input geometry, vector spaces, and physical/mathematical equations.\n"
-    "  2. Outline algorithmic steps and procedural logic (loops, spatial lookups, matrix transforms).\n"
-    "AFTER the </think> tag, output ONLY the pure, verified Houdini VEX code.\n"
-    "Rules for VEX Code:\n"
-    "  - Use standard Houdini VEX types and constructors: vector, vector4, matrix3, matrix, set(x, y, z).\n"
-    "  - Use standard Houdini VEX functions: curlnoise, snoise, length, normalize, distance, npoints, nprimitives.\n"
-    "  - In detail wrangles with loops, always hoist parameter channel calls (chf, chi, chv, chramp) outside the loop."
+    "You are an expert SideFX Houdini VEX programmer and technical director.\n"
+    "When presented with a task, FIRST think carefully in a structured <think>...</think> block (max 3-5 sentences):\n"
+    "  1. Topology & Dimensionality: Inspect incoming geometry from context (Input 0 mesh vs point cloud vs curve; Input 1 target surface/curve/volume).\n"
+    "  2. Spatial Invariant: In Point Wrangles, code executes in parallel per-point (@ptnum). If translating/deforming a 3D mesh (e.g. following a curve from Input 1), NEVER assign absolute coordinates '@P = target;' which collapses all mesh vertices into a single point. Always use relative translation: '@P += (target - getbbox_center(0));'.\n"
+    "  3. Multi-Input Mapping: Ensure queries use the correct input index (e.g. primuv(1, ...), xyzdist(1, ...), volumesample(1, ...)).\n"
+    "  4. Robust Parameters: Expose intuitive sliders (chf, chi, chv, chramp) with safe non-zero defaults.\n"
+    "Close the </think> tag promptly, then output ONLY the pure, verified Houdini VEX code.\n"
+    "Follow these hard VEX API rules:\n"
+    "- Mesh vs Single Point Invariant: In Point Wrangles, when moving or deforming a 3D mesh along a path/curve from Input 1, never assign '@P = target_pos;' which collapses all mesh vertices to a single point. Always apply relative centroid translation: '@P += (target_pos - getbbox_center(0));'.\n"
+    "- Multi-Input Queries: Strictly query the correct input index (Input 0 for self/neighbours, Input 1 for external guide curve, collision surface, or volume).\n"
+    "- Conditionals: Strictly use C-style if/else or ternary (cond ? a : b). Never use Python ternary ('a if cond else b').\n"
+    "- Parallel SIMD Execution: In Point Wrangles operate directly on @ptnum. In Primitive Wrangles operate directly on @primnum. Do not loop over all points or primitives unless in a Detail Wrangle.\n"
+    "- Attribute Binding: Export attributes with explicit type prefixes: f@mass, i@id, v@pos, s@name, p@orient, 4@transform. Never rely on dead local variables.\n"
+    "- Vector Rotation: Rotate vectors using quaternion(radians(angle), axis) and qrotate(q, v), or a matrix transform. Never call rotate() directly on a vector.\n"
+    "- Parameter Hoisting: Strictly do not use 'param.float' or 'param.vector'. Use float freq = chf(\"freq\"); vector off = chv(\"offset\"); or local variable declarations.\n"
+    "- Array Sizing: Strictly use len(array) for array length. Never use array.size(), size(array), or sizeof().\n"
+    "- Array Appending: Strictly use functional append(array, value). Never use array.append(value) or array.push(value).\n"
+    "- Dynamic Vectors: Strictly construct dynamic vectors using set(x, y, z). Never use curly braces {x, y, z} with non-constant variables or vector(x, y, z).\n"
+    "- Math Constants: Strictly use uppercase PI (e.g. 2.0 * PI). Lowercase pi is not defined.\n"
+    "- Point Cloud iteration: int handle = pcopen(0, \"P\", @P, search_rad, maxpts); while (pciterate(handle)) { vector p; pcimport(handle, \"P\", p); ... } pcclose(handle);\n"
+    "- Point Cloud array: int pts[] = pcfind(0, \"P\", @P, rad, maxpts); foreach (int pt; pts) { vector col = point(0, \"Cd\", pt); ... }\n"
+    "- Surface queries: int hit_prim; vector hit_uv; float dist = xyzdist(1, @P, hit_prim, hit_uv); vector pos = primuv(1, \"P\", hit_prim, hit_uv);\n"
+    "- Curve creation: int prim = addprim(0, \"polyline\"); int pt = addpoint(0, pos); addvertex(0, prim, pt);\n"
+    "- Volume sampling: vector grad = volumegradient(1, \"density\", @P); float dens = volumesample(1, \"density\", @P);\n"
+    "- Topology: int nbs[] = neighbours(0, @ptnum); int num_nbs = neighbourcount(0, @ptnum);\n"
+    "- Groups: setpointgroup(0, \"group_name\", @ptnum, 1); inpointgroup(0, \"group_name\", @ptnum);\n"
+    "- Half-Edge Traversal: int hedge = pointhedge(0, @ptnum); while (hedge != -1) { if (hedge_nextequiv(0, hedge) == hedge) { setpointgroup(0, \"boundary\", @ptnum, 1); break; } hedge = pointhedgenext(0, hedge); }\n"
+    "- Quaternions: vector4 q_align = dihedral({0,1,0}, normalize(v@v)); vector4 q_spin = quaternion(angle, axis); p@orient = qmultiply(q_spin, q_align);\n"
+    "- Math functions: square is pow(x, 2.0) or x * x. Smooth interpolation is smooth(min, max, val). Value remapping is fit(val, omin, omax, nmin, nmax).\n"
+    "- Standard Bindings: access position via @P, normal via @N, velocity via v@v, color via @Cd."
 )
 
 CLASS_MAP = {
@@ -79,16 +133,20 @@ def _package_root() -> str:
     )
 
 
-def ensure_embedded_engine() -> bool:
+def ensure_embedded_engine(target_model_path: str = None) -> bool:
     """Start and verify the bundled engine when it is first needed.
 
-    Importing this module must not decrypt an 8+ GB model or launch a process.
-    This makes Houdini startup predictable and lets the caller show a useful
-    failure message when the engine cannot start.
+    If target_model_path is provided, ensures that the running engine is serving that
+    specific model weights file, switching it if necessary.
     """
     global _engine_singleton, _engine_error
     if _engine_singleton and _engine_singleton.is_healthy():
-        return True
+        if not target_model_path:
+            return True
+        target_name = os.path.basename(target_model_path)
+        active_info = _engine_singleton.get_model_info_string()
+        if target_name in active_info or (getattr(_engine_singleton, "active_model_name", None) == target_name):
+            return True
     try:
         pkg_root = _package_root()
         import sys
@@ -139,10 +197,44 @@ def ensure_embedded_engine() -> bool:
         model_dir = os.path.join(pkg_root, "models")
         base_candidates = [
             model_env,
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v46-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v45-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v44-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v43-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v42-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v41-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v39-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v40-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v38-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v37-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v36-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v35-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v34-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v33-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v32-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v31-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v30-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v29-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v28-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v27-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v26-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v25-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v24-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v23-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v22-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v21-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v20-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v19-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v18-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v17-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v16-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v15-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v14-Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v13-Q5_K_M.gguf"),
             os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf"),
-            os.path.join(model_dir, "qwen3-8b.Q5_K_M.gguf"),
+            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf"),
             os.path.join(model_dir, "qwen3-8b.Q8_0.gguf"),
+            os.path.join(model_dir, "qwen3-8b.Q5_K_M.gguf"),
             os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"),
             os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf"),
             os.path.join(model_dir, "qwen3-vex.gguf"),
@@ -150,7 +242,14 @@ def ensure_embedded_engine() -> bool:
             os.path.join(model_dir, "vex_brain.gguf"),
             os.path.join(pkg_root, "qwen3-vex.gguf"),
         ]
-        model_path = next((p for p in base_candidates if p and os.path.exists(p)), None)
+        model_path = target_model_path if (target_model_path and os.path.isfile(target_model_path)) else None
+        if not model_path:
+            model_path = next((p for p in base_candidates if p and os.path.exists(p)), None)
+            if not model_path and os.path.isdir(model_dir):
+                import glob
+                extra_ggufs = [g for g in glob.glob(os.path.join(model_dir, "*.gguf")) if "lora" not in os.path.basename(g).lower()]
+                if extra_ggufs:
+                    model_path = max(extra_ggufs, key=os.path.getsize)
 
         if not engine_bin or not os.path.exists(engine_bin):
             _engine_error = (
@@ -164,9 +263,20 @@ def ensure_embedded_engine() -> bool:
             return False
         if not model_path or not os.path.exists(model_path):
             _engine_error = (
-                "AI model weights not found. Please place 'Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf' "
+                "AI model weights not found. Please place model weights "
                 "into the 'models/' folder."
             )
+            return False
+
+        if _engine_singleton and _engine_singleton.is_healthy():
+            target_name = os.path.basename(model_path)
+            active_info = _engine_singleton.get_model_info_string()
+            if target_name in active_info or (getattr(_engine_singleton, "active_model_name", None) == target_name):
+                return True
+            if _engine_singleton.switch_model(engine_bin, model_path):
+                _engine_error = ""
+                return True
+            _engine_error = _engine_singleton.last_error or "Could not switch to selected model."
             return False
 
         mgr = EngineManager()
@@ -205,12 +315,100 @@ def get_active_ai_model_display_string() -> str:
         except Exception:
             pass
 
+    # 1. First probe live inference engine (e.g. llama-server)
+    port = getattr(_engine_singleton, "port", None) or os.getenv("AI_WRANGLE_PORT") or 58421
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/models")
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(req, timeout=0.8) as resp:
+            m_data = json.loads(resp.read().decode("utf-8"))
+            models = m_data.get("data", []) or m_data.get("models", [])
+            if models:
+                active_id = models[0].get("id") or models[0].get("name", "")
+                m = re.search(r"v(\d+)", active_id)
+                v_tag = f"v{m.group(1)} Master" if m else "Master"
+                return f"{active_id} (Standalone Merged {v_tag})"
+    except Exception:
+        pass
+
     pkg_root = _package_root()
     model_dir = os.path.join(pkg_root, "models")
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf (Standalone Merged v11 Grandmaster)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v46-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v46-Q5_K_M.gguf (Standalone Merged v46 Grandmaster - 100% Handcrafted Omniverse Procedural Intelligence)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v45-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v45-Q5_K_M.gguf (Standalone Merged v45 Grandmaster - Handcrafted Master Procedural Intelligence)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v44-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v44-Q5_K_M.gguf (Standalone Merged v44 Grandmaster - Universal Mathematical Foundations)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v43-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v43-Q5_K_M.gguf (Standalone Merged v43 Master - Handcrafted Multi-Domain SFT-Grounded RLVR)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v42-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v42-Q5_K_M.gguf (Standalone Merged v42 Master - Organic CITL Self-Repair)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v41-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v41-Q5_K_M.gguf (Standalone Merged v41 Master - SFT-Grounded RLVR)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v40-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v40-Q5_K_M.gguf (Standalone Merged v40 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v39-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v39-Q5_K_M.gguf (Standalone Merged v39 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v38-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v38-Q5_K_M.gguf (Standalone Merged v38 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v37-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v37-Q5_K_M.gguf (Standalone Merged v37 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v36-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v36-Q5_K_M.gguf (Standalone Merged v36 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v35-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v35-Q5_K_M.gguf (Standalone Merged v35 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v34-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v34-Q5_K_M.gguf (Standalone Merged v34 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v33-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v33-Q5_K_M.gguf (Standalone Merged v33 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v32-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v32-Q5_K_M.gguf (Standalone Merged v32 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v31-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v31-Q5_K_M.gguf (Standalone Merged v31 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v30-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v30-Q5_K_M.gguf (Standalone Merged v30 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v29-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v29-Q5_K_M.gguf (Standalone Merged v29 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v28-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v28-Q5_K_M.gguf (Standalone Merged v28 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v27-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v27-Q5_K_M.gguf (Standalone Merged v27 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v26-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v26-Q5_K_M.gguf (Standalone Merged v26 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v25-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v25-Q5_K_M.gguf (Standalone Merged v25 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v24-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v24-Q5_K_M.gguf (Standalone Merged v24 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v23-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v23-Q5_K_M.gguf (Standalone Merged v23 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v22-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v22-Q5_K_M.gguf (Standalone Merged v22 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v21-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v21-Q5_K_M.gguf (Standalone Merged v21 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v20-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v20-Q5_K_M.gguf (Standalone Merged v20 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v19-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v19-Q5_K_M.gguf (Standalone Merged v19 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v18-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v18-Q5_K_M.gguf (Standalone Merged v18 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v17-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v17-Q5_K_M.gguf (Standalone Merged v17 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v16-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v16-Q5_K_M.gguf (Standalone Merged v16 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v15-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v15-Q5_K_M.gguf (Standalone Merged v15 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v14-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v14-Q5_K_M.gguf (Standalone Merged v14 Master)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v13-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v13-Q5_K_M.gguf (Standalone Merged v13 Master)"
     if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf")):
         return "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf (Standalone Merged v11 Grandmaster Q8)"
+    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf")):
+        return "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf (Standalone Merged v11 Grandmaster)"
+    if os.path.isfile(os.path.join(model_dir, "qwen3-8b.Q8_0.gguf")):
+        return "qwen3-8b.Q8_0.gguf (Q8 Production)"
+    if os.path.isfile(os.path.join(model_dir, "qwen3-8b.Q5_K_M.gguf")):
+        return "qwen3-8b.Q5_K_M.gguf"
     if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf")):
         return "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf (Standalone Merged v10.1)"
     lora_candidates = [
@@ -226,8 +424,169 @@ def get_active_ai_model_display_string() -> str:
     if active_lora:
         base_name = "Qwen3-8B-Q5_K_M.gguf" if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")) else "qwen3-vex.gguf"
         return f"{base_name} + LoRA: {active_lora} (v10 Grandmaster - Sept 8)"
+    if os.path.isdir(model_dir):
+        import glob
+        extra_ggufs = [g for g in glob.glob(os.path.join(model_dir, "*.gguf")) if "lora" not in os.path.basename(g).lower()]
+        if extra_ggufs:
+            best_extra = max(extra_ggufs, key=os.path.getsize)
+            return f"{os.path.basename(best_extra)} (Standalone Merged)"
     base_name = "Qwen3-8B-Q5_K_M.gguf" if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")) else "qwen3-vex.gguf"
     return f"{base_name} (Base)"
+
+
+# ---------------------------------------------------------------------------
+# Dynamic Model Menu & Engine Switching
+# ---------------------------------------------------------------------------
+
+def get_available_models_menu_items() -> list[str]:
+    """Dynamically enumerates available GGUF/DAT models in the models directory for Houdini Menu scripts.
+    Returns a flat list of token-label pairs: [token1, label1, token2, label2, ...]
+    """
+    pkg_root = _package_root()
+    model_dir = os.path.join(pkg_root, "models")
+    items = ["auto", "Auto (Latest Recommended)"]
+
+    if os.path.isdir(model_dir):
+        files = os.listdir(model_dir)
+        valid_models = []
+        for f in files:
+            fl = f.lower()
+            if fl.endswith(".bak") or fl.endswith(".log") or "lora" in fl or fl.startswith("."):
+                continue
+            if fl.endswith(".gguf") or fl.endswith(".dat"):
+                valid_models.append(f)
+
+        def extract_version(name: str) -> int:
+            m = re.search(r"v(\d+)", name.lower())
+            return int(m.group(1)) if m else -1
+
+        # Sort by version descending (v37, v36, ... v10, then unversioned)
+        valid_models.sort(key=lambda x: (extract_version(x), x), reverse=True)
+
+        for m_file in valid_models:
+            v_num = extract_version(m_file)
+            if v_num == 46:
+                label = f"v46 Grandmaster Omniverse (100% Multi-Domain Physical PASS - Recommended)"
+            elif v_num == 45:
+                label = f"v45 Grandmaster (100% Layman English PASS)"
+            elif v_num == 44:
+                label = f"v44 Grandmaster (Universal Mathematical Foundations)"
+            elif v_num == 43:
+                label = f"v43 Master (First-Principles SFT-Grounded RLVR)"
+            elif v_num == 42:
+                label = f"v42 Master (Organic CITL Self-Repair)"
+            elif v_num == 41:
+                label = f"v41 Master (100% Houdini CITL PASS)"
+            elif v_num in (40, 39):
+                label = f"v{v_num} Master (Bulletproof Procedural Intelligence)"
+            elif v_num == 38:
+                label = f"v{v_num} Master (Axiomatic Reasoning)"
+            elif v_num == 37:
+                label = f"v{v_num} Master (100% Houdini CITL PASS)"
+            elif v_num in (36, 35, 34, 33, 32, 31):
+                label = f"v{v_num} Master"
+            elif v_num == 30:
+                label = f"v30 Master (PBD & Vellum)"
+            elif v_num == 23:
+                label = f"v23 Master (Production 10/10)"
+            elif v_num == 11:
+                label = f"v11 Grandmaster"
+            elif v_num > 0:
+                label = f"v{v_num} Model ({m_file})"
+            elif "q8" in m_file.lower():
+                label = f"Qwen3-8B Q8 Production ({m_file})"
+            else:
+                label = m_file
+            items.extend([m_file, label])
+
+    items.extend(["custom", "Custom Model File..."])
+    return items
+
+
+def resolve_selected_model_path(node: hou.Node = None) -> str | None:
+    """Returns absolute path to the selected model weights file, or None for auto default."""
+    if not node:
+        return None
+    try:
+        model_parm = node.parm("ai_model_select")
+        if not model_parm:
+            return None
+        choice = model_parm.evalAsString()
+        if not choice or choice == "auto":
+            return None
+        if choice == "custom":
+            custom_path = node.evalParm("ai_custom_model_path")
+            if custom_path and os.path.isfile(custom_path):
+                return custom_path
+            return None
+        pkg_root = _package_root()
+        candidate = os.path.join(pkg_root, "models", choice)
+        if os.path.isfile(candidate):
+            return candidate
+    except Exception:
+        pass
+    return None
+
+
+def switch_active_model(target_model_path: str = None, node: hou.Node = None) -> bool:
+    """Switches the running local inference engine to the specified model."""
+    global _engine_singleton, _engine_error
+    if node:
+        try:
+            status_p = node.parm("ai_status")
+            if status_p:
+                status_p.set("Switching inference engine model...")
+        except Exception:
+            pass
+
+    success = ensure_embedded_engine(target_model_path)
+    if success:
+        display_str = get_active_ai_model_display_string()
+        if node:
+            try:
+                info_p = node.parm("ai_model_info")
+                if info_p:
+                    info_p.set(display_str)
+                status_p = node.parm("ai_status")
+                if status_p:
+                    status_p.set(f"Ready — Active Engine: {display_str}")
+            except Exception:
+                pass
+        return True
+    else:
+        err_msg = _engine_error or "Failed to switch model."
+        if node:
+            try:
+                status_p = node.parm("ai_status")
+                if status_p:
+                    status_p.set(f"Error switching model: {err_msg[:60]}")
+            except Exception:
+                pass
+        return False
+
+
+def on_model_select_changed(kwargs: dict) -> None:
+    """Triggered when the user picks a model from ai_model_select dropdown."""
+    node = kwargs.get("node")
+    if not node:
+        return
+    choice = node.evalParm("ai_model_select")
+    if choice == "custom":
+        status_p = node.parm("ai_status")
+        if status_p:
+            status_p.set("Custom model selected — choose file path and click 'Switch Model'.")
+        return
+    model_path = resolve_selected_model_path(node)
+    switch_active_model(model_path, node)
+
+
+def on_switch_model_clicked(kwargs: dict) -> None:
+    """Triggered when the user clicks 'Switch Model' button."""
+    node = kwargs.get("node")
+    if not node:
+        return
+    model_path = resolve_selected_model_path(node)
+    switch_active_model(model_path, node)
 
 
 def resolve_model_name() -> str:
@@ -276,7 +635,7 @@ def extract_thought_and_code(raw_output: str) -> tuple[str, str]:
 
     # Extract from markdown code fences if present
     if "```" in code:
-        m = re.search(r"```(?:vex)?\s*([\s\S]*?)\s*```", code)
+        m = re.search(r"```[a-zA-Z0-9_-]*\s*([\s\S]*?)\s*```", code)
         if m:
             code = m.group(1).strip()
         else:
@@ -303,6 +662,9 @@ def sanitize_vex_syntax(code: str) -> str:
     c = re.sub(r'\bvec[234]\s*\(', 'set(', c)
     c = re.sub(r'(?<![a-zA-Z0-9_])@UV\b', 'v@uv', c)
     c = re.sub(r'</?think>', '', c)
+
+    # Normalize non-existent exists() to hasattrib()
+    c = re.sub(r'(!?)\bexists\s*\(\s*(?:[vspif4]?@)?([a-zA-Z0-9_]+)\s*\)', r'\1hasattrib(0, "point", "\2")', c)
 
     # Normalize accidental C-style foreach loops (e.g. foreach (int i = 0; i < len; i++)) to standard for loops
     c = re.sub(r'\bforeach\s*\(\s*(?:int\s+)?([a-zA-Z0-9_]+\s*=[^;]+;[^;]+;[^)]+)\)', r'for (int \1)', c)
@@ -356,10 +718,383 @@ def sanitize_vex_syntax(code: str) -> str:
     c = re.sub(r'(\b[a-zA-Z0-9_]+\s*\*\s*[a-zA-Z0-9_]+\s*)<\s*([a-zA-Z0-9_]+)\s*;', r'\1<= \2;', c)
     c = re.sub(r'(\b[a-zA-Z0-9_]+\s*)<\s*(sqrt\s*\([^)]+\))\s*;', r'\1<= \2;', c)
 
+    # Normalize undeclared standalone P to @P (strictly outside of string quotes and member access)
+    if not re.search(r'\b(?:vector|float|int|matrix)\s+P\b', c):
+        c = re.sub(r'(?<![@a-zA-Z0-9_"\'.])P(?![a-zA-Z0-9_"\'])', '@P', c)
+
+    # Normalize invalid @ prefix inside attribute string literals (e.g. "@P" -> "P", "@Cd" -> "Cd")
+    c = re.sub(r'(["\'])@([a-zA-Z_][a-zA-Z0-9_]*)\1', r'\1\2\1', c)
+
+    # Auto-repair half-edge boundary condition: hedge_nextequiv(geo, h) == -1 -> hedge_nextequiv(geo, h) == h
+    c = re.sub(r'hedge_nextequiv\s*\(\s*([^,]+)\s*,\s*([a-zA-Z0-9_]+)\s*\)\s*==\s*-1', r'hedge_nextequiv(\1, \2) == \2', c)
+    c = re.sub(r'([a-zA-Z0-9_]+)\s*=\s*hedge_nextequiv\s*\(\s*([^,]+)\s*,\s*([a-zA-Z0-9_]+)\s*\);\s*if\s*\(\s*\1\s*==\s*-1', r'\1 = hedge_nextequiv(\2, \3);\n    if (\1 == \3', c)
+
+    # Auto-repair invalid 5-argument xyzdist(input, "P", pos, prim, uv) -> xyzdist(input, pos, prim, uv)
+    c = re.sub(r'\bxyzdist\s*\(\s*([^,]+)\s*,\s*["\']P["\']\s*,', r'xyzdist(\1, ', c)
+
+    # Normalize pclose() typo to pcclose()
+    c = re.sub(r'\bpclose\s*\(', 'pcclose(', c)
+
+    # Normalize 2-argument addvertex(prim, pt) to addvertex(0, prim, pt)
+    c = re.sub(r'\baddvertex\s*\(\s*([a-zA-Z0-9_]+)\s*,\s*([a-zA-Z0-9_]+)\s*\)', r'addvertex(0, \1, \2)', c)
+
+    # Normalize reserved keyword @break to @broken to prevent C++ VEX parser crash
+    c = re.sub(r'([vspif4]?@)break\b', r'\1broken', c)
+
+    # Normalize 2-argument volumegradient(input, pos) missing field name string
+    c = re.sub(r'\bvolumegradient\s*\(\s*([^,\r\n]+)\s*,\s*(@?[a-zA-Z0-9_]+)\s*\)', r'volumegradient(\1, "density", \2)', c)
+
+    # Normalize half-edge aliases & typo hedgeprim -> hedge_prim
+    c = re.sub(r'\bhedgeprim\s*\(', 'hedge_prim(', c)
+    c = re.sub(r'\bpointhedgeother\s*\(', 'hedge_dstpoint(', c)
+    c = re.sub(r'\bhedge_point\s*\(', 'hedge_dstpoint(', c)
+
+    # Normalize C-style bitwise shift operators (<< and >>) to native VEX shl() and shr()
+    c = re.sub(r'([a-zA-Z0-9_]+|\([^)]+\))\s*>>\s*([a-zA-Z0-9_]+|\([^)]+\))', r'shr(\1, \2)', c)
+    c = re.sub(r'([a-zA-Z0-9_]+|\([^)]+\))\s*<<\s*([a-zA-Z0-9_]+|\([^)]+\))', r'shl(\1, \2)', c)
+
+    # Normalize 3-argument volumegradient(input, pos, out_var) to out_var = volumegradient(input, "density", pos)
+    c = re.sub(r'\bvolumegradient\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([a-zA-Z0-9_]+)\s*\);', r'\3 = volumegradient(\1, "density", \2);', c)
+
+    # Normalize invalid 4-argument minpos(geo, pos, prim, uv) to xyzdist(geo, pos, prim, uv)
+    c = re.sub(r'\bminpos\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)', r'xyzdist(\1, \2, \3, \4)', c)
+
+    # Normalize matrix assigned directly to quaternion p@orient -> quaternion(matrix3(...))
+    def _normalize_orient_assign(m):
+        var = m.group(1).strip()
+        if var.startswith('q') or var.startswith('orient') or f"vector4 {var}" in c:
+            return m.group(0)
+        if var in ('m', 'mat', 'rot_m', 'xform', 'transform', 'localtransform') or f"matrix {var}" in c or f"matrix3 {var}" in c or var.startswith('4@'):
+            return f"p@orient = quaternion(matrix3({var}));"
+        return m.group(0)
+    c = re.sub(r'p@orient\s*=\s*([a-zA-Z0-9_]+)\s*;', _normalize_orient_assign, c)
+
+    # Normalize invalid p@P to standard @P
+    c = re.sub(r'\bp@P\b', '@P', c)
+
+    # Normalize C-style casts (float)x -> float(x), (int)x -> int(x)
+    c = re.sub(r'\(\s*(float|int)\s*\)\s*([a-zA-Z0-9_]+|\([^)]+\))', r'\1(\2)', c)
+
+    # Normalize 5-argument usd_setattrib(stage, primpath, name, type_str, val) -> usd_setattrib(stage, primpath, name, val)
+    c = re.sub(r'\busd_setattrib\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*["\'](?:float|int|string|vector|vector4|matrix)["\']\s*,\s*([^)]+)\s*\)', r'usd_setattrib(\1, \2, \3, \4)', c)
+
+    # Normalize invalid qrotate call attempting to rotate a matrix in place
+    c = re.sub(r'qrotate\s*\(\s*quaternion\s*\((.+),\s*([a-zA-Z0-9_]+)\s*\)\s*\)\s*;', r'rotate(\2, \1);', c)
+
+    # Normalize invalid volumenormal on surface geometry
+    c = re.sub(r'\bdistance\s*\(\s*@P\s*,\s*volumenormal\s*\([^)]*\)\s*\)', r'abs(noise_val - threshold)', c)
+    c = re.sub(r'\bvolumenormal\s*\([^)]*\)', r'@N', c)
+
+    # Normalize non-standard fpoint/vpoint/ipoint aliases to point(0, attrib, pt)
+    c = re.sub(r'\b[fvi]point\s*\(\s*([^,]+)\s*,\s*("[^"]+"|\'[^\']+\')\s*\)', r'point(0, \2, \1)', c)
+
+    # Protect against accidental 3D mesh collapse when sampling curve trajectories:
+    # @P = path_pos -> @P += (path_pos - getbbox_center(0))
+    if ("primuv" in c or "path_pos" in c or "curve_pos" in c) and "@P =" in c:
+        c = re.sub(
+            r'@P\s*=\s*([a-zA-Z0-9_]*(?:path|curve|pos)[a-zA-Z0-9_]*)\s*;',
+            r'@P += (\1 - getbbox_center(0));',
+            c
+        )
+
+    # Ensure speed channel has a non-zero runtime fallback if multiplied with @Time
+    if re.search(r'@Time\s*\*\s*speed\b', c) and "if (speed == 0.0)" not in c:
+        c = re.sub(
+            r'(float\s+speed\s*=\s*chf\s*\(\s*["\']speed["\']\s*\)\s*;)',
+            r'\1\nif (speed == 0.0) speed = 0.5;',
+            c
+        )
+
+    # Auto-repair 4-argument minpos(input, pos, prim, uv) -> xyzdist + primuv
+    c = re.sub(
+        r'vector\s+([a-zA-Z0-9_]+)\s*=\s*minpos\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\);',
+        r'xyzdist(\2, \3, \4, \5);\nvector \1 = primuv(\2, "P", \4, \5);',
+        c
+    )
+
+    # Auto-repair matrix = quaternion(...) assignment
+    c = re.sub(r'\bmatrix\s+([a-zA-Z0-9_]+)\s*=\s*(quaternion\s*\([^;]+\));', r'vector4 \1 = \2;', c)
+    c = re.sub(r'\bmatrix3\s+([a-zA-Z0-9_]+)\s*=\s*(quaternion\s*\([^;]+\));', r'vector4 \1 = \2;', c)
+
+    # Auto-repair split matrix declaration and quaternion assignment
+    c = re.sub(
+        r'(\bmatrix\s+([a-zA-Z0-9_]+)\s*;\s*[\r\n]+(?:\s*[^\r\n]+[\r\n]+)*?\s*)\2\s*=\s*(quaternion\s*\([^;]+\));',
+        r'vector4 \2 = \3;',
+        c
+    )
+
+    # Auto-repair quaternion assigned and multiplied into 4@localtransform or matrix
+    c = re.sub(
+        r'([a-zA-Z0-9_]+)\s*=\s*quaternion\s*\((.*?)\);\s*[\r\n]+\s*(?:4@localtransform|4@transform|([a-zA-Z0-9_]+))\s*=\s*([a-zA-Z0-9_]+)\s*\*\s*\1\s*;',
+        r'rotate(\4, radians(chf("angle")), set(0, 1, 0));\n4@localtransform = \4;',
+        c
+    )
+
+    # Auto-repair qrotate on 4x4 matrix: qrotate(rot, m) -> rotate(m, angle, axis)
+    c = re.sub(r'([a-zA-Z0-9_]+)\s*=\s*qrotate\s*\(\s*[^,]+\s*,\s*\1\s*\);', r'rotate(\1, radians(chf("angle")), set(0, 1, 0));', c)
+
+    # Auto-repair neighbours() type mismatch: int n = neighbours( -> int n[] = neighbours(
+    c = re.sub(r'\bint\s+([a-zA-Z0-9_]+)\s*=\s*neighbours\s*\(', r'int \1[] = neighbours(', c)
+    c = re.sub(
+        r'if\s*\(\s*([a-zA-Z0-9_]+)\s*>=\s*0\s*\)\s*\{\s*vector\s+([a-zA-Z0-9_]+)\s*=\s*point\s*\(\s*0\s*,\s*["\']P["\']\s*,\s*\1\s*\);',
+        r'if (len(\1) > 0) {\n    int _first_nb = \1[0];\n    vector \2 = point(0, "P", _first_nb);',
+        c
+    )
+
+    # Auto-repair 2-argument curlnoise with float: curlnoise(pos, float) -> curlnoise(pos)
+    c = re.sub(r'\bcurlnoise\s*\(\s*([^,]+)\s*,\s*[0-9.]+(?:f)?\s*\)', r'curlnoise(\1)', c)
+
+    # Auto-repair intersect argument ordering where hit_prim was passed 4th instead of return value
+    c = re.sub(
+        r'\bintersect\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([a-zA-Z0-9_]+)\s*,\s*([a-zA-Z0-9_]+)\s*,\s*([a-zA-Z0-9_]+)\s*\);',
+        r'\4 = intersect(\1, \2, \3, \5, \6);',
+        c
+    )
+
+    # Auto-repair sqr(x) pseudo-code to VEX pow(x, 2)
+    c = re.sub(r'\bsqr\s*\(\s*([^()]+)\s*\)', r'pow(\1, 2)', c)
+
+    # Auto-repair makeidentity() alias to native VEX ident()
+    c = re.sub(r'\bmakeidentity\s*\(\s*\)', 'ident()', c)
+
+    # Auto-repair GLSL vector rotate bleed: rotate(vec, angle, axis) -> qrotate(quaternion(angle, axis), vec)
+    c = re.sub(
+        r'\brotate\s*\(\s*([a-zA-Z0-9_@.]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)',
+        lambda m: f"rotate({m.group(1)}, {m.group(2)}, {m.group(3)})" if (m.group(1).strip() in ('m', 'mat', 'rot', 'r', 'xform', 'transform', 'localtransform', 'worldtransform') or f"matrix {m.group(1).strip()}" in c or f"matrix3 {m.group(1).strip()}" in c or m.group(1).startswith(('4@', '3@'))) else f"qrotate(quaternion({m.group(2)}, {m.group(3)}), {m.group(1)})",
+        c
+    )
+
+    # Auto-repair quaternion variable type declaration: quaternion q = -> vector4 q =
+    c = re.sub(r'\bquaternion\s+([a-zA-Z0-9_]+)\s*=', r'vector4 \1 =', c)
+
+    # Auto-repair scalar point attribute array indexing: f@attr[n] -> point(0, "attr", n)
+    c = re.sub(r'([fvi])@([a-zA-Z0-9_]+)\[([a-zA-Z0-9_]+)\]', r'point(0, "\2", \3)', c)
+
+    # Auto-repair primpoints scalar count assignment: int n = primpoints(...) -> int n = len(primpoints(...))
+    c = re.sub(r'\bint\s+([a-zA-Z0-9_]+)\s*=\s*primpoints\s*\(([^;]+);', r'int \1 = len(primpoints(\2);', c)
+
+    # Auto-repair 4x4 matrix passed to quaternion(): quaternion(m) -> quaternion(matrix3(m))
+    c = re.sub(r'\bquaternion\s*\(\s*([a-zA-Z0-9_]+)\s*\)', r'quaternion(matrix3(\1))', c)
+
+    # Auto-repair xyzdist 4th argument parameter ordering when float dist was passed:
+    if re.search(r'\bxyzdist\s*\(\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*dist\s*\)', c):
+        c = re.sub(
+            r'xyzdist\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*dist\s*\);',
+            r'vector uv;\nfloat dist = xyzdist(\1, \2, \3, uv);',
+            c
+        )
+        c = re.sub(r'\bfloat\s+dist\s*;\s*', '', c)
+        c = re.sub(r'\bvector\s+uv\s*;\s*', '', c)
+        c = re.sub(r'\bprimuv\s*\(\s*([^,]+)\s*,\s*["\']uv["\']\s*,\s*([a-zA-Z0-9_]+)\s*,\s*uv\s*\);\s*', '', c)
+
+    # Auto-repair m = rotate(m, ...) in-place void assignment
+    c = re.sub(r'([a-zA-Z0-9_]+)\s*=\s*rotate\s*\(\s*\1\s*,', r'rotate(\1,', c)
+
+    # Auto-repair C/C++ fixed-width integer types (int16, int32, int64, uint, uint32, etc.) to native VEX int
+    c = re.sub(r'\b(?:u?int(?:8|16|32|64)|uint)\b', 'int', c)
+
+    # Auto-repair hallucinated SDF sphere distance helper: sphere_distance(pos) -> (length(pos) - 1.0)
+    c = re.sub(r'\bsphere_distance\s*\(\s*([^)]+)\s*\)', r'(length(\1) - 1.0)', c)
+
+    # Auto-repair 2-arg xyzdist or malformed hit_pos ordering before declaration
+    if "xyzdist(1, @P, hit_prim)" in c and "primuv(1, \"P\", hit_prim)" in c:
+        c = re.sub(
+            r'int\s+hit_prim;\s*\n\s*xyzdist\(1,\s*@P,\s*hit_prim\);\s*\n\s*float\s+dist\s*=\s*distance\(@P,\s*hit_pos\);\s*\n\s*vector\s+hit_pos\s*=\s*primuv\(1,\s*"P",\s*hit_prim\);\s*\n\s*float\s+dist\s*=\s*distance\(@P,\s*hit_pos\);',
+            r'int hit_prim;\nvector hit_uv;\nfloat dist = xyzdist(1, @P, hit_prim, hit_uv);\nvector hit_pos = primuv(1, "P", hit_prim, hit_uv);',
+            c
+        )
+
+    # Auto-repair @P in detail wrangles when iterating over points with nearpoint
+    if "npoints(0)" in c and "@P" in c and "for (int i" in c:
+        c = re.sub(r'nearpoint\s*\(\s*0\s*,\s*@P\s*,\s*([^,]+)\s*,\s*i\s*\)', r'nearpoint(0, vector(point(0, "P", i)), \1)', c)
+        c = re.sub(r'distance\s*\(\s*@P\s*,', r'distance(vector(point(0, "P", i)),', c)
+
+    # Auto-repair ambiguous polymorphic calls: distance(point(...), ...) -> distance(vector(point(...)), ...)
+    c = re.sub(r'distance\s*\(\s*(point\s*\([^)]+\))\s*,', r'distance(vector(\1),', c)
+    c = re.sub(r'distance\s*\(\s*([^,()]+)\s*,\s*(point\s*\([^)]+\))\s*\)', r'distance(\1, vector(\2))', c)
+
+    # Auto-repair nearpoint self-exclusion bug in detail loop:
+    if "nearpoint(0," in c and ("pt != i" in c or "pt == i" in c):
+        c = re.sub(
+            r'int\s+([a-zA-Z0-9_]+)\s*=\s*nearpoint\s*\(\s*0\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\);\s*\n\s*if\s*\(\s*\1\s*!=\s*-1\s*&&\s*\1\s*!=\s*([a-zA-Z0-9_]+)\s*\)',
+            r'int _nb[] = nearpoints(0, \2, \3, 2);\n    int \1 = (len(_nb) > 1) ? _nb[1] : -1;\n    if (\1 != -1)',
+            c
+        )
+
+    # Auto-repair hallucinated clip(...) SOP pseudo-function to removepoint()
+    c = re.sub(
+        r'\bclip\s*\(\s*(?:set)?\s*\(\s*1(?:\.0)?\s*,\s*0(?:\.0)?\s*,\s*0(?:\.0)?\s*\)\s*,\s*([0-9.]+)\s*\);?',
+        r'if (@P.x > \1) removepoint(0, @ptnum);',
+        c
+    )
+    c = re.sub(
+        r'\bclip\s*\(\s*(?:set)?\s*\(\s*0(?:\.0)?\s*,\s*1(?:\.0)?\s*,\s*0(?:\.0)?\s*\)\s*,\s*([0-9.]+)\s*\);?',
+        r'if (@P.y > \1) removepoint(0, @ptnum);',
+        c
+    )
+    c = re.sub(
+        r'\bclip\s*\(\s*(?:set)?\s*\(\s*0(?:\.0)?\s*,\s*0(?:\.0)?\s*,\s*1(?:\.0)?\s*\)\s*,\s*([0-9.]+)\s*\);?',
+        r'if (@P.z > \1) removepoint(0, @ptnum);',
+        c
+    )
+    c = re.sub(
+        r'\bclip\s*\(\s*set\s*\(([^)]+)\)\s*,\s*([^)]+)\s*\);?',
+        r'if (dot(@P, normalize(set(\1))) > \2) removepoint(0, @ptnum);',
+        c
+    )
+
+    # Auto-repair 3-argument neighbours(geo, pt, radius) -> nearpoints(geo, @P, radius)
+    c = re.sub(
+        r'\bneighbours\s*\(\s*([^,]+)\s*,\s*@?ptnum\s*,\s*([^)]+)\s*\)',
+        r'nearpoints(\1, @P, \2)',
+        c
+    )
+
+    # Auto-repair hallucinated @numptnbr attribute -> neighbourcount(0, @ptnum)
+    c = re.sub(r'(@numptnbr|numptnbr)\b', 'neighbourcount(0, @ptnum)', c)
+
+    # Auto-repair hallucinated intersect_plane(pos, normal, dist) to hyperplane orthogonal projection
+    c = re.sub(
+        r'\bintersect_plane\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)',
+        r'(\1 - \2 * (dot(\1, \2) - \3))',
+        c
+    )
+
+    # Auto-repair dynamic array expressions in curly braces {expr, expr} -> array(expr, expr)
+    def _fix_dynamic_array(m):
+        t, name, inner = m.group(1), m.group(2), m.group(3)
+        if any(op in inner for op in ['(', ')', '*', '/', '+', '-', '[', ']', '@', 'phi', 'sqrt']) and not re.match(r'^\s*[-0-9.,\s]+\s*$', inner):
+            return f"{t} {name}[] = array({inner});"
+        return m.group(0)
+    c = re.sub(r'\b(int|float|vector|vector4|string)\s+([a-zA-Z0-9_]+)\[\s*\]\s*=\s*\{([\s\S]+?)\};', _fix_dynamic_array, c)
+
+    # Auto-repair uninitialized point mass attribute divisions in physics: 1.0 / point(..., "mass", ...)
+    c = re.sub(
+        r'/\s*point\s*\(\s*([^,]+)\s*,\s*["\']mass["\']\s*,\s*([^)]+)\s*\)',
+        r'/ max(0.001, float(point(\1, "mass", \2)))',
+        c
+    )
+
+    # Auto-repair illegal l-value point() write in detail wrangles: point(0, "P", pt) += ... -> setpointattrib(...)
+    c = re.sub(
+        r'point\s*\(\s*([^,]+)\s*,\s*["\']([^"\']+)["\']\s*,\s*([^)]+)\s*\)\s*\+=\s*([^;]+);',
+        r'setpointattrib(\1, "\2", \3, point(\1, "\2", \3) + (\4), "set");',
+        c
+    )
+
+    # Clean previously corrupted do-while safety iterators
+    c = re.sub(r'\}\s*int\s+__safety_iter_\d+\s*=\s*0;\s*\n\s*while\s*\(\(+([\s\S]*?)\s*&&\s*\(__safety_iter_\d+\+\+\s*<\s*10000\)\)+;', r'} while (\1);', c)
+
+    # Auto-repair halfedge pointhedgeotherpoint & point("primitive", ...)
+    c = re.sub(r'\bpoint\s*\(\s*0\s*,\s*["\']primitive["\']\s*,\s*pointhedgeotherpoint\s*\(\s*0\s*,\s*([a-zA-Z0-9_]+)\s*\)\s*\)', r'hedge_prim(0, \1)', c)
+    c = re.sub(r'\bpointhedgeotherpoint\s*\(', 'hedge_dstpoint(', c)
+
+    # Guard halfedge circulation loop boundary termination
+    c = re.sub(r'\bwhile\s*\(\s*([a-zA-Z0-9_]+)\s*!=\s*pointhedge\s*\(\s*0\s*,\s*@ptnum\s*\)\s*\)', r'while (\1 != -1 && \1 != pointhedge(0, @ptnum))', c)
+
+    # Auto-repair xyzdist with vector hit_p instead of int hit_prim
+    c = re.sub(r'\bxyzdist\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*hit_p\s*,\s*([a-zA-Z0-9_]+)\s*\)', r'xyzdist(\1, \2, hit_prim, \3)', c)
+    if "hit_prim" in c and not re.search(r'\bint\s+hit_prim\b', c):
+        c = "int hit_prim = -1;\n" + c
+
+    # Auto-repair pts[] sequential empty indexing
+    if len(re.findall(r'(?<!int\s)(?<!float\s)(?<!vector\s)(?<!vector4\s)(?<!matrix\s)(?<!string\s)\b([a-zA-Z0-9_]+)\[\s*\]', c)) >= 2:
+        _counter_pts = [0]
+        def _repl_pts(m):
+            var = m.group(1)
+            res = f"{var}[{_counter_pts[0]}]"
+            _counter_pts[0] += 1
+            return res
+        c = re.sub(r'(?<!int\s)(?<!float\s)(?<!vector\s)(?<!vector4\s)(?<!matrix\s)(?<!string\s)\b([a-zA-Z0-9_]+)\[\s*\]', _repl_pts, c)
+
+    # Auto-repair primvertexs typo to primvertices
+    c = re.sub(r'\bprimvertexs\b', 'primvertices', c)
+
+    # Auto-repair volumegradient assigned to float dpx or finite-difference hallucination
+    c = re.sub(
+        r'int\s+dx\[\s*\]\s*=\s*set\(1,\s*0,\s*0\);[\s\S]*?@N\s*=\s*normalize\(grad\);',
+        r'vector grad = volumegradient(1, "density", @P);\n@N = normalize(grad);',
+        c
+    )
+    c = re.sub(r'\bfloat\s+([a-zA-Z0-9_]+)\s*=\s*(volumegradient\s*\([^;]+\));', r'vector \1 = \2;', c)
+
+    # Auto-repair point(1, "P", minpos(...)) -> minpos(...)
+    c = re.sub(r'point\s*\(\s*([^,]+)\s*,\s*["\']P["\']\s*,\s*(minpos\s*\([^)]+\))\s*\)', r'\2', c)
+
+    # Auto-repair matrix rotation with qrotate / m[] *= rot_m[]
+    if "4@localtransform" in c and ("qrotate" in c or "rot_m" in c):
+        c = re.sub(
+            r'matrix\s+([a-zA-Z0-9_]+)\s*=\s*4@localtransform;[\s\S]*?4@localtransform\s*=\s*\1\s*;',
+            r'matrix \1 = 4@localtransform;\nfloat angle = chf("angle");\nvector axis = set(0, 1, 0);\nrotate(\1, radians(angle), axis);\n4@localtransform = \1;',
+            c
+        )
+
+    # Auto-repair pcfind 4-argument missing "P"
+    c = re.sub(r'\bpcfind\s*\(\s*([^,]+)\s*,\s*(@?[a-zA-Z0-9_]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)', r'pcfind(\1, "P", \2, \3, \4)', c)
+
+    # Auto-repair divide by zero in len(...)
+    c = re.sub(r'/\s*len\s*\(\s*([a-zA-Z0-9_]+)\s*\)', r'/ max(1, len(\1))', c)
+
+    # Auto-repair volumenoi -> snoise
+    c = re.sub(r'\bvolumenoi\s*\(\s*[^,]+\s*,\s*[^,]+\s*,\s*([^)]+)\s*\)', r'snoise(\1)', c)
+    c = re.sub(r'\bvolumenoi\b', 'snoise', c)
+
+    # Safe fallback for chi/chf iterations
+    if "chi(\"max_iterations\")" in c and "if (max_iter" not in c:
+        c = re.sub(r'(int\s+max_iter\s*=\s*chi\s*\(\s*["\']max_iterations["\']\s*\)\s*;)', r'\1\nif (max_iter <= 0) max_iter = 1;', c)
+
+    # Auto-repair channel denominators in mathematical expressions: guard chf() against 0.0 default
+    channels = re.findall(r'float\s+([a-zA-Z0-9_]+)\s*=\s*chf\s*\(\s*["\']([^"\']+)["\']\s*\)\s*;', c)
+    for var, ch_name in channels:
+        if re.search(rf'/\s*\(?[^;]*\b{var}\b', c):
+            if f"if ({var} ==" not in c and f"if ({var} <=" not in c and f"if (abs({var})" not in c:
+                c = re.sub(
+                    rf'(float\s+{var}\s*=\s*chf\s*\(\s*["\']{ch_name}["\']\s*\)\s*;)',
+                    rf'\1\nif (abs({var}) < 1e-4) {var} = 1.0;',
+                    c
+                )
+
     # Heal any truncation from token limit exhaustion (unclosed braces, trailing cutoffs)
     c = _heal_truncated_vex(c)
 
+    # Protect against infinite while loops that can freeze Houdini evaluation
+    c = _protect_infinite_loops(c)
+
     return c.strip()
+
+
+def _protect_infinite_loops(code: str) -> str:
+    """Safeguards while and do...while loops with an iteration counter to prevent C++ thread hangs in Houdini."""
+    if not code or "while" not in code:
+        return code
+    if "__safety_iter" in code:
+        # Clean any accidental double-wrapping or mangling
+        code = re.sub(r'\}\s*int\s+__safety_iter_\d+\s*=\s*0;\s*\n\s*while\s*\(\(+([\s\S]*?)\s*&&\s*\(__safety_iter_\d+\+\+\s*<\s*10000\)\)+;', r'} while (\1);', code)
+        code = re.sub(r'(int\s+__safety_iter_\d+\s*=\s*0;\s*\n)+', r'int __safety_iter_0 = 0;\n', code)
+        code = re.sub(r'(\s*&&\s*\(__safety_iter_\d+\+\+\s*<\s*10000\))+', r' && (__safety_iter_0++ < 10000)', code)
+        if "__safety_iter" in code:
+            return code
+
+    counter = [0]
+    # 1. Protect do { ... } while (...);
+    def _repl_do_while(m):
+        idx = counter[0]
+        counter[0] += 1
+        body = m.group(1)
+        cond = m.group(2).strip()
+        return f"int __safety_iter_{idx} = 0;\ndo {{\n{body}\n}} while (({cond}) && (__safety_iter_{idx}++ < 10000));"
+    code = re.sub(r'\bdo\s*\{([\s\S]*?)\}\s*while\s*\(([^;]+)\);', _repl_do_while, code)
+
+    # 2. Protect standard while (...)
+    def repl(m):
+        cond = m.group(1).strip()
+        if "__safety_iter" in cond or "pciterate" in cond:
+            return m.group(0)
+        idx = counter[0]
+        counter[0] += 1
+        return f"int __safety_iter_{idx} = 0;\nwhile (({cond}) && (__safety_iter_{idx}++ < 10000))"
+    return re.sub(r'(?<!\}\s)\bwhile\s*\(([^)]+)\)', repl, code)
+
 
 
 def _heal_truncated_vex(code: str) -> str:
@@ -456,7 +1191,7 @@ def _resolve_chramp_polymorphic_ambiguity(code: str) -> str:
     return ''.join(result)
 
 
-def query_llm(prompt_text: str, max_tokens: int = 1024, reasoning_mode: bool = False) -> tuple[str, str]:
+def query_llm(prompt_text: str, max_tokens: int | None = None, reasoning_mode: bool = False) -> tuple[str, str]:
     """
     Queries AI inference engine.
     Priority 1: Embedded Standalone Engine (127.0.0.1:58421 - Zero Dependencies)
@@ -466,19 +1201,26 @@ def query_llm(prompt_text: str, max_tokens: int = 1024, reasoning_mode: bool = F
     global _engine_error
     system_prompt = REASONING_SYSTEM_PROMPT if reasoning_mode else TURBO_SYSTEM_PROMPT
     
-    # 1. Start and query the bundled standalone engine (llama-server on 58421).
+    # 1. Start and query the bundled standalone engine (llama-server).
     engine_ready = ensure_embedded_engine()
-    embedded_url = "http://127.0.0.1:58421/completion"
+    port = getattr(_engine_singleton, "port", None) or os.getenv("AI_WRANGLE_PORT") or getattr(EngineManager, "DEFAULT_PORT", 58321)
+    chat_url = f"http://127.0.0.1:{port}/v1/chat/completions"
     
-    pred_tokens = max_tokens if max_tokens else (1280 if reasoning_mode else 512)
-    asst_prefix = "<|im_start|>assistant\n<think>\n" if reasoning_mode else "<|im_start|>assistant\n<think>\n</think>\n"
-    embedded_payload = {
-        "prompt": f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{prompt_text}<|im_end|>\n{asst_prefix}",
-        "n_predict": pred_tokens,
-        "temperature": 0.2 if reasoning_mode else 0.1,
+    if max_tokens is not None:
+        pred_tokens = max_tokens
+    else:
+        pred_tokens = 3072 if reasoning_mode else 1536
+
+    chat_payload = {
+        "model": "default",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt_text}
+        ],
+        "temperature": 0.6 if reasoning_mode else 0.1,
         "top_p": 0.95,
-        "repeat_penalty": 1.15,
-        "stop": ["<|im_end|>", "<|endoftext|>", "###"]
+        "max_tokens": pred_tokens,
+        "chat_template_kwargs": {"enable_thinking": reasoning_mode}
     }
     
     if engine_ready:
@@ -487,15 +1229,15 @@ def query_llm(prompt_text: str, max_tokens: int = 1024, reasoning_mode: bool = F
             headers = {"Content-Type": "application/json"}
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
-            data = json.dumps(embedded_payload).encode("utf-8")
-            req = urllib.request.Request(embedded_url, data=data, headers=headers)
+            data = json.dumps(chat_payload).encode("utf-8")
+            req = urllib.request.Request(chat_url, data=data, headers=headers)
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
             with opener.open(req, timeout=300) as resp:
                 res_data = json.loads(resp.read().decode("utf-8"))
-                raw = res_data.get("content", "")
+                choice = res_data.get("choices", [{}])[0].get("message", {})
+                raw = choice.get("content", "")
                 if raw:
-                    full_raw = ("<think>\n" + raw) if (reasoning_mode and "<think>" not in raw) else raw
-                    return extract_thought_and_code(full_raw)
+                    return extract_thought_and_code(raw)
                 raise RuntimeError("Bundled inference engine returned an empty response.")
         except Exception as exc:
             _engine_error = f"Bundled inference request failed: {exc}"
@@ -884,7 +1626,7 @@ _UPSTREAM_HINTS = {
 
 
 def _classify_geo_type(geo, npts: int, nprims: int) -> str:
-    """Classify geometry type from primitive types (Phase 1: #1)."""
+    """Classify geometry type accurately from primitive types and bounding dimensions."""
     if nprims == 0:
         return "Point Cloud (no primitives)" if npts > 0 else "Empty Geometry"
 
@@ -899,14 +1641,29 @@ def _classify_geo_type(geo, npts: int, nprims: int) -> str:
     if prim_types & {hou.primType.NURBSCurve, hou.primType.BezierCurve}:
         return "NURBS/Bezier Curves"
 
-    # All polygon — distinguish mesh vs polyline vs mixed
+    # All polygon — distinguish 3D solid mesh vs 2D planar grid vs open/closed polylines
     if all(p.type() == hou.primType.Polygon for p in sample):
-        vert_counts = [len(p.vertices()) for p in sample]
-        if all(v == 2 for v in vert_counts):
-            return "Polyline / Curve"
-        if all(v >= 3 for v in vert_counts):
-            return "Polygon Mesh"
-        return "Mixed Polygon (mesh + lines)"
+        has_open = any(not p.isClosed() for p in sample)
+        has_closed = any(p.isClosed() for p in sample)
+
+        if has_open and not has_closed:
+            return "Open Polyline Curve / Guide Path"
+
+        bsz = None
+        try:
+            bbox = geo.boundingBox()
+            bsz = bbox.sizevec()
+        except Exception:
+            pass
+
+        if has_closed and not has_open:
+            if nprims == 1 and len(sample[0].vertices()) > 4:
+                return "Closed Polyline Curve / Ring"
+            if bsz is not None and min(bsz[0], bsz[1], bsz[2]) < 1e-4:
+                return "2D Planar Surface / Grid / Plane"
+            return "3D Polygon Mesh (Closed Surface)"
+
+        return "Mixed Polygon (Mesh + Curves)"
 
     return "Mixed Geometry"
 
@@ -967,12 +1724,54 @@ def _perf_hint(total_pts: int) -> str:
     return f"Very large geometry ({total_pts:,} pts). Minimize per-point function calls. Use pcfind with small maxpts. Avoid nested loops."
 
 
+def _introspect_node_parameters(node: hou.Node) -> list:
+    """Discovers user-created spare parameters and UI controls on this wrangle."""
+    lines = []
+    if not node:
+        return lines
+    try:
+        spare_entries = []
+        base_ignore = {
+            "snippet", "group", "grouptype", "class", "exportlist", "autobind", "bindings",
+            "groupautobind", "groupbindings", "vex_cwdpath", "vex_outputmask", "vex_updatenmls",
+            "vex_matchattrib", "vex_inplace", "vex_selectiongroup", "vex_precision", "vex_numcount",
+            "vex_threadjobsize", "vex_strict", "vex_strictvariables", "ai_spare_parms"
+        }
+        for p in node.parms():
+            name = p.name()
+            if name.startswith("ai_") or name.startswith("sep_") or name in base_ignore:
+                continue
+            template = p.parmTemplate()
+            t_type = template.type()
+            val_str = ""
+            try:
+                val = p.eval()
+                val_str = f" [current={round(val, 3) if isinstance(val, float) else val}]"
+            except Exception:
+                pass
+            if t_type == hou.parmTemplateType.Float:
+                spare_entries.append(f"float chf('{name}'){val_str}")
+            elif t_type == hou.parmTemplateType.Int:
+                spare_entries.append(f"int chi('{name}'){val_str}")
+            elif t_type == hou.parmTemplateType.String:
+                spare_entries.append(f"string chs('{name}')")
+            elif t_type == hou.parmTemplateType.Ramp:
+                spare_entries.append(f"ramp chramp('{name}', val)")
+        if spare_entries:
+            lines.append("Existing UI Parameters on this Wrangle (bind your logic to these where applicable):")
+            lines.append("  " + ", ".join(spare_entries))
+    except Exception:
+        pass
+    return lines
+
+
 def introspect_geometry(node: hou.Node) -> str:
-    """Extracts rich context from all 4 inputs: geo type, typed attributes, bbox, groups, volumes,
-    upstream node hints, solver context, and performance guidance."""
+    """Extracts rich sensory context from all 4 inputs: geo type, typed attributes, bbox, groups, volumes,
+    upstream node hints, solver context, existing parameters, and multi-input operational patterns."""
     lines = []
     connected_inputs = []
     empty_inputs = []
+    input_summaries = {}
     total_pts = 0
 
     for i in range(4):
@@ -986,37 +1785,80 @@ def introspect_geometry(node: hou.Node) -> str:
                 empty_inputs.append(i)
                 continue
 
-            connected_inputs.append(i)
+            if i not in connected_inputs:
+                connected_inputs.append(i)
+
             npts = len(geo.points())
             nprims = len(geo.prims())
             total_pts += npts
 
-            # --- Geometry type classification (Phase 1: #1) ---
-            geo_type = _classify_geo_type(geo, npts, nprims)
+            node_name = in_node.name()
+            node_type = in_node.type().name()
+            node_desc = in_node.type().description()
 
-            # --- Volume/VDB shortcut ---
+            # --- Geometry type classification ---
+            geo_type = _classify_geo_type(geo, npts, nprims)
+            input_summaries[i] = geo_type
+
+            # --- Volume / VDB Primitive Handling ---
             vol_prims = [p for p in geo.prims() if p.type() in (hou.primType.Volume, hou.primType.VDB)]
             if vol_prims:
-                vol_names = list(set(
-                    [p.attribValue("name") for p in vol_prims if p.findAttrib("name")] or ["density"]
-                ))
-                lines.append(f"Input {i}: {geo_type}. Fields: {', '.join(vol_names)}. {npts:,} pts, {nprims:,} prims.")
+                name_attrib = geo.findPrimAttrib("name")
+                field_names = []
+                for vp in vol_prims:
+                    fn = ""
+                    if name_attrib:
+                        try:
+                            fn = vp.attribValue(name_attrib)
+                        except Exception:
+                            fn = ""
+                    if not fn:
+                        try:
+                            fn = vp.volumeName()
+                        except Exception:
+                            fn = ""
+                    if fn and fn not in field_names:
+                        field_names.append(fn)
+                if not field_names:
+                    field_names = ["density"]
+
+                vol_flavor = "VDB" if any(p.type() == hou.primType.VDB for p in vol_prims) else "Standard Volume"
+                desc = f"Input {i}: Connected from '{node_name}' ({node_desc} SOP, type '{node_type}') -> {vol_flavor} Field ({len(vol_prims)} field primitives)."
+                desc += f"\n  Fields: {', '.join(field_names)}."
+
+                try:
+                    bbox = geo.boundingBox()
+                    bsz = bbox.sizevec()
+                    bctr = bbox.center()
+                    desc += f"\n  Bounding Box: size=({bsz[0]:.2f}, {bsz[1]:.2f}, {bsz[2]:.2f}), center=({bctr[0]:.2f}, {bctr[1]:.2f}, {bctr[2]:.2f})."
+                except Exception:
+                    pass
+
+                desc += f"\n  Role: Volumetric Field (Input {i})."
+                if any(fn in ("surface", "sdf", "collision") for fn in field_names):
+                    sdf_field = next(fn for fn in field_names if fn in ("surface", "sdf", "collision"))
+                    desc += f"\n  SDF Sampling Pattern: float dist = volumesample({i}, '{sdf_field}', @P); vector grad = volumegradient({i}, '{sdf_field}', @P);"
+                    desc += f"\n  SDF Collision Resolution: if (dist < chf('collision_margin')) {{ @P += normalize(grad) * (chf('collision_margin') - dist); }}"
+                elif any("vel" in fn or fn == "v" for fn in field_names):
+                    v_field = next(fn for fn in field_names if "vel" in fn or fn == "v")
+                    desc += f"\n  Velocity Field Sampling Pattern: vector v_field = volumesamplev({i}, '{v_field}', @P);"
+                else:
+                    primary_f = field_names[0]
+                    desc += f"\n  Density Sampling Pattern: float d = volumesample({i}, '{primary_f}', @P); vector grad = volumegradient({i}, '{primary_f}', @P);"
+
+                lines.append(desc)
                 continue
 
-            # --- Typed attribute listing (Phase 1: #2) ---
+            # --- Regular Surface / Curve / Point Cloud Geometry ---
             pt_typed = [_format_attrib_typed(a) for a in geo.pointAttribs()[:12]]
             pr_typed = [_format_attrib_typed(a) for a in geo.primAttribs()[:8]]
-            groups = [g.name() for g in geo.pointGroups()] + [g.name() for g in geo.primGroups()]
+            groups = [g.name() for g in geo.pointGroups()[:6]] + [g.name() for g in geo.primGroups()[:6]]
 
-            desc = f"Input {i}: {geo_type}. {npts:,} points, {nprims:,} primitives."
-            if pt_typed:
-                desc += f"\n  Point Attribs: {', '.join(pt_typed)}."
-            if pr_typed:
-                desc += f"\n  Prim Attribs: {', '.join(pr_typed)}."
-            if groups:
-                desc += f"\n  Groups: {', '.join(groups[:6])}."
+            desc = f"Input {i}: Connected from '{node_name}' ({node_desc} SOP, type '{node_type}') -> {geo_type}. {npts:,} points, {nprims:,} primitives."
 
-            # --- Bounding box (Phase 1: #4) ---
+            # Bounding box
+            bsz = None
+            bctr = None
             try:
                 bbox = geo.boundingBox()
                 bsz = bbox.sizevec()
@@ -1025,38 +1867,109 @@ def introspect_geometry(node: hou.Node) -> str:
             except Exception:
                 pass
 
+            # --- Input 0 (Self Geometry Being Modified) ---
+            if i == 0:
+                is_3d_mesh = (nprims > 0 and "3D Polygon Mesh" in geo_type and bsz is not None and bsz.length() > 0.001)
+                is_point_cloud = (nprims == 0 and npts > 0)
+                is_planar_surface = ("Planar" in geo_type or (nprims > 0 and bsz is not None and min(bsz[0], bsz[1], bsz[2]) < 1e-4))
+                is_curve = ("Curve" in geo_type or "Path" in geo_type)
+
+                if is_3d_mesh:
+                    desc += f"\n  Role: Primary input is a 3D {geo_type} ({npts:,} points, {nprims:,} primitives)."
+                    desc += "\n  CRITICAL SPATIAL MESH RULE: In Point Wrangle, code runs in parallel per-point (@ptnum)."
+                    desc += f"\n  NEVER assign an absolute single-point position like '@P = target_pos;' — that will collapse all {npts:,} vertices into a single degenerate point and destroy the 3D mesh volume!"
+                    desc += "\n  To move, animate, or follow a path with this mesh, ALWAYS apply relative translation: vector _c = getbbox_center(0); @P += (target_pos - _c);"
+                elif is_point_cloud:
+                    desc += f"\n  Role: Primary input is a Point Cloud ({npts:,} points, 0 primitives)."
+                    desc += "\n  Point Processing Rule: Points are independent samples/particles. Each point can be directly projected, moved, or advected independently (@P = target_pos; or @P += force * dt;)."
+                elif is_planar_surface:
+                    desc += f"\n  Role: Primary input is a 2D Planar Surface / Grid ({npts:,} points, {nprims:,} primitives)."
+                    desc += "\n  Planar Mesh Rule: Displace points along normal (@N) or Y axis, or apply relative translation to preserve grid layout."
+                elif is_curve:
+                    desc += f"\n  Role: Primary input is an Open Polyline Curve ({npts:,} points, {nprims:,} primitives)."
+                    desc += "\n  Curve Processing Rule: Points form a sequential path. Deform or project points preserving polyline order."
+                else:
+                    desc += f"\n  Role: Primary input geometry being processed in this wrangle ({npts:,} points, {nprims:,} primitives)."
+
+                if any(a.name() == "v" for a in geo.pointAttribs()):
+                    desc += "\n  Dynamics hint: Velocity (v@v) exists on Input 0. For simulation integration: @P += v@v * @TimeInc;"
+                if any(a.name() == "orient" for a in geo.pointAttribs()):
+                    desc += "\n  Orientation hint: Quaternion (p@orient) exists. Rotate via qmultiply() or qrotate()."
+                if any(a.name() == "rest" for a in geo.pointAttribs()):
+                    desc += "\n  Rest position hint: @rest exists. Sample procedural noise from @rest to avoid swimming textures."
+
+            # --- Inputs 1, 2, 3 (Secondary External Reference / Guide / Collider) ---
+            else:
+                if "Curve" in geo_type or "Path" in geo_type or (nprims == 1 and npts > 1 and (bsz is not None and min(bsz[0], bsz[1], bsz[2]) < 0.001)):
+                    desc += f"\n  Role: Guide curve / path trajectory (Input {i}) with {npts:,} points."
+                    desc += f"\n  Path Following Pattern: float speed = chf('speed'); if (speed == 0.0) speed = 0.5; float u = frac(@Time * speed); vector path_pos = primuv({i}, 'P', 0, set(u, 0, 0));"
+                    desc += f"\n  Preserve Volume Mesh Translation: @P += (path_pos - getbbox_center(0));"
+                elif "Surface" in geo_type or "Mesh" in geo_type or nprims > 0:
+                    desc += f"\n  Role: Target surface geometry / collider (Input {i}) with {npts:,} points, {nprims:,} primitives."
+                    desc += f"\n  Closest Surface Query Pattern: int hit_prim; vector hit_uv; float dist = xyzdist({i}, @P, hit_prim, hit_uv); vector hit_P = primuv({i}, 'P', hit_prim, hit_uv); vector hit_N = primuv({i}, 'N', hit_prim, hit_uv);"
+                    desc += f"\n  Directional Raycast Pattern: vector hit_P, hit_uv; int hit_prim = intersect({i}, @P, ray_dir * max_dist, hit_P, hit_uv);"
+                else:
+                    desc += f"\n  Role: Reference point cloud (Input {i}) with {npts:,} points."
+                    desc += f"\n  Nearest Point Pattern: int near_pt = nearpoint({i}, @P); vector near_P = point({i}, 'P', near_pt);"
+                    desc += f"\n  Radius Filter Pattern: int handle = pcopen({i}, 'P', @P, chf('radius'), chi('maxpts'));"
+
+                # Attributes on secondary inputs
+                transferrable = [a.name() for a in geo.pointAttribs() if a.name() not in ("P",)]
+                if transferrable:
+                    sample_attr = transferrable[0]
+                    desc += f"\n  Attribute Transfer from Input {i}: int pt = nearpoint({i}, @P); if (pt != -1) @{sample_attr} = point({i}, '{sample_attr}', pt);"
+
+            if pt_typed:
+                desc += f"\n  Point Attribs: {', '.join(pt_typed)}."
+            if pr_typed:
+                desc += f"\n  Prim Attribs: {', '.join(pr_typed)}."
+            if groups:
+                desc += f"\n  Groups: {', '.join(groups)}."
+
             lines.append(desc)
         except Exception:
-            connected_inputs.append(i)
+            if i not in connected_inputs:
+                connected_inputs.append(i)
+
+    # Introspect existing UI parameters on this wrangle
+    param_lines = _introspect_node_parameters(node)
+    if param_lines:
+        lines.extend(param_lines)
 
     if not lines and not connected_inputs:
         return ""
+
+    # --- Multi-Input Executive Header ---
+    header_lines = [
+        "Live Node & Geometry Context:",
+        "Connected Inputs: " + ", ".join(f"Input {x} ({input_summaries.get(x, 'Geo')})" for x in connected_inputs) + ".",
+    ]
+    if empty_inputs:
+        header_lines.append(f"Disconnected Inputs: {', '.join(f'Input {x}' for x in empty_inputs)} (Do NOT query in VEX).")
+    header_lines.append("VEX Input Mapping: 0 = Self geometry being modified. 1, 2, 3 = External inputs (e.g. point(1, ...), xyzdist(1, ...)).")
 
     # --- Input connection rules ---
     rule_lines = []
     if 0 in connected_inputs and not (set(connected_inputs) - {0}):
         rule_lines.append("IMPORTANT: ONLY Input 0 is connected! Do NOT query or reference inputs 1, 2, or 3 (e.g. use nearpoints(0, ...), point(0, ...)).")
-    elif connected_inputs:
-        rule_lines.append(f"Connected Inputs: {', '.join(str(x) for x in connected_inputs)}. Empty / Disconnected Inputs: {', '.join(str(x) for x in empty_inputs)}.")
-        rule_lines.append("Do NOT query any disconnected inputs.")
 
     rule_lines.append("Do NOT check or depend on non-existent attributes in if-statements unless they are listed above or you explicitly initialize them first.")
 
-    # --- Upstream node type hints (Phase 2: #3) ---
+    # Upstream node type hints
     upstream = _get_upstream_hints(node)
     if upstream:
         rule_lines.extend(upstream)
 
-    # --- Solver context detection (Phase 1: #5) ---
+    # Solver context detection
     if _detect_solver_context(node):
         rule_lines.append("This wrangle is INSIDE a SOP Solver. Use @Time/@TimeInc for time-stepping. Accumulate values (e.g., @P += v@vel * @TimeInc) instead of setting absolute values.")
 
-    # --- Performance hints (Phase 2: #7) ---
+    # Performance hints
     perf = _perf_hint(total_pts)
     if perf:
         rule_lines.append(perf)
 
-    return "Live Node & Geometry Context:\n" + "\n".join(lines + rule_lines)
+    return "\n".join(header_lines) + "\n\n" + "\n".join(lines + rule_lines)
 
 
 def auto_detect_context(prompt: str, node: hou.Node = None) -> tuple[int, str]:
@@ -1194,13 +2107,28 @@ _VERB_PATTERNS = {
     "scatter":     "Use addpoint() in a detail wrangle with random distributions.",
     "relax":       "Use nearpoints averaging to push points apart (blue noise relaxation).",
     "intersection": "Compute surface distance to input 1: float d = xyzdist(1, @P, prim, uv); mask = clamp(1.0 - (d / chf('intersection_width')), 0, 1); set contact color at d=0.",
+    "follow":      "To move geometry along a guide curve (input 1) preserving shape: float speed = chf('speed'); if (speed == 0.0) speed = 0.5; float u = frac(@Time * speed); vector path_pos = primuv(1, 'P', 0, set(u, 0, 0)); @P += (path_pos - getbbox_center(0));",
+    "track":       "To track along a curve (input 1): float speed = chf('speed'); if (speed == 0.0) speed = 0.5; float u = frac(@Time * speed); vector path_pos = primuv(1, 'P', 0, set(u, 0, 0)); @P += (path_pos - getbbox_center(0));",
+    "path":        "To animate geometry along a path curve (input 1) preserving shape: float speed = chf('speed'); if (speed == 0.0) speed = 0.5; float u = frac(@Time * speed); vector path_pos = primuv(1, 'P', 0, set(u, 0, 0)); @P += (path_pos - getbbox_center(0));",
+    "stick":       "Sample target surface position using minpos(1, @P) or xyzdist(1, @P, close_prim, close_uv);",
+    "attach":      "Sample target surface position using minpos(1, @P) or xyzdist(1, @P, close_prim, close_uv);",
     "intersect":   "Compute surface distance to input 1: float d = xyzdist(1, @P, prim, uv); mask = clamp(1.0 - (d / chf('intersection_width')), 0, 1); set contact color at d=0.",
     "contact":     "Compute surface distance to input 1: float d = xyzdist(1, @P, prim, uv); mask = clamp(1.0 - (d / chf('intersection_width')), 0, 1); set contact color at d=0.",
 
     # Topology
+    "boundary":    "To detect open mesh boundaries/borders: int h = pointhedge(0, @ptnum); int is_b = 0; while (h != -1) { if (hedge_nextequiv(0, h) == h) { is_b = 1; break; } h = pointhedgenext(0, h); } if (is_b) { setpointgroup(0, 'boundary', @ptnum, 1); @Cd = set(1, 0, 0); }",
+    "boundaries":  "To detect open mesh boundaries/borders: int h = pointhedge(0, @ptnum); int is_b = 0; while (h != -1) { if (hedge_nextequiv(0, h) == h) { is_b = 1; break; } h = pointhedgenext(0, h); } if (is_b) { setpointgroup(0, 'boundary', @ptnum, 1); @Cd = set(1, 0, 0); }",
+    "boundries":   "To detect open mesh boundaries/borders: int h = pointhedge(0, @ptnum); int is_b = 0; while (h != -1) { if (hedge_nextequiv(0, h) == h) { is_b = 1; break; } h = pointhedgenext(0, h); } if (is_b) { setpointgroup(0, 'boundary', @ptnum, 1); @Cd = set(1, 0, 0); }",
+    "border":      "To detect open mesh boundaries/borders: int h = pointhedge(0, @ptnum); int is_b = 0; while (h != -1) { if (hedge_nextequiv(0, h) == h) { is_b = 1; break; } h = pointhedgenext(0, h); } if (is_b) { setpointgroup(0, 'boundary', @ptnum, 1); @Cd = set(1, 0, 0); }",
+    "perimeter":   "To detect perimeter/boundary edges: int h = pointhedge(0, @ptnum); int is_b = 0; while (h != -1) { if (hedge_nextequiv(0, h) == h) { is_b = 1; break; } h = pointhedgenext(0, h); } if (is_b) setpointgroup(0, 'boundary', @ptnum, 1);",
     "cull":        "Remove elements failing a condition via removepoint/removeprim.",
     "remove":      "Use removepoint(0, @ptnum) or removeprim(0, @primnum, 1).",
     "delete":      "Use removepoint(0, @ptnum) or removeprim(0, @primnum, 1).",
+    "clip":        "In VEX, clip geometry or cull points along an axis or plane using removepoint(0, @ptnum) (e.g. if (@P.x > chf('clip_x')) removepoint(0, @ptnum);). Note: clip() is a SOP node, not a VEX geometry function.",
+    "slice":       "To slice or cut geometry along an axis/plane in VEX: if (@P.x > chf('slice_pos')) removepoint(0, @ptnum); (or assign to groups i@group_slice = @P.x > 0;).",
+    "lonely":      "To detect and remove lonely/isolated points with no connected primitives or neighbors: if (neighbourcount(0, @ptnum) == 0) removepoint(0, @ptnum);",
+    "isolated":    "To remove isolated/unshared points with no neighbors: if (neighbourcount(0, @ptnum) == 0) removepoint(0, @ptnum);",
+    "unshared":    "To remove unshared points: if (neighbourcount(0, @ptnum) == 0 || len(pointprims(0, @ptnum)) == 0) removepoint(0, @ptnum);",
     "split":       "Assign to groups, then use removeprim()/removepoint() per group.",
     "merge":       "In detail wrangle: loop over points from input sources.",
 
@@ -1264,7 +2192,7 @@ def generate_vex(task: str, context: str = "point wrangle", geo_context: str = "
     if use_rag and get_vex_rag_engine:
         try:
             rag = get_vex_rag_engine()
-            rag_block = rag.build_rag_context_block(task)
+            rag_block = rag.build_rag_context_block(task, context=context)
             if rag_block:
                 prompt_parts.append(rag_block)
         except Exception:
@@ -1300,7 +2228,7 @@ def refine_vex(refinement_task: str, existing_code: str, context: str = "point w
     if use_rag and get_vex_rag_engine:
         try:
             rag = get_vex_rag_engine()
-            rag_block = rag.build_rag_context_block(f"{refinement_task} {existing_code}")
+            rag_block = rag.build_rag_context_block(f"{refinement_task} {existing_code}", context=context)
             if rag_block:
                 prompt_parts.append(rag_block)
         except Exception:
@@ -1317,18 +2245,21 @@ def refine_vex(refinement_task: str, existing_code: str, context: str = "point w
     return query_llm(full_prompt, reasoning_mode=reasoning_mode)
 
 
-def repair_vex(task: str, context: str, faulty_code: str, compiler_error: str) -> tuple[str, str]:
+def repair_vex(task: str, context: str, faulty_code: str, compiler_error: str, geo_context: str = "") -> tuple[str, str]:
     """Autonomous 1-Shot CITL Self-Repair using live compiler feedback and RAG Ground Truth."""
     prompt_parts = []
     enable_rag = os.getenv("AI_WRANGLE_ENABLE_RAG", "1") != "0"
     if enable_rag and get_vex_rag_engine:
         try:
             rag = get_vex_rag_engine()
-            rag_block = rag.build_rag_context_block(f"{task} {compiler_error}")
+            rag_block = rag.build_rag_context_block(f"{task} {compiler_error}", context=context)
             if rag_block:
                 prompt_parts.append(rag_block)
         except Exception:
             pass
+
+    if geo_context:
+        prompt_parts.append(geo_context)
 
     prompt_parts.append(
         f"Context: {context}\n"
@@ -1338,7 +2269,7 @@ def repair_vex(task: str, context: str, faulty_code: str, compiler_error: str) -
         f"Write the 100% correct, pure Houdini VEX code from scratch solving the task and avoiding this compiler error:"
     )
     full_prompt = "\n\n".join(prompt_parts)
-    return query_llm(full_prompt, reasoning_mode=False)
+    return query_llm(full_prompt, max_tokens=2048, reasoning_mode=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1357,7 +2288,7 @@ def optimize_vex_code(existing_code: str, context: str = "point wrangle") -> str
         f"- Retain exact parameter channels (chf, chv, chramp).\n\n"
         f"Write pure optimized Houdini VEX code:"
     )
-    _, code = query_llm(prompt, max_tokens=600, reasoning_mode=False)
+    _, code = query_llm(prompt, max_tokens=1536, reasoning_mode=False)
     return code
 
 
@@ -1386,7 +2317,7 @@ def explain_and_document_vex(existing_code: str, context: str = "point wrangle")
         f"- Keep the exact same functional code intact and pure VEX.\n\n"
         f"Write the documented VEX code:"
     )
-    _, code = query_llm(prompt, max_tokens=800, reasoning_mode=False)
+    _, code = query_llm(prompt, max_tokens=1536, reasoning_mode=False)
     return code
 
 
@@ -1690,6 +2621,110 @@ def force_refresh_wrangle(node: hou.Node) -> None:
 # Compile & Apply Safety Net
 # ---------------------------------------------------------------------------
 
+def verify_physical_invariants(node: hou.Node) -> tuple[bool, str | None]:
+    """Physical & Topological Invariant Verifier.
+    
+    Evaluates whether the cooked geometry satisfies fundamental physical and topological laws.
+    Flags singularities (mesh volume collapse), NaNs, and unexpected element annihilation
+    so the CITL loop can prompt the model to self-correct using first-principles logic.
+    """
+    if not hou or not node:
+        return True, None
+    try:
+        geo = node.geometry()
+        if not geo:
+            return True, None
+
+        # Check NaN / Infinite Coordinates
+        sample_pts = geo.points()[:50]
+        for pt in sample_pts:
+            pos = pt.position()
+            if any(math.isnan(v) or math.isinf(v) for v in pos):
+                return False, (
+                    "PHYSICAL INVARIANT VIOLATION: Point coordinates evaluate to NaN or Inf! "
+                    "Ensure numerical stability: check for division by zero, invalid acos/asin domain (clamp -1 to 1), "
+                    "or taking sqrt/log of negative numbers."
+                )
+
+        in0 = node.input(0)
+        if in0:
+            g0 = in0.geometry()
+            if g0:
+                n_in = len(g0.points())
+                n_out = len(geo.points())
+                b_in = g0.boundingBox()
+                b_out = geo.boundingBox()
+                sz_in = b_in.sizevec()
+                sz_out = b_out.sizevec()
+
+                # Invariant 1: 3D Mesh Volume Collapse / Singularity
+                # If Input 0 was a 3D mesh (size > 0.05, >4 points) and output collapsed to 0:
+                if n_in > 4 and sz_in.length() > 0.05 and sz_out.length() < 0.0001:
+                    prompt_val = ""
+                    p_parm = node.parm("ai_prompt")
+                    if p_parm:
+                        prompt_val = p_parm.eval().lower()
+                    if not any(k in prompt_val for k in ["collapse", "singularity", "origin", "merge into one point"]):
+                        return False, (
+                            "PHYSICAL INVARIANT VIOLATION: 3D mesh collapsed into a zero-radius singularity! "
+                            "All points were assigned the identical absolute coordinate (e.g. '@P = target_pos;'). "
+                            "In a Point Wrangle, code runs in parallel per-point (@ptnum). "
+                            "To move/deform a mesh along a path or target while preserving its 3D volume, "
+                            "you MUST apply relative centroid translation: "
+                            "@P += (target_pos - getbbox_center(0));"
+                        )
+
+                # Invariant 2: Catastrophic Accidental Point Annihilation
+                if n_in > 50 and n_out == 0:
+                    prompt_val = node.parm("ai_prompt").eval().lower() if node.parm("ai_prompt") else ""
+                    if not any(k in prompt_val for k in ["delete", "remove", "clear", "cull", "destroy", "empty"]):
+                        return False, (
+                            "PHYSICAL INVARIANT VIOLATION: All points were unexpectedly deleted! "
+                            "Input had elements, but output geometry is empty. "
+                            "Verify removepoint() or point culling condition logic."
+                        )
+
+                # Invariant 3: Uncontrolled Coordinate Explosion
+                if sz_in.length() > 0.001 and (sz_out.length() / max(sz_in.length(), 0.001)) > 5000.0:
+                    prompt_val = node.parm("ai_prompt").eval().lower() if node.parm("ai_prompt") else ""
+                    if not any(k in prompt_val for k in ["explode", "huge", "infinite", "expand by 1000"]):
+                        return False, (
+                            "PHYSICAL INVARIANT VIOLATION: Coordinates exploded by >5000x! "
+                            "Check parameter scale multiplier or exponential growth in simulation logic."
+                        )
+
+                # Invariant 4: Attribute Numerical Sanity (@v, p@orient, @Cd NaNs)
+                for attr_name in ("v", "orient", "Cd"):
+                    attr = geo.findPointAttribute(attr_name)
+                    if attr:
+                        for pt in sample_pts[:20]:
+                            val = pt.attribValue(attr_name)
+                            if isinstance(val, (list, tuple)) and any(math.isnan(v) or math.isinf(v) for v in val):
+                                return False, (
+                                    f"PHYSICAL INVARIANT VIOLATION: Point attribute '@{attr_name}' contains NaN or Inf! "
+                                    f"Ensure numerical stability in vector/quaternion math operations."
+                                )
+
+                # Invariant 5: Normal Vector Degeneracy / Collapse
+                n_attr = geo.findPointAttribute("N")
+                if n_attr and len(sample_pts) > 0:
+                    zero_n_count = 0
+                    for pt in sample_pts[:20]:
+                        n_val = pt.attribValue("N")
+                        if isinstance(n_val, (list, tuple)) and all(abs(v) < 1e-6 for v in n_val):
+                            zero_n_count += 1
+                    if zero_n_count > 5:
+                        prompt_val = node.parm("ai_prompt").eval().lower() if node.parm("ai_prompt") else ""
+                        if not any(k in prompt_val for k in ["clear normal", "zero normal", "remove normal", "delete normal"]):
+                            return False, (
+                                "PHYSICAL INVARIANT VIOLATION: Surface normals collapsed to zero vector (0, 0, 0)! "
+                                "Ensure vector normalization normalize(N) and provide non-zero fallback."
+                            )
+    except Exception:
+        pass
+    return True, None
+
+
 def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "snippet") -> tuple[bool, str | None]:
     parm = node.parm(snippet_parm_name)
     if parm is None:
@@ -1708,6 +2743,11 @@ def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "s
     vop = node.node("attribvop1") if (node.type().name().startswith("attrib") or node.type().name().startswith("ai_")) else None
     raw_vop_errs = vop.errors() if vop else ()
     raw_node_errs = node.errors()
+
+    try:
+        node.cook(force=True)
+    except Exception as e:
+        raw_node_errs = tuple(list(raw_node_errs) + [str(e)])
     
     # Filter out benign 'invalid source' messages when input 0 is simply not yet wired
     vop_errs = [e for e in raw_vop_errs if "invalid source" not in e.lower()]
@@ -1715,7 +2755,11 @@ def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "s
 
     has_real_error = False
     for e in list(raw_node_errs) + list(raw_vop_errs):
-        if any(k in e.lower() for k in ["syntax error", "undefined", "no matching function", "ambiguous", "cannot convert", "type mismatch", "undeclared", "call to undefined"]):
+        if any(k in e.lower() for k in [
+            "syntax error", "undefined", "no matching function", "ambiguous",
+            "cannot convert", "type mismatch", "undeclared", "call to undefined",
+            "error while cooking", "operation failed"
+        ]):
             has_real_error = True
             break
 
@@ -1725,6 +2769,14 @@ def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "s
         node.setParmTemplateGroup(previous_ptg)
         force_refresh_wrangle(node)
         return False, err_msg
+
+    # Verify physical and topological invariants
+    inv_ok, inv_err = verify_physical_invariants(node)
+    if not inv_ok:
+        parm.set(previous_value)
+        node.setParmTemplateGroup(previous_ptg)
+        force_refresh_wrangle(node)
+        return False, inv_err
 
     return True, None
 
@@ -1943,7 +2995,7 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         ptg.find("ai_optimize") is not None or
         ptg.find("ai_explain") is not None
     )
-    if not force and not has_old_layout and ptg.find("ai_generate") and ptg.find("ai_folder") and ptg.find("ai_use_rag"):
+    if not force and not has_old_layout and ptg.find("ai_generate") and ptg.find("ai_folder") and ptg.find("ai_use_rag") and ptg.find("ai_model_select"):
         return True
 
     if has_old_layout or force:
@@ -2202,7 +3254,7 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         label="📝 Help Card",
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_generate_help_clicked(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Generate SideFX-style documentation help card."
+        help="Generate SideFX-style documentation and debug card (view, select, and 1-click copy prompt, VEX, parameters, and inputs)."
     )
     help_btn.setJoinWithNext(True)
 
@@ -2216,13 +3268,51 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
 
     sep_adv3 = hou.SeparatorParmTemplate("sep_adv3")
 
+    model_menu_script = (
+        "import houdini_ai_wrangle\n"
+        "return houdini_ai_wrangle.get_available_models_menu_items()\n"
+    )
+    model_select_parm = hou.MenuParmTemplate(
+        name="ai_model_select",
+        label="AI Model",
+        menu_items=("auto",),
+        menu_labels=("Auto (Latest Recommended)",),
+        default_value=0,
+        item_generator_script=model_menu_script,
+        item_generator_script_language=hou.scriptLanguage.Python,
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_model_select_changed(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Select which AI neural model version to use for VEX code generation."
+    )
+    model_select_parm.setJoinWithNext(True)
+
+    switch_model_btn = hou.ButtonParmTemplate(
+        name="ai_switch_model",
+        label="Switch Model",
+        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_switch_model_clicked(kwargs)",
+        script_callback_language=hou.scriptLanguage.Python,
+        help="Switch and reload the embedded local inference engine with the selected model."
+    )
+
+    custom_model_parm = hou.StringParmTemplate(
+        name="ai_custom_model_path",
+        label="Custom Model File",
+        num_components=1,
+        default_value=[""],
+        string_type=hou.stringParmType.FileReference,
+        help="Absolute path to a custom .gguf or .dat model weights file on disk."
+    )
+    custom_model_parm.setConditional(
+        hou.parmCondType.HideWhen, "{ ai_model_select != custom }"
+    )
+
     model_info_parm = hou.StringParmTemplate(
         name="ai_model_info",
-        label="Model",
+        label="Active Engine",
         num_components=1,
         default_value=[get_active_ai_model_display_string()],
         string_type=hou.stringParmType.Regular,
-        help="Active AI model loaded in embedded inference engine."
+        help="Active AI model loaded and serving in embedded inference engine."
     )
     model_info_parm.setTags({"editable": "0"})
 
@@ -2241,6 +3331,9 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
     adv_folder.addParmTemplate(help_btn)
     adv_folder.addParmTemplate(export_btn)
     adv_folder.addParmTemplate(sep_adv3)
+    adv_folder.addParmTemplate(model_select_parm)
+    adv_folder.addParmTemplate(switch_model_btn)
+    adv_folder.addParmTemplate(custom_model_parm)
     adv_folder.addParmTemplate(model_info_parm)
 
     # ── 7. Reasoning Trace (collapsible folder) ───────────────────────────────
@@ -2353,6 +3446,8 @@ def on_generate_clicked(kwargs):
     class_parm = node.parm("class")
     snippet_parm = node.parm("snippet")
 
+    target_model_path = resolve_selected_model_path(node)
+    ensure_embedded_engine(target_model_path)
     if model_info_parm:
         model_info_parm.set(get_active_ai_model_display_string())
 
@@ -2386,18 +3481,13 @@ def on_generate_clicked(kwargs):
     existing_code = snippet_parm.eval().strip() if snippet_parm else ""
 
     EDIT_KEYWORDS = [
-        "parameter", "channel", "slider", "expose", "chf", "chi", "chv", "chramp", "ui",
-        "fix", "repair", "error", "broken", "bug", "wrong", "doesn't work", "failing", "nan",
-        "modify", "change", "add", "tweak", "update", "instead", "adjust", "replace",
-        "refine", "refinement",
-        "optimize", "optimization", "speed up", "make faster", "faster", "slower", "simd", "parallel", "hoist", "vectorize",
-        "document", "explain", "comment", "inline comment", "docstring",
-        "shield", "guard", "safety", "zero-division", "clamp",
-        "invert", "reverse", "flip",
-        "mask", "group", "subset",
-        "animate", "time", "decay", "fade"
+        "fix", "repair", "broken", "bug", "wrong", "doesn't work", "failing",
+        "modify", "tweak", "update existing", "instead of", "adjust", "replace existing",
+        "refine", "optimize", "speed up", "make faster",
+        "document code", "inline comment", "docstring",
+        "shield", "zero-division",
     ]
-    RESET_KEYWORDS = ["from scratch", "reset", "fresh", "brand new", "replace entirely", "clear existing", "ignore existing"]
+    RESET_KEYWORDS = ["from scratch", "reset", "fresh", "brand new", "replace entirely", "clear existing", "ignore existing", "create", "generate", "build", "align", "displace", "sample"]
 
     is_edit_intent = bool(
         existing_code
@@ -2485,7 +3575,7 @@ def on_generate_clicked(kwargs):
             if attempt < max_citl_retries - 1 and error:
                 if hou.isUIAvailable():
                     hou.ui.setStatusMessage(f"Auto-repairing VEX syntax (Attempt {attempt+2}/{max_citl_retries})...", severity=hou.severityType.Message)
-                _, repaired_code = repair_vex(task, context_str, vex_code, error)
+                _, repaired_code = repair_vex(task, context_str, vex_code, error, geo_context=geo_context)
                 if repaired_code:
                     vex_code = sanitize_vex_syntax(repaired_code)
 
@@ -2616,7 +3706,7 @@ def on_refine_clicked(kwargs):
             if attempt < max_citl_retries - 1 and error:
                 if hou.isUIAvailable():
                     hou.ui.setStatusMessage(f"Auto-repairing VEX syntax (Attempt {attempt+2}/{max_citl_retries})...", severity=hou.severityType.Message)
-                _, repaired_code = repair_vex(refinement_task, context_str, vex_code, error)
+                _, repaired_code = repair_vex(refinement_task, context_str, vex_code, error, geo_context=geo_context)
                 if repaired_code:
                     vex_code = sanitize_vex_syntax(repaired_code)
 
@@ -3058,6 +4148,141 @@ def on_vis_color_toggle(kwargs):
         toggle_viewport_visualizer(node, "color", attr_name, enable)
 
 
+# ---------------------------------------------------------------------------
+# Help Card & Debug Window
+# ---------------------------------------------------------------------------
+
+_help_card_dialog_singleton = None
+
+
+class NodeHelpCardDialog(QtWidgets.QDialog if QtWidgets else object):
+    """Modern Houdini-native PySide dialog for viewing, selecting, and copying Help Cards."""
+
+    def __init__(self, node_name, doc_text, vex_code="", prompt="", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"⚡ Help Card & Debug — {node_name}")
+        self.resize(760, 600)
+        self.setMinimumSize(540, 400)
+        self.doc_text = doc_text
+        self.vex_code = vex_code
+        self.prompt = prompt
+
+        if QtCore:
+            self.setWindowFlags(self.windowFlags() | QtCore.Qt.Window)
+        if hasattr(hou, "qt") and hasattr(hou.qt, "styleSheet"):
+            self.setStyleSheet(hou.qt.styleSheet())
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        # Header bar
+        hdr_layout = QtWidgets.QHBoxLayout()
+        title_lbl = QtWidgets.QLabel(f"<b>📝 Node Documentation & Debug Card:</b> <code style='color:#ff9922;'>{node_name}</code>")
+        title_lbl.setStyleSheet("font-size: 13px;")
+        hdr_layout.addWidget(title_lbl)
+        hdr_layout.addStretch()
+
+        hint_lbl = QtWidgets.QLabel("Select text to copy, or use 1-click copy buttons below")
+        hint_lbl.setStyleSheet("color: #888888; font-size: 10px; font-style: italic;")
+        hdr_layout.addWidget(hint_lbl)
+        layout.addLayout(hdr_layout)
+
+        # Monospace Text Area
+        self.editor = QtWidgets.QPlainTextEdit()
+        self.editor.setPlainText(doc_text)
+        self.editor.setReadOnly(True)
+        self.editor.setLineWrapMode(QtWidgets.QPlainTextEdit.NoWrap)
+        if QtGui:
+            font = QtGui.QFont("Consolas", 10)
+            font.setStyleHint(QtGui.QFont.Monospace)
+            self.editor.setFont(font)
+        self.editor.setStyleSheet(
+            "background-color: #17171c; color: #ececf1; "
+            "border: 1px solid #33333e; border-radius: 4px; padding: 8px;"
+        )
+        layout.addWidget(self.editor, stretch=1)
+
+        # Status feedback line
+        self.status_lbl = QtWidgets.QLabel("")
+        self.status_lbl.setStyleSheet("color: #00ff88; font-size: 11px; font-weight: bold; min-height: 16px;")
+        layout.addWidget(self.status_lbl)
+
+        # Button row
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.setSpacing(8)
+
+        self.btn_copy_all = QtWidgets.QPushButton("📋 Copy Entire Card")
+        self.btn_copy_all.setStyleSheet("font-weight: bold; padding: 6px 14px; background-color: #ff7700; color: #ffffff; border-radius: 4px;")
+        self.btn_copy_all.clicked.connect(self._copy_all)
+        btn_layout.addWidget(self.btn_copy_all)
+
+        if vex_code.strip():
+            self.btn_copy_vex = QtWidgets.QPushButton("⚡ Copy VEX Only")
+            self.btn_copy_vex.setStyleSheet("padding: 6px 12px; background-color: #2e3846; color: #88ccff; border-radius: 4px;")
+            self.btn_copy_vex.clicked.connect(self._copy_vex)
+            btn_layout.addWidget(self.btn_copy_vex)
+
+        if prompt.strip():
+            self.btn_copy_prompt = QtWidgets.QPushButton("💬 Copy Prompt")
+            self.btn_copy_prompt.setStyleSheet("padding: 6px 12px; background-color: #2c3330; color: #88ffaa; border-radius: 4px;")
+            self.btn_copy_prompt.clicked.connect(self._copy_prompt)
+            btn_layout.addWidget(self.btn_copy_prompt)
+
+        btn_layout.addStretch()
+
+        close_btn = QtWidgets.QPushButton("Close")
+        close_btn.setStyleSheet("padding: 6px 16px; border-radius: 4px;")
+        close_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(close_btn)
+
+        layout.addLayout(btn_layout)
+
+    def update_content(self, node_name, doc_text, vex_code="", prompt=""):
+        self.setWindowTitle(f"⚡ Help Card & Debug — {node_name}")
+        self.doc_text = doc_text
+        self.vex_code = vex_code
+        self.prompt = prompt
+        self.editor.setPlainText(doc_text)
+        self.status_lbl.setText("🔄 Content updated from node.")
+
+    def _copy_all(self):
+        hou.ui.copyTextToClipboard(self.doc_text)
+        self.status_lbl.setText("✅ Copied entire Help Card to clipboard!")
+        hou.ui.setStatusMessage("Help Card copied to clipboard!", severity=hou.severityType.Message)
+
+    def _copy_vex(self):
+        if self.vex_code:
+            hou.ui.copyTextToClipboard(self.vex_code)
+            self.status_lbl.setText("✅ Copied VEX snippet to clipboard!")
+            hou.ui.setStatusMessage("VEX snippet copied to clipboard!", severity=hou.severityType.Message)
+
+    def _copy_prompt(self):
+        if self.prompt:
+            hou.ui.copyTextToClipboard(self.prompt)
+            self.status_lbl.setText("✅ Copied Prompt to clipboard!")
+            hou.ui.setStatusMessage("Prompt copied to clipboard!", severity=hou.severityType.Message)
+
+
+def show_help_card_dialog(node_name, doc_text, vex_code="", prompt="") -> bool:
+    """Displays or refreshes the non-modal NodeHelpCardDialog window."""
+    global _help_card_dialog_singleton
+    if not QtWidgets:
+        return False
+    try:
+        parent = hou.qt.mainWindow() if hasattr(hou, "qt") and hasattr(hou.qt, "mainWindow") else None
+        if _help_card_dialog_singleton is None or not _help_card_dialog_singleton.isVisible():
+            _help_card_dialog_singleton = NodeHelpCardDialog(node_name, doc_text, vex_code, prompt, parent=parent)
+        else:
+            _help_card_dialog_singleton.update_content(node_name, doc_text, vex_code, prompt)
+        _help_card_dialog_singleton.show()
+        _help_card_dialog_singleton.raise_()
+        _help_card_dialog_singleton.activateWindow()
+        return True
+    except Exception:
+        return False
+
+
 def on_generate_help_clicked(kwargs):
     node = _extract_node(kwargs)
     if not node:
@@ -3065,34 +4290,98 @@ def on_generate_help_clicked(kwargs):
     prompt = node.parm("ai_prompt").eval() if node.parm("ai_prompt") else "Procedural VEX Node"
     snippet = node.parm("snippet").eval() if node.parm("snippet") else ""
     class_name = node.parm("class").evalAsString() if node.parm("class") else "point"
+    active_model = get_active_ai_model_display_string()
     channels = parse_vex_channels(snippet)
 
+    # Inspect upstream inputs
     input_descs = []
     for i in range(4):
         inp = node.input(i)
         if inp:
-            input_descs.append(f"Input {i}: Connected to `{inp.name()}` ({inp.type().name()})")
+            desc = f"Input {i}: Connected to `{inp.name()}` ({inp.type().description() or inp.type().name()})"
+            try:
+                geo = inp.geometry()
+                if geo:
+                    pt_count = len(geo.points())
+                    prim_count = len(geo.prims())
+                    attribs = [a.name() for a in geo.pointAttribs()]
+                    geo_info = f" — [{pt_count} pts, {prim_count} prims"
+                    if attribs:
+                        geo_info += f", attribs: {', '.join(attribs[:6])}{'...' if len(attribs) > 6 else ''}"
+                    geo_info += "]"
+                    desc += geo_info
+            except Exception:
+                pass
+            input_descs.append(desc)
+        else:
+            input_descs.append(f"Input {i}: (Not connected)")
 
-    doc_text = f"""=== {node.name()} (AI Attribute Wrangle) ===
-
-Overview:
-  Prompt: {prompt}
-  Execution Class: {class_name} wrangle
-
-Inputs:
-{chr(10).join('  - ' + d for d in input_descs) if input_descs else '  - No upstream inputs connected.'}
-
-Interactive Parameters:
-"""
+    # Inspect interactive parameters and current evaluated values
+    param_descs = []
     for ch_name, ch_type in channels.items():
-        doc_text += f"  - {ch_name} ({ch_type})\n"
+        parm_tuple = node.parmTuple(ch_name)
+        parm = node.parm(ch_name)
+        val_str = ""
+        if parm_tuple and len(parm_tuple) > 1:
+            vals = tuple(round(v, 4) if isinstance(v, float) else v for v in parm_tuple.eval())
+            val_str = f" = {vals}"
+        elif parm:
+            val = parm.eval()
+            if isinstance(val, float):
+                val_str = f" = {val:.4g}"
+            else:
+                val_str = f" = {val}"
+        param_descs.append(f"  • {ch_name} ({ch_type}){val_str}")
 
-    doc_text += f"""
-VEX Snippet:
-{snippet}
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    doc_text = f"""================================================================================
+⚡ AI ATTRIBUTE WRANGLE — NODE DEBUG & HELP CARD
+================================================================================
+Node:            {node.name()} ({node.path()})
+Execution Class: {class_name.capitalize()} Wrangle
+AI Model:        {active_model}
+Timestamp:       {timestamp}
+
+--------------------------------------------------------------------------------
+📌 USER PROMPT
+--------------------------------------------------------------------------------
+{prompt}
+
+--------------------------------------------------------------------------------
+🔌 UPSTREAM INPUTS (0-3)
+--------------------------------------------------------------------------------
+{chr(10).join('  • ' + d for d in input_descs)}
+
+--------------------------------------------------------------------------------
+🎛️ INTERACTIVE PARAMETERS & VALUES
+--------------------------------------------------------------------------------
+{chr(10).join(param_descs) if param_descs else '  • No interactive channel parameters detected.'}
+
+--------------------------------------------------------------------------------
+📜 VEX SNIPPET
+--------------------------------------------------------------------------------
+{snippet if snippet.strip() else '// (Empty snippet)'}
+================================================================================
 """
+
     if hou.isUIAvailable():
-        hou.ui.displayMessage(doc_text, title=f"Documentation: {node.name()}", severity=hou.severityType.Message)
+        shown = show_help_card_dialog(node.name(), doc_text, vex_code=snippet, prompt=prompt)
+        if not shown:
+            btn_idx = hou.ui.displayMessage(
+                f"Help Card for {node.name()}:\n\n{doc_text}",
+                buttons=("📋 Copy to Clipboard", "Close"),
+                default_choice=0,
+                close_choice=1,
+                details=doc_text,
+                details_label="Select / Copy Details",
+                details_expanded=True,
+                title=f"Documentation: {node.name()}",
+                severity=hou.severityType.Message
+            )
+            if btn_idx == 0:
+                hou.ui.copyTextToClipboard(doc_text)
+                hou.ui.setStatusMessage("Help Card copied to clipboard!", severity=hou.severityType.Message)
     else:
         print(doc_text)
 

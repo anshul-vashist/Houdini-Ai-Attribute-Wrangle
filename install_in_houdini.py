@@ -92,14 +92,36 @@ def main():
         )
 
     # Check model weights status
+    models_dir = plugin_root / "models"
     model_candidates = [
-        plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf",
-        plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf",
-        plugin_root / "models" / "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf",
-        plugin_root / "models" / "Qwen3-8B-Q5_K_M.gguf",
-        plugin_root / "models" / "qwen3-vex.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v23-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v22-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v21-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v20-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v19-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v18-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v17-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v16-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v15-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v14-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v13-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf",
+        models_dir / "qwen3-8b.Q8_0.gguf",
+        models_dir / "qwen3-8b.Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf",
+        models_dir / "Qwen3-8B-Q5_K_M.gguf",
+        models_dir / "qwen3-vex.gguf",
     ]
-    found_model = next((m for m in model_candidates if m.exists()), None)
+    found_model = next((m for m in model_candidates if m.is_file()), None)
+    if not found_model and models_dir.is_dir():
+        non_lora_ggufs = [f for f in models_dir.glob("*.gguf") if "lora" not in f.name.lower()]
+        if non_lora_ggufs:
+            found_model = sorted(non_lora_ggufs, key=lambda f: f.stat().st_size, reverse=True)[0]
+        else:
+            all_ggufs = list(models_dir.glob("*.gguf"))
+            if all_ggufs:
+                found_model = sorted(all_ggufs, key=lambda f: f.stat().st_size, reverse=True)[0]
     if found_model:
         model_status = f"{found_model.name} (Installed ✅)"
     else:
