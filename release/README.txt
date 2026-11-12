@@ -37,11 +37,27 @@ Ollama fallback exists only when a developer explicitly sets
 AI_WRANGLE_ALLOW_OLLAMA_FALLBACK=1.
 The encrypted model is staged to a randomly named temporary file with memory
 mapping disabled, then the staging directory is removed once loading completes.
+The first time a prompt needs it, the plugin reads the VEX function help of
+your own Houdini installation and stores a compact function reference as
+data/vex_function_reference.json in the plugin folder. Nothing is downloaded.
+Set AI_WRANGLE_BUILD_REFERENCE=0 to switch this off.
+
+HOW EACH ANSWER IS PRODUCED
+The prompt is sent to the local model together with the attributes of the
+input geometry, two similar verified examples and the signatures of the VEX
+functions the task probably needs. Three candidate snippets are generated,
+compiled and cooked on the node; the result most candidates agree on is
+applied. Compiler errors are sent back to the model for up to two repairs.
+The "AI Candidates" field on the node sets the number of candidates.
 
 LIMITATIONS
 AI-generated VEX must be reviewed before using it in production shots. The
 tool compile-checks snippets, but compiling does not prove semantic correctness
 or performance for every asset and scene.
+Measured accuracy of the v55 model (Qwen3-8B-Houdini-VEX-v55, November 2026):
+on 284 held-out tasks whose results were checked on the cooked geometry in
+Houdini 21.0.440, the model with the full pipeline solved 199 (70%), the model
+alone 166 (58%). Expect about three answers in ten to need a correction.
 
 SUPPORT
 Include the contents of the Status field, Houdini version/build, Windows

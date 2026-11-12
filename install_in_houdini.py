@@ -127,7 +127,7 @@ def main():
     else:
         model_status = (
             "Not Found ⚠️\n"
-            "   -> Place 'Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf' into 'models/'"
+            "   -> Download a Qwen3-8B-Houdini-VEX model (.gguf, see README: Model Weights) into 'models/'"
         )
 
     msg = (

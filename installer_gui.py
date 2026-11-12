@@ -216,7 +216,7 @@ class SetupWizardApp:
             hf_btn = tk.Button(
                 model_row, text="📥 Download from Hugging Face", font=("Segoe UI", 8, "bold"),
                 bg="#ff6600", fg="#ffffff", relief="flat", padx=6, pady=1, cursor="hand2",
-                command=lambda: webbrowser.open("https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10")
+                command=lambda: webbrowser.open("https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v46")
             )
             hf_btn.pack(side="right")
 
