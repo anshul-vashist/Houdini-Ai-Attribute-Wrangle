@@ -36,6 +36,8 @@ def _newest_version():
 
 NEWEST_V = _newest_version()
 NEWEST_PREFIX = "Qwen3-8B-Houdini-VEX-" + NEWEST_V
+# A fresh clone has no model file yet: the model checks then test what the node says and does without one.
+HAVE_MODEL = NEWEST_V != "v"
 
 
 def check(name, cond, detail=""):
@@ -148,7 +150,11 @@ def _():
 def _():
     n = make_node()
     info = n.parm("ai_model_info").eval()
-    check("OnCreated sets Active Engine field", NEWEST_V in info, info)
+    if HAVE_MODEL:
+        check("OnCreated sets Active Engine field", NEWEST_V in info, info)
+    else:
+        check("OnCreated names a base model or says that no model is installed",
+              "No model found" in info or ".gguf" in info or ".dat" in info, info)
     check("node has no errors", not n.errors(), str(n.errors()))
 
 
@@ -159,15 +165,28 @@ def _():
     check("model menu is a string parm", p.parmTemplate().type() == hou.parmTemplateType.String)
     items = hw.get_available_models_menu_items()
     tokens = items[0::2]
-    check("auto is first and names the newest version", items[0] == "auto" and NEWEST_V in items[1], items[1])
-    check("tokens are file names", any(t.endswith(".gguf") for t in tokens))
-    check("newest model listed first", tokens[1].startswith(NEWEST_PREFIX), tokens[1])
+    if HAVE_MODEL:
+        check("auto is first and names the newest version", items[0] == "auto" and NEWEST_V in items[1], items[1])
+        check("tokens are file names", any(t.endswith(".gguf") for t in tokens))
+        check("newest model listed first", tokens[1].startswith(NEWEST_PREFIX), tokens[1])
+    else:
+        found = hw._discover_models()
+        check("without a fine-tuned model Auto names a base model or says that none was found", items[0] == "auto"
+              and (os.path.basename(found[0]) in items[1] if found else "no model found" in items[1]), items[1])
+        check("the menu ends with the custom file entry", tokens[-1] == "custom", repr(tokens))
+        check("the entries between Auto and custom are model files",
+              all(t.lower().endswith((".gguf", ".dat")) for t in tokens[1:-1]), repr(tokens))
     check("no LoRA / 16-bit intermediates listed", not any("lora" in t.lower() or "merged-16bit" in t for t in tokens))
     p.set("custom")
     hw.on_model_select_changed({"node": n})
     check("custom model choice reaches its branch", "Custom model selected" in n.parm("ai_status").eval(),
           n.parm("ai_status").eval())
-    check("auto resolves to newest model", os.path.basename(hw._default_model_path()).startswith(NEWEST_PREFIX))
+    default = hw._default_model_path()
+    if HAVE_MODEL:
+        check("auto resolves to newest model", os.path.basename(default).startswith(NEWEST_PREFIX))
+    else:
+        check("without a fine-tuned model auto resolves to a base model or to nothing",
+              default is None or hw._model_version(default) < 0, repr(default))
 
 
 @T("vex cooking")
@@ -414,9 +433,19 @@ def _():
         hw.on_model_select_changed({"node": n})
         check("picking a model does not load it", calls["n"] == 0, str(calls))
         check("status says when it loads", "loads on next Generate" in n.parm("ai_status").eval(), n.parm("ai_status").eval())
-        check("selected model resolves to that file", (hw.resolve_selected_model_path(n) or "").endswith(older[0] if older else ".gguf"))
+        chosen = hw.resolve_selected_model_path(n) or ""
+        if HAVE_MODEL:
+            check("selected model resolves to that file", chosen.endswith(older[0] if older else ".gguf"))
+        else:
+            check("without a fine-tuned model the choice resolves to a base model or to nothing",
+                  chosen == "" or hw._model_version(chosen) < 0, chosen)
         n.parm("ai_model_select").set("auto")
-        check("auto resolves to newest model", os.path.basename(hw.resolve_selected_model_path(n) or "").startswith(NEWEST_PREFIX))
+        auto = hw.resolve_selected_model_path(n) or ""
+        if HAVE_MODEL:
+            check("auto resolves to newest model", os.path.basename(auto).startswith(NEWEST_PREFIX))
+        else:
+            check("without a fine-tuned model auto resolves to a base model or to nothing",
+                  auto == "" or hw._model_version(auto) < 0, auto)
     finally:
         hw.ensure_embedded_engine = real
 
@@ -847,6 +876,10 @@ try:
     with open(vfr.reference_path(ref_root), "w", encoding="utf-8") as _f:
         _f.write("{")  # a file cut off by a crash
     check("a damaged reference file is rebuilt", vfr.ensure(ref_root) == built)
+    for wrong in ('{"point": 1}', '{"point": {}}', '[1]'):  # valid JSON that is not a reference
+        with open(vfr.reference_path(ref_root), "w", encoding="utf-8") as _f:
+            _f.write(wrong)
+        check(f"a reference file of the wrong shape is rebuilt ({wrong})", vfr.ensure(ref_root) == built)
     leftovers = [f for f in os.listdir(os.path.join(ref_root, "data")) if f.endswith(".tmp")]
     check("no temporary files are left next to the reference", not leftovers, repr(leftovers))
 finally:

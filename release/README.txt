@@ -1,6 +1,10 @@
 AI Attribute Wrangle 1.0.3
 Windows x64 / SideFX Houdini (tested with 21.0.440 / Python 3.11, 20.5, 20.0)
 
+This is the README of the packaged release. The setup files named under
+INSTALLATION are part of that package. If you got the plugin from the GitHub
+repository, follow README.md in the repository root instead.
+
 INSTALLATION (Choose any of the 3 methods below):
 
 Option A — Professional GUI Setup Wizard (Recommended):
@@ -20,7 +24,7 @@ Option C — Studio Pipeline & Silent Batch Install:
 
 USAGE:
 In any Geometry network (/obj/geo), press TAB and type "AI Attribute Wrangle"
-(or "ai_attribwrangle"). Enter your natural language prompt and click 🪄 Generate VEX!
+(or "ai_attribwrangle"). Enter your natural language prompt and click "✦ Generate".
 
 REQUIREMENTS
 - Windows 10/11 x64 and Houdini 21.0.x only. Other Houdini versions are not
@@ -47,8 +51,10 @@ The prompt is sent to the local model together with the attributes of the
 input geometry, two similar verified examples and the signatures of the VEX
 functions the task probably needs. Three candidate snippets are generated,
 compiled and cooked on the node; the result most candidates agree on is
-applied. Compiler errors are sent back to the model for up to two repairs.
-The "AI Candidates" field on the node sets the number of candidates.
+applied. If no candidate compiles, the compiler's error is sent back to the
+model for up to two repairs. The "AI Candidates" field on the node sets the
+number of candidates. Edits of existing code and Deep Reasoning requests
+produce a single answer.
 
 LIMITATIONS
 AI-generated VEX must be reviewed before using it in production shots. The

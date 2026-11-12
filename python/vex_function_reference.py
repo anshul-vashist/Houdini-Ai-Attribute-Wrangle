@@ -12,7 +12,7 @@ The reference is not part of the repository: its summaries are text from the Sid
 describe the Houdini version in use. It is built from the local help the first time the lookup needs it (a
 fraction of a second) and stored as data/vex_function_reference.json. If that folder cannot be written the
 reference lives in memory for the session; if the Houdini help is not installed the lookup offers nothing and the
-rest of the plugin works as before.
+older keyword matcher supplies the signatures (vex_rag_engine.build_rag_context_block).
 
     ensure(root)            the stored reference, built first when it is missing
     build(root, hfs=None)   build from the help; nothing is written
@@ -20,10 +20,11 @@ rest of the plugin works as before.
 
 AI_WRANGLE_BUILD_REFERENCE=0 switches the automatic build off.
 
-The help writes signatures in several styles; they are normalised so that a model does not copy help markup into
-code: `<geometry>` becomes `int geometry`, parameters are separated by commas (the help often uses the declaration
-style with semicolons), `const` is dropped, `int []` becomes `int[]`. `<type>` (any attribute type) is kept: it is
-how the reference marks functions whose return type follows the variable they are assigned to.
+The help writes signatures in several styles; the usage lines are normalised: `<geometry>` becomes `int geometry`,
+parameters are separated by commas (the help often uses the declaration style with semicolons), `const` is
+dropped, `int []` becomes `int[]`. The help's other placeholders are kept as they are: `<type>` (any attribute
+type; it marks functions whose return type follows the variable they are assigned to), `<vector>` and `<matrix>`
+(any size), `<stage>` (the USD functions). In Houdini 21.0.440, 337 of the 1,930 usage lines contain one.
 
 Pure Python (no hou, no numpy).
 """
@@ -128,14 +129,21 @@ def write(ref, path):
                 pass
 
 
+def _usable(ref):
+    """A stored reference is used only if it has the expected shape; anything else is rebuilt."""
+    return (isinstance(ref, dict) and bool(ref)
+            and all(isinstance(e, dict) and isinstance(e.get("usage"), list) and isinstance(e.get("summary"), str)
+                    for e in ref.values()))
+
+
 def ensure(root, hfs=None):
     """The function reference for this plugin folder: the stored file, else built from the local help and stored.
-    Never raises: {} when there is neither a stored reference nor a Houdini help to build it from."""
+    Never raises: {} when there is neither a usable stored reference nor a Houdini help to build it from."""
     path = reference_path(root)
     try:
         with open(path, encoding="utf-8") as f:
             ref = json.load(f)
-        if isinstance(ref, dict) and ref:
+        if _usable(ref):
             return ref
     except Exception:
         pass

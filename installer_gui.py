@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import tkinter as tk
@@ -347,7 +348,7 @@ class SetupWizardApp:
                 "Next Steps:\n"
                 "1. Start / Restart SideFX Houdini.\n"
                 "2. In any Geometry Network (/obj/geo), press TAB and type 'AI Attribute Wrangle' or 'ai_attribwrangle'.\n"
-                "3. Type your prompt and click 🪄 Generate VEX!"
+                "3. Type your prompt and click ✦ Generate."
             )
             messagebox.showinfo("Installation Complete", msg)
         else:

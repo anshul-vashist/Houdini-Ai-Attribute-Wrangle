@@ -2,6 +2,9 @@
 
 All notable releases and neural iterations of the **Houdini VEX Copilot** model and digital asset suite are documented here.
 
+Paths under `ai_model_training/`, `benchmarks/` and `scratch/` refer to private development material (training
+scripts and data, held-out benchmark suites, experiments) that is not part of this repository.
+
 ---
 
 ## [v55 shipped, function lookup, prompt layout, review fixes] — 2026-11-12
@@ -30,8 +33,9 @@ All notable releases and neural iterations of the **Houdini VEX Copilot** model 
   bank together with v55.
 - **Usage notes** for 140 functions (`data/vex_function_notes.json`: argument order, special argument values,
   return conventions) and a better choice of the overloads shown (`noise(vector pos)` instead of only
-  `noise(float pos)`): in the code, switched off until measured (`AI_WRANGLE_FUNCTION_NOTES=1`,
-  `AI_WRANGLE_FUNCTION_USAGE_LINES=3`).
+  `noise(float pos)`): in the code, switched off (`AI_WRANGLE_FUNCTION_NOTES=1`,
+  `AI_WRANGLE_FUNCTION_USAGE_LINES=3`); a first comparison on the open dev prompts showed no gain (73 against 71
+  of 126, within noise).
 - **v54** (339 cards): better than v53b on its own (sealed 93 -> 109, unseen tasks 51 -> 59) but not inside the
   plugin (125-130 against 127-139), because it makes less use of what the prompt offers; not shipped.
 - **v55** (458 cards; training prompts whose reference block contains the functions of the answer, so that the
@@ -56,14 +60,17 @@ All notable releases and neural iterations of the **Houdini VEX Copilot** model 
 - Evaluation: runs are compared task by task (`ai_model_training/v53_cards/sealed_pair.py`, counts and a sign
   test), because a prompt change flips 10-15% of the tasks in both directions. Plugin tests: 131 checks.
 - **Function reference built on the user's machine** (`python/vex_function_reference.py`): the reference holds
-  summary lines from the SideFX documentation, so it is no longer a file of the repository. The lookup builds it
+  summary lines from the SideFX documentation, so it is not added to the repository. The lookup builds it
   from the help of the local Houdini installation the first time it is needed (0.2 s, stored as
   `data/vex_function_reference.json`; the build from Houdini 21.0.440 is byte-identical to the file all
-  measurements above used) and offers nothing when the help is not installed. `AI_WRANGLE_BUILD_REFERENCE=0`
-  switches the build off; `tools/build_function_reference.py` rebuilds it by hand. Plugin tests: 139 checks.
+  measurements above used). When the help is not installed the lookup offers nothing and the older keyword
+  matcher supplies the signatures. `AI_WRANGLE_BUILD_REFERENCE=0` switches the build off;
+  `tools/build_function_reference.py` rebuilds it by hand. Plugin tests: 142 checks, which also pass in a fresh
+  clone without a model file.
 - **Repository**: README rewritten for the current pipeline with the held-out results; release notes and the
-  model provenance register updated for v55; installers no longer point to v10 / v11; `scratch/`, the held-out
-  benchmark suites and the working notes of AI assistants are git-ignored.
+  model provenance register updated for v55; installers no longer point to v10 / v11, and the setup wizard no
+  longer fails when no engine is found (missing `shutil` import); `scratch/`, the held-out benchmark suites and
+  the working notes of AI assistants are git-ignored.
 
 ## [Master analysis, concept cards, v53b, verified-example retrieval] — 2026-11-11
 
