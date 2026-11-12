@@ -48,3 +48,21 @@ backup/
 *.hda.bak*
 .agents/
 skills-lock.json
+
+# Local secrets (Hugging Face token etc.)
+.secrets/
+
+# Built on first use from the help of the local Houdini installation (text from the SideFX documentation,
+# see python/vex_function_reference.py)
+data/vex_function_reference.json
+
+# Local experiments, and the held-out benchmark suites: they stay out of the public repository so that they
+# remain unseen by future models
+scratch/
+benchmarks/
+
+# Working notes of local AI assistants (machine paths, account names)
+GEMINI.md
+
+# Builds data/vex_card_bank.json from the private concept cards in ai_model_training/ (cannot run without them)
+tools/build_card_bank.py

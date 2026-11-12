@@ -133,6 +133,35 @@ def _package_root() -> str:
     )
 
 
+class _engine_load_progress:
+    """Interruptible progress dialog while the engine loads a model (first Generate / model switch),
+    so loading several GB of weights never looks like a hang and Esc / Cancel aborts it."""
+
+    def __init__(self, model_path):
+        self.label = f"AI VEX Copilot: loading {os.path.basename(model_path or 'model')} (Esc / Cancel to stop)"
+        self.op = None
+
+    def __enter__(self):
+        try:
+            self.op = hou.InterruptableOperation(self.label, open_interrupt_dialog=True)
+            self.op.__enter__()
+        except Exception:
+            self.op = None
+        return self.tick
+
+    def tick(self):
+        if self.op is not None:
+            self.op.updateProgress(-1.0)  # raises hou.OperationInterrupted on cancel
+
+    def __exit__(self, *exc):
+        if self.op is not None:
+            try:
+                self.op.__exit__(None, None, None)
+            except Exception:
+                pass
+        return False
+
+
 def ensure_embedded_engine(target_model_path: str = None) -> bool:
     """Start and verify the bundled engine when it is first needed.
 
@@ -192,64 +221,13 @@ def ensure_embedded_engine(target_model_path: str = None) -> bool:
 
         engine_bin = next((b for b in engine_candidates if b and os.path.isfile(b)), None)
 
-        # Discover AI model weights
-        model_env = os.environ.get("AI_WRANGLE_MODEL_PATH")
+        # Discover AI model weights: explicit selection, else env override / newest fine-tuned model
         model_dir = os.path.join(pkg_root, "models")
-        base_candidates = [
-            model_env,
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v46-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v45-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v44-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v43-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v42-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v41-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v39-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v40-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v38-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v37-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v36-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v35-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v34-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v33-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v32-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v31-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v30-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v29-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v28-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v27-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v26-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v25-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v24-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v23-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v22-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v21-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v20-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v19-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v18-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v17-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v16-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v15-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v14-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v13-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf"),
-            os.path.join(model_dir, "qwen3-8b.Q8_0.gguf"),
-            os.path.join(model_dir, "qwen3-8b.Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf"),
-            os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf"),
-            os.path.join(model_dir, "qwen3-vex.gguf"),
-            os.path.join(model_dir, "vex_brain.dat"),
-            os.path.join(model_dir, "vex_brain.gguf"),
-            os.path.join(pkg_root, "qwen3-vex.gguf"),
-        ]
         model_path = target_model_path if (target_model_path and os.path.isfile(target_model_path)) else None
         if not model_path:
-            model_path = next((p for p in base_candidates if p and os.path.exists(p)), None)
-            if not model_path and os.path.isdir(model_dir):
-                import glob
-                extra_ggufs = [g for g in glob.glob(os.path.join(model_dir, "*.gguf")) if "lora" not in os.path.basename(g).lower()]
-                if extra_ggufs:
-                    model_path = max(extra_ggufs, key=os.path.getsize)
+            model_path = _default_model_path()
+            if not model_path and os.path.isfile(os.path.join(pkg_root, "qwen3-vex.gguf")):
+                model_path = os.path.join(pkg_root, "qwen3-vex.gguf")
 
         if not engine_bin or not os.path.exists(engine_bin):
             _engine_error = (
@@ -273,14 +251,18 @@ def ensure_embedded_engine(target_model_path: str = None) -> bool:
             active_info = _engine_singleton.get_model_info_string()
             if target_name in active_info or (getattr(_engine_singleton, "active_model_name", None) == target_name):
                 return True
-            if _engine_singleton.switch_model(engine_bin, model_path):
+            with _engine_load_progress(model_path) as cb:
+                switched = _engine_singleton.switch_model(engine_bin, model_path, wait_callback=cb)
+            if switched:
                 _engine_error = ""
                 return True
             _engine_error = _engine_singleton.last_error or "Could not switch to selected model."
             return False
 
         mgr = EngineManager()
-        if mgr.start_embedded_engine(engine_bin, model_path):
+        with _engine_load_progress(model_path) as cb:
+            started = mgr.start_embedded_engine(engine_bin, model_path, wait_callback=cb)
+        if started:
             _engine_singleton = mgr
             _engine_error = ""
             import atexit
@@ -291,6 +273,18 @@ def ensure_embedded_engine(target_model_path: str = None) -> bool:
     except Exception as exc:
         _engine_error = str(exc)
         return False
+
+
+def _engine_port() -> int:
+    """Port of the running engine, else the port a new engine would use."""
+    port = getattr(_engine_singleton, "port", None)
+    if port:
+        return int(port)
+    try:
+        import engine_manager
+        return int(engine_manager.DEFAULT_PORT)
+    except Exception:
+        return int(os.getenv("AI_WRANGLE_PORT") or 58321)
 
 
 def _shutdown_embedded_engine():
@@ -306,132 +300,73 @@ def _shutdown_embedded_engine():
 # Model Resolution & Parsing
 # ---------------------------------------------------------------------------
 
+# Held-out Houdini benchmarks (tasks checked on cooked geometry): model alone / full plugin pipeline.
+# v51 and v53: six suites A-F, 284 tasks (benchmarks/, 2026-11-11). Older entries: suite A only (57 tasks).
+# Shown in the model menu and info field.
+_MODEL_NOTES = {
+    55: "held-out 166/284 alone, 199/284 with plugin - Recommended",
+    53: "held-out 138/284 alone, 188/284 with plugin",
+    51: "held-out 117/284 alone, 143/284 with plugin",
+    49: "held-out 33/57 raw, 36/57 with plugin",
+    48: "held-out 29/57 raw, 36/57 with plugin",
+    47: "held-out 16/57 raw",
+    46: "held-out 19/57 raw, 32/57 with plugin",
+}
+_FINETUNE_RE = re.compile(r"houdini-vex-v(\d+)", re.IGNORECASE)
+
+
+def _model_version(name: str) -> int:
+    """Version of a fine-tuned 'Qwen3-8B-Houdini-VEX-vNN' weights file, -1 for anything else."""
+    m = _FINETUNE_RE.search(os.path.basename(name))
+    return int(m.group(1)) if m else -1
+
+
+def _discover_models() -> list[str]:
+    """Absolute paths of selectable full-model GGUF/DAT files in models/, best first:
+    fine-tuned versions newest-first, then anything else (base models) by name."""
+    model_dir = os.path.join(_package_root(), "models")
+    if not os.path.isdir(model_dir):
+        return []
+    found = []
+    for f in os.listdir(model_dir):
+        fl = f.lower()
+        if fl.startswith(".") or "lora" in fl or "merged-16bit" in fl:
+            continue
+        if fl.endswith((".gguf", ".dat")):
+            found.append(os.path.join(model_dir, f))
+    found.sort(key=lambda p: (_model_version(p), os.path.basename(p).lower()), reverse=True)
+    return found
+
+
+def _default_model_path() -> str | None:
+    """Model used for 'Auto': AI_WRANGLE_MODEL_PATH override, else the newest fine-tuned model."""
+    env = os.environ.get("AI_WRANGLE_MODEL_PATH")
+    if env and os.path.isfile(env):
+        return env
+    models = _discover_models()
+    return models[0] if models else None
+
+
+def _describe_model(path_or_name: str) -> str:
+    name = os.path.basename(path_or_name)
+    v = _model_version(name)
+    if v < 0:
+        return name
+    note = _MODEL_NOTES.get(v)
+    return f"{name} (v{v}{', ' + note if note else ''})"
+
+
 def get_active_ai_model_display_string() -> str:
-    """Returns human-readable active base model and fine-tuned LoRA adapter name."""
-    global _engine_singleton
-    if _engine_singleton and hasattr(_engine_singleton, "get_model_info_string"):
-        try:
-            return _engine_singleton.get_model_info_string()
-        except Exception:
-            pass
-
-    # 1. First probe live inference engine (e.g. llama-server)
-    port = getattr(_engine_singleton, "port", None) or os.getenv("AI_WRANGLE_PORT") or 58421
-    try:
-        req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/models")
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        with opener.open(req, timeout=0.8) as resp:
-            m_data = json.loads(resp.read().decode("utf-8"))
-            models = m_data.get("data", []) or m_data.get("models", [])
-            if models:
-                active_id = models[0].get("id") or models[0].get("name", "")
-                m = re.search(r"v(\d+)", active_id)
-                v_tag = f"v{m.group(1)} Master" if m else "Master"
-                return f"{active_id} (Standalone Merged {v_tag})"
-    except Exception:
-        pass
-
-    pkg_root = _package_root()
-    model_dir = os.path.join(pkg_root, "models")
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v46-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v46-Q5_K_M.gguf (Standalone Merged v46 Grandmaster - 100% Handcrafted Omniverse Procedural Intelligence)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v45-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v45-Q5_K_M.gguf (Standalone Merged v45 Grandmaster - Handcrafted Master Procedural Intelligence)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v44-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v44-Q5_K_M.gguf (Standalone Merged v44 Grandmaster - Universal Mathematical Foundations)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v43-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v43-Q5_K_M.gguf (Standalone Merged v43 Master - Handcrafted Multi-Domain SFT-Grounded RLVR)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v42-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v42-Q5_K_M.gguf (Standalone Merged v42 Master - Organic CITL Self-Repair)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v41-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v41-Q5_K_M.gguf (Standalone Merged v41 Master - SFT-Grounded RLVR)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v40-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v40-Q5_K_M.gguf (Standalone Merged v40 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v39-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v39-Q5_K_M.gguf (Standalone Merged v39 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v38-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v38-Q5_K_M.gguf (Standalone Merged v38 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v37-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v37-Q5_K_M.gguf (Standalone Merged v37 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v36-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v36-Q5_K_M.gguf (Standalone Merged v36 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v35-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v35-Q5_K_M.gguf (Standalone Merged v35 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v34-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v34-Q5_K_M.gguf (Standalone Merged v34 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v33-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v33-Q5_K_M.gguf (Standalone Merged v33 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v32-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v32-Q5_K_M.gguf (Standalone Merged v32 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v31-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v31-Q5_K_M.gguf (Standalone Merged v31 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v30-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v30-Q5_K_M.gguf (Standalone Merged v30 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v29-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v29-Q5_K_M.gguf (Standalone Merged v29 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v28-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v28-Q5_K_M.gguf (Standalone Merged v28 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v27-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v27-Q5_K_M.gguf (Standalone Merged v27 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v26-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v26-Q5_K_M.gguf (Standalone Merged v26 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v25-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v25-Q5_K_M.gguf (Standalone Merged v25 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v24-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v24-Q5_K_M.gguf (Standalone Merged v24 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v23-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v23-Q5_K_M.gguf (Standalone Merged v23 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v22-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v22-Q5_K_M.gguf (Standalone Merged v22 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v21-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v21-Q5_K_M.gguf (Standalone Merged v21 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v20-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v20-Q5_K_M.gguf (Standalone Merged v20 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v19-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v19-Q5_K_M.gguf (Standalone Merged v19 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v18-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v18-Q5_K_M.gguf (Standalone Merged v18 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v17-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v17-Q5_K_M.gguf (Standalone Merged v17 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v16-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v16-Q5_K_M.gguf (Standalone Merged v16 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v15-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v15-Q5_K_M.gguf (Standalone Merged v15 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v14-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v14-Q5_K_M.gguf (Standalone Merged v14 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v13-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v13-Q5_K_M.gguf (Standalone Merged v13 Master)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v11-Q8_0.gguf (Standalone Merged v11 Grandmaster Q8)"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v11-Q5_K_M.gguf (Standalone Merged v11 Grandmaster)"
-    if os.path.isfile(os.path.join(model_dir, "qwen3-8b.Q8_0.gguf")):
-        return "qwen3-8b.Q8_0.gguf (Q8 Production)"
-    if os.path.isfile(os.path.join(model_dir, "qwen3-8b.Q5_K_M.gguf")):
-        return "qwen3-8b.Q5_K_M.gguf"
-    if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf")):
-        return "Qwen3-8B-Houdini-VEX-v10-Q5_K_M.gguf (Standalone Merged v10.1)"
-    lora_candidates = [
-        "qwen3-vex-v10-lora.gguf",
-        "lora.gguf",
-    ]
-    active_lora = None
-    if os.path.isdir(model_dir):
-        for lora in lora_candidates:
-            if os.path.isfile(os.path.join(model_dir, lora)):
-                active_lora = lora
-                break
-    if active_lora:
-        base_name = "Qwen3-8B-Q5_K_M.gguf" if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")) else "qwen3-vex.gguf"
-        return f"{base_name} + LoRA: {active_lora} (v10 Grandmaster - Sept 8)"
-    if os.path.isdir(model_dir):
-        import glob
-        extra_ggufs = [g for g in glob.glob(os.path.join(model_dir, "*.gguf")) if "lora" not in os.path.basename(g).lower()]
-        if extra_ggufs:
-            best_extra = max(extra_ggufs, key=os.path.getsize)
-            return f"{os.path.basename(best_extra)} (Standalone Merged)"
-    base_name = "Qwen3-8B-Q5_K_M.gguf" if os.path.isfile(os.path.join(model_dir, "Qwen3-8B-Q5_K_M.gguf")) else "qwen3-vex.gguf"
-    return f"{base_name} (Base)"
+    """Human-readable name of the model in use. Never touches the network: this runs on node
+    creation (OnCreated) and must not stall the UI."""
+    if _engine_singleton is not None:
+        active = getattr(_engine_singleton, "active_model_name", None)
+        if active:
+            return _describe_model(active)
+    default = _default_model_path()
+    if default:
+        return _describe_model(default) + " [not loaded yet]"
+    return "No model found in models/ (place a Qwen3-8B-Houdini-VEX GGUF there)"
 
 
 # ---------------------------------------------------------------------------
@@ -442,63 +377,15 @@ def get_available_models_menu_items() -> list[str]:
     """Dynamically enumerates available GGUF/DAT models in the models directory for Houdini Menu scripts.
     Returns a flat list of token-label pairs: [token1, label1, token2, label2, ...]
     """
-    pkg_root = _package_root()
-    model_dir = os.path.join(pkg_root, "models")
-    items = ["auto", "Auto (Latest Recommended)"]
-
-    if os.path.isdir(model_dir):
-        files = os.listdir(model_dir)
-        valid_models = []
-        for f in files:
-            fl = f.lower()
-            if fl.endswith(".bak") or fl.endswith(".log") or "lora" in fl or fl.startswith("."):
-                continue
-            if fl.endswith(".gguf") or fl.endswith(".dat"):
-                valid_models.append(f)
-
-        def extract_version(name: str) -> int:
-            m = re.search(r"v(\d+)", name.lower())
-            return int(m.group(1)) if m else -1
-
-        # Sort by version descending (v37, v36, ... v10, then unversioned)
-        valid_models.sort(key=lambda x: (extract_version(x), x), reverse=True)
-
-        for m_file in valid_models:
-            v_num = extract_version(m_file)
-            if v_num == 46:
-                label = f"v46 Grandmaster Omniverse (100% Multi-Domain Physical PASS - Recommended)"
-            elif v_num == 45:
-                label = f"v45 Grandmaster (100% Layman English PASS)"
-            elif v_num == 44:
-                label = f"v44 Grandmaster (Universal Mathematical Foundations)"
-            elif v_num == 43:
-                label = f"v43 Master (First-Principles SFT-Grounded RLVR)"
-            elif v_num == 42:
-                label = f"v42 Master (Organic CITL Self-Repair)"
-            elif v_num == 41:
-                label = f"v41 Master (100% Houdini CITL PASS)"
-            elif v_num in (40, 39):
-                label = f"v{v_num} Master (Bulletproof Procedural Intelligence)"
-            elif v_num == 38:
-                label = f"v{v_num} Master (Axiomatic Reasoning)"
-            elif v_num == 37:
-                label = f"v{v_num} Master (100% Houdini CITL PASS)"
-            elif v_num in (36, 35, 34, 33, 32, 31):
-                label = f"v{v_num} Master"
-            elif v_num == 30:
-                label = f"v30 Master (PBD & Vellum)"
-            elif v_num == 23:
-                label = f"v23 Master (Production 10/10)"
-            elif v_num == 11:
-                label = f"v11 Grandmaster"
-            elif v_num > 0:
-                label = f"v{v_num} Model ({m_file})"
-            elif "q8" in m_file.lower():
-                label = f"Qwen3-8B Q8 Production ({m_file})"
-            else:
-                label = m_file
-            items.extend([m_file, label])
-
+    default = _default_model_path()
+    auto_label = f"Auto ({os.path.basename(default)})" if default else "Auto (no model found)"
+    items = ["auto", auto_label]
+    for path in _discover_models():
+        v = _model_version(path)
+        note = _MODEL_NOTES.get(v)
+        name = os.path.basename(path)
+        label = f"v{v} - {note}" if (v >= 0 and note) else (f"v{v} ({name})" if v >= 0 else name)
+        items.extend([name, label])  # token is the file name: stable when new models are added
     items.extend(["custom", "Custom Model File..."])
     return items
 
@@ -513,7 +400,7 @@ def resolve_selected_model_path(node: hou.Node = None) -> str | None:
             return None
         choice = model_parm.evalAsString()
         if not choice or choice == "auto":
-            return None
+            return _default_model_path()
         if choice == "custom":
             custom_path = node.evalParm("ai_custom_model_path")
             if custom_path and os.path.isfile(custom_path):
@@ -570,14 +457,22 @@ def on_model_select_changed(kwargs: dict) -> None:
     node = kwargs.get("node")
     if not node:
         return
-    choice = node.evalParm("ai_model_select")
+    choice = node.parm("ai_model_select").evalAsString()
     if choice == "custom":
         status_p = node.parm("ai_status")
         if status_p:
             status_p.set("Custom model selected — choose file path and click 'Switch Model'.")
         return
-    model_path = resolve_selected_model_path(node)
-    switch_active_model(model_path, node)
+    # Picking from the menu only records the choice: loading several GB of weights on a menu change
+    # froze Houdini. The engine switches on the next Generate, or now via "Switch Model".
+    model_path = resolve_selected_model_path(node) or _default_model_path()
+    status_p = node.parm("ai_status")
+    if status_p:
+        status_p.set(f"Model set to {os.path.basename(model_path) if model_path else 'Auto'} - loads on next Generate "
+                     f"(or press Switch Model to load now).")
+    info_p = node.parm("ai_model_info")
+    if info_p and model_path:
+        info_p.set(_describe_model(model_path) + " [selected]")
 
 
 def on_switch_model_clicked(kwargs: dict) -> None:
@@ -679,7 +574,7 @@ def sanitize_vex_syntax(code: str) -> str:
         return m.group(0)
 
     c = re.sub(
-        r'\bnearpoint\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)',
+        r'\bnearpoint\s*\(\s*([^,;()\n]+)\s*,\s*([^,;()\n]+)\s*,\s*([^,;()\n]+)\s*\)',
         _normalize_nearpoint,
         c
     )
@@ -713,10 +608,6 @@ def sanitize_vex_syntax(code: str) -> str:
     str_vars = dict(re.findall(r'string\s+([a-zA-Z0-9_]+)\s*=\s*["\']([^"\']+)["\'];', c))
     for var, val in str_vars.items():
         c = re.sub(rf'\bchramp\s*\(\s*{var}\s*,', f'chramp("{val}",', c)
-
-    # Auto-repair strict inequality trial division loop bound bug: d * d < n -> d * d <= n
-    c = re.sub(r'(\b[a-zA-Z0-9_]+\s*\*\s*[a-zA-Z0-9_]+\s*)<\s*([a-zA-Z0-9_]+)\s*;', r'\1<= \2;', c)
-    c = re.sub(r'(\b[a-zA-Z0-9_]+\s*)<\s*(sqrt\s*\([^)]+\))\s*;', r'\1<= \2;', c)
 
     # Normalize undeclared standalone P to @P (strictly outside of string quotes and member access)
     if not re.search(r'\b(?:vector|float|int|matrix)\s+P\b', c):
@@ -871,10 +762,12 @@ def sanitize_vex_syntax(code: str) -> str:
     c = re.sub(r'([fvi])@([a-zA-Z0-9_]+)\[([a-zA-Z0-9_]+)\]', r'point(0, "\2", \3)', c)
 
     # Auto-repair primpoints scalar count assignment: int n = primpoints(...) -> int n = len(primpoints(...))
-    c = re.sub(r'\bint\s+([a-zA-Z0-9_]+)\s*=\s*primpoints\s*\(([^;]+);', r'int \1 = len(primpoints(\2);', c)
+    c = re.sub(r'\bint\s+([a-zA-Z0-9_]+)\s*=\s*primpoints\s*\(([^;]*)\)\s*;', r'int \1 = len(primpoints(\2));', c)
 
     # Auto-repair 4x4 matrix passed to quaternion(): quaternion(m) -> quaternion(matrix3(m))
-    c = re.sub(r'\bquaternion\s*\(\s*([a-zA-Z0-9_]+)\s*\)', r'quaternion(matrix3(\1))', c)
+    _mat4_vars = set(re.findall(r'\bmatrix\s+([a-zA-Z0-9_]+)', c))
+    c = re.sub(r'\bquaternion\s*\(\s*([a-zA-Z0-9_]+)\s*\)',
+               lambda m: f"quaternion(matrix3({m.group(1)}))" if m.group(1) in _mat4_vars else m.group(0), c)
 
     # Auto-repair xyzdist 4th argument parameter ordering when float dist was passed:
     if re.search(r'\bxyzdist\s*\(\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*dist\s*\)', c):
@@ -998,14 +891,14 @@ def sanitize_vex_syntax(code: str) -> str:
         c = "int hit_prim = -1;\n" + c
 
     # Auto-repair pts[] sequential empty indexing
-    if len(re.findall(r'(?<!int\s)(?<!float\s)(?<!vector\s)(?<!vector4\s)(?<!matrix\s)(?<!string\s)\b([a-zA-Z0-9_]+)\[\s*\]', c)) >= 2:
+    if len(re.findall(r'(?<!int\s)(?<!float\s)(?<!vector\s)(?<!vector4\s)(?<!matrix\s)(?<!string\s)\b([a-zA-Z0-9_]+)\[\s*\](?!\s*@)', c)) >= 2:
         _counter_pts = [0]
         def _repl_pts(m):
             var = m.group(1)
             res = f"{var}[{_counter_pts[0]}]"
             _counter_pts[0] += 1
             return res
-        c = re.sub(r'(?<!int\s)(?<!float\s)(?<!vector\s)(?<!vector4\s)(?<!matrix\s)(?<!string\s)\b([a-zA-Z0-9_]+)\[\s*\]', _repl_pts, c)
+        c = re.sub(r'(?<!int\s)(?<!float\s)(?<!vector\s)(?<!vector4\s)(?<!matrix\s)(?<!string\s)\b([a-zA-Z0-9_]+)\[\s*\](?!\s*@)', _repl_pts, c)
 
     # Auto-repair primvertexs typo to primvertices
     c = re.sub(r'\bprimvertexs\b', 'primvertices', c)
@@ -1063,39 +956,176 @@ def sanitize_vex_syntax(code: str) -> str:
     return c.strip()
 
 
+_LOOP_GUARD_LIMIT = 1000000  # per loop entry; high enough for legitimate loops, still ends runaway ones
+
+
+def _code_mask(code: str) -> list[bool]:
+    """True for characters inside string literals or comments (skipped by the loop scanner)."""
+    mask = [False] * len(code)
+    i, n = 0, len(code)
+    while i < n:
+        ch = code[i]
+        if code.startswith("//", i):
+            j = code.find("\n", i)
+            j = n if j < 0 else j
+        elif code.startswith("/*", i):
+            j = code.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+        elif ch in "\"'":
+            j = i + 1
+            while j < n and code[j] != ch:
+                j += 2 if code[j] == "\\" else 1
+            j = min(j + 1, n)
+        else:
+            i += 1
+            continue
+        for k in range(i, j):
+            mask[k] = True
+        i = j
+    return mask
+
+
+def _matching_paren(code: str, open_idx: int, mask: list[bool]) -> int:
+    depth = 0
+    for k in range(open_idx, len(code)):
+        if mask[k]:
+            continue
+        if code[k] == "(":
+            depth += 1
+        elif code[k] == ")":
+            depth -= 1
+            if depth == 0:
+                return k
+    return -1
+
+
 def _protect_infinite_loops(code: str) -> str:
-    """Safeguards while and do...while loops with an iteration counter to prevent C++ thread hangs in Houdini."""
-    if not code or "while" not in code:
+    """Guard while / do-while loops against runaway iteration (a VEX infinite loop hangs the cook).
+
+    'while (C) body'        -> 'for (int __safety_iter_k = 0; (C) && __safety_iter_k < L; __safety_iter_k++) body'
+    'do body while (C);'    -> 'do body while ((C) && (__safety_iter_k++ < L));' with the counter declared
+                               in a block that wraps the whole do statement.
+    Both forms are exact rewrites for loops that finish within L iterations, keep the original scope
+    (safe after a braceless if), and handle conditions with nested parentheses.
+    """
+    if not code or "while" not in code or "__safety_iter" in code:
         return code
-    if "__safety_iter" in code:
-        # Clean any accidental double-wrapping or mangling
-        code = re.sub(r'\}\s*int\s+__safety_iter_\d+\s*=\s*0;\s*\n\s*while\s*\(\(+([\s\S]*?)\s*&&\s*\(__safety_iter_\d+\+\+\s*<\s*10000\)\)+;', r'} while (\1);', code)
-        code = re.sub(r'(int\s+__safety_iter_\d+\s*=\s*0;\s*\n)+', r'int __safety_iter_0 = 0;\n', code)
-        code = re.sub(r'(\s*&&\s*\(__safety_iter_\d+\+\+\s*<\s*10000\))+', r' && (__safety_iter_0++ < 10000)', code)
-        if "__safety_iter" in code:
-            return code
+    mask = _code_mask(code)
+    edits = []  # (start, end, replacement) on the original string
+    counter = 0
+    for m in re.finditer(r"\bwhile\s*\(", code):
+        if mask[m.start()]:
+            continue
+        open_idx = m.end() - 1
+        close_idx = _matching_paren(code, open_idx, mask)
+        if close_idx < 0:
+            continue
+        cond = code[open_idx + 1:close_idx].strip()
+        if "pciterate" in cond or "pcunshadow" in cond:
+            continue
+        k = counter
+        counter += 1
+        var = f"__safety_iter_{k}"
+        prev = code[:m.start()].rstrip()
+        if prev.endswith("}") and _is_do_while_tail(code, m.start(), mask):
+            # do { ... } while (C);  -> bounded tail, counter declared before the matching 'do'
+            do_idx = _find_do_for_tail(code, m.start(), mask)
+            if do_idx < 0:
+                continue
+            semi = code.find(";", close_idx)
+            if semi < 0:
+                continue
+            edits.append((do_idx, do_idx, f"{{ int {var} = 0; "))
+            edits.append((m.start(), semi + 1, f"while (({cond}) && ({var}++ < {_LOOP_GUARD_LIMIT})); }}"))
+        else:
+            edits.append((m.start(), close_idx + 1,
+                          f"for (int {var} = 0; ({cond}) && {var} < {_LOOP_GUARD_LIMIT}; {var}++)"))
+    for start, end, rep in sorted(edits, key=lambda e: e[0], reverse=True):
+        code = code[:start] + rep + code[end:]
+    return code
 
-    counter = [0]
-    # 1. Protect do { ... } while (...);
-    def _repl_do_while(m):
-        idx = counter[0]
-        counter[0] += 1
-        body = m.group(1)
-        cond = m.group(2).strip()
-        return f"int __safety_iter_{idx} = 0;\ndo {{\n{body}\n}} while (({cond}) && (__safety_iter_{idx}++ < 10000));"
-    code = re.sub(r'\bdo\s*\{([\s\S]*?)\}\s*while\s*\(([^;]+)\);', _repl_do_while, code)
 
-    # 2. Protect standard while (...)
-    def repl(m):
-        cond = m.group(1).strip()
-        if "__safety_iter" in cond or "pciterate" in cond:
-            return m.group(0)
-        idx = counter[0]
-        counter[0] += 1
-        return f"int __safety_iter_{idx} = 0;\nwhile (({cond}) && (__safety_iter_{idx}++ < 10000))"
-    return re.sub(r'(?<!\}\s)\bwhile\s*\(([^)]+)\)', repl, code)
+def _is_do_while_tail(code: str, while_idx: int, mask: list[bool]) -> bool:
+    return _find_do_for_tail(code, while_idx, mask) >= 0
 
 
+def _find_do_for_tail(code: str, while_idx: int, mask: list[bool]) -> int:
+    """For 'do { ... } while', return the index of 'do'; -1 if the '}' does not close a do-block."""
+    close = code[:while_idx].rstrip()
+    if not close.endswith("}"):
+        return -1
+    depth = 0
+    for k in range(len(close) - 1, -1, -1):
+        if mask[k]:
+            continue
+        if close[k] == "}":
+            depth += 1
+        elif close[k] == "{":
+            depth -= 1
+            if depth == 0:
+                before = close[:k].rstrip()
+                if before.endswith("do") and (len(before) == 2 or not (before[-3].isalnum() or before[-3] == "_")):
+                    return len(before) - 2
+                return -1
+    return -1
+
+
+
+
+def _light_vex_cleanup(code: str) -> str:
+    """Minimal, semantics-preserving preparation of model output: strip stray think tags, heal a
+    token-limit truncation, and guard loops against runaway iteration."""
+    c = re.sub(r"</?think>", "", code or "").strip()
+    return _protect_infinite_loops(_heal_truncated_vex(c)).strip()
+
+
+def _apply_generated_vex(node, task_text: str, context_str: str, vex_code: str, geo_context: str,
+                         max_repairs: int = 2) -> tuple[str, bool, str | None]:
+    """Compile-first application of generated VEX.
+
+    1. The model's code with only light cleanup is tried first: correct code is never rewritten.
+    2. Only if Houdini rejects it are the aggressive regex repairs (sanitize_vex_syntax) tried.
+    3. Then up to `max_repairs` compiler-feedback repair passes, each again light-first.
+    Returns (applied_or_last_code, success, last_error).
+    """
+    def attempt(code):
+        light = _light_vex_cleanup(code)
+        if not re.search(r"[;{}]", light):
+            # Nothing that looks like VEX survived (prose, refusal, cut-off answer). Never apply an
+            # empty snippet: it "compiles" and would silently wipe the user's working code.
+            return (code or "").strip(), False, "Model output contains no VEX statements."
+        ok, err = try_apply_snippet(node, light)
+        if ok:
+            return light, True, None
+        heavy = sanitize_vex_syntax(code)
+        if heavy and heavy != light:
+            ok2, err2 = try_apply_snippet(node, heavy)
+            if ok2:
+                return heavy, True, None
+            return heavy, False, err2 or err
+        return light, False, err
+
+    code, ok, err = attempt(vex_code)
+    for i in range(max_repairs):
+        if ok or not err:
+            break
+        if hou.isUIAvailable():
+            hou.ui.setStatusMessage(f"Auto-repairing VEX (attempt {i + 1}/{max_repairs})...", severity=hou.severityType.Message)
+        try:
+            _, repaired = repair_vex(task_text, context_str, code, err, geo_context=geo_context)
+        except GenerationCancelled:
+            # Esc during the auto-repair: stop, and say so in front of the compile error of the code we have
+            err = f"Auto-repair cancelled by user. {err or ''}".strip()
+            break
+        except Exception as exc:
+            # an engine hiccup or an empty answer: stop repairing and report the compile error of the code we
+            # have (with the reason the repair stopped), instead of losing the attempt to an exception
+            err = f"{err or ''} (auto-repair stopped: {exc})".strip()
+            break
+        if not repaired:
+            break
+        code, ok, err = attempt(repaired)
+    return code, ok, (None if ok else err)
 
 def _heal_truncated_vex(code: str) -> str:
     """Detects and repairs truncated VEX code from token limit cutoffs."""
@@ -1191,7 +1221,47 @@ def _resolve_chramp_polymorphic_ambiguity(code: str) -> str:
     return ''.join(result)
 
 
-def query_llm(prompt_text: str, max_tokens: int | None = None, reasoning_mode: bool = False) -> tuple[str, str]:
+class GenerationCancelled(RuntimeError):
+    """The user pressed Esc / Cancel while the model was generating."""
+
+
+class EmptyModelResponse(RuntimeError):
+    """The engine answered, but with neither text nor thinking (not an engine failure)."""
+
+
+def _post_json_interruptible(url: str, data: bytes, headers: dict, timeout: float, label: str) -> dict:
+    """POST JSON on a worker thread while Houdini's main thread shows an interruptible progress
+    dialog: the UI stays responsive and Esc / Cancel aborts instead of freezing Houdini."""
+    import threading
+
+    box = {}
+
+    def worker():
+        try:
+            req = urllib.request.Request(url, data=data, headers=headers)
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            with opener.open(req, timeout=timeout) as resp:
+                box["result"] = json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:  # re-raised on the main thread
+            box["error"] = exc
+
+    t = threading.Thread(target=worker, name="ai_wrangle_llm", daemon=True)
+    t.start()
+    try:
+        with hou.InterruptableOperation(label, open_interrupt_dialog=True) as op:
+            while t.is_alive():
+                t.join(0.1)
+                op.updateProgress(-1.0)  # raises hou.OperationInterrupted when the user cancels
+    except hou.OperationInterrupted:
+        raise GenerationCancelled("Generation cancelled by user.")
+    if "error" in box:
+        raise box["error"]
+    return box.get("result", {})
+
+
+def query_llm(prompt_text: str, max_tokens: int | None = None, reasoning_mode: bool = False,
+              temperature: float | None = None, seed: int | None = None,
+              system_prompt: str | None = None, template_kwargs: dict | None = None) -> tuple[str, str]:
     """
     Queries AI inference engine.
     Priority 1: Embedded Standalone Engine (127.0.0.1:58421 - Zero Dependencies)
@@ -1199,11 +1269,12 @@ def query_llm(prompt_text: str, max_tokens: int | None = None, reasoning_mode: b
     Returns (thought_trace, pure_vex_code).
     """
     global _engine_error
-    system_prompt = REASONING_SYSTEM_PROMPT if reasoning_mode else TURBO_SYSTEM_PROMPT
-    
+    if system_prompt is None:
+        system_prompt = REASONING_SYSTEM_PROMPT if reasoning_mode else TURBO_SYSTEM_PROMPT
+
     # 1. Start and query the bundled standalone engine (llama-server).
     engine_ready = ensure_embedded_engine()
-    port = getattr(_engine_singleton, "port", None) or os.getenv("AI_WRANGLE_PORT") or getattr(EngineManager, "DEFAULT_PORT", 58321)
+    port = _engine_port()
     chat_url = f"http://127.0.0.1:{port}/v1/chat/completions"
     
     if max_tokens is not None:
@@ -1217,11 +1288,16 @@ def query_llm(prompt_text: str, max_tokens: int | None = None, reasoning_mode: b
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt_text}
         ],
-        "temperature": 0.6 if reasoning_mode else 0.1,
+        "temperature": temperature if temperature is not None else (0.6 if reasoning_mode else 0.1),
         "top_p": 0.95,
         "max_tokens": pred_tokens,
-        "chat_template_kwargs": {"enable_thinking": reasoning_mode}
     }
+    # template_kwargs={} sends none, i.e. the chat template's own defaults (how the model was trained)
+    tk = {"enable_thinking": reasoning_mode} if template_kwargs is None else template_kwargs
+    if tk:
+        chat_payload["chat_template_kwargs"] = tk
+    if seed is not None:
+        chat_payload["seed"] = int(seed)
     
     if engine_ready:
         try:
@@ -1229,16 +1305,35 @@ def query_llm(prompt_text: str, max_tokens: int | None = None, reasoning_mode: b
             headers = {"Content-Type": "application/json"}
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
-            data = json.dumps(chat_payload).encode("utf-8")
-            req = urllib.request.Request(chat_url, data=data, headers=headers)
-            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-            with opener.open(req, timeout=300) as resp:
-                res_data = json.loads(resp.read().decode("utf-8"))
-                choice = res_data.get("choices", [{}])[0].get("message", {})
-                raw = choice.get("content", "")
-                if raw:
-                    return extract_thought_and_code(raw)
-                raise RuntimeError("Bundled inference engine returned an empty response.")
+            def ask(payload):
+                """(answer text, separately returned thinking) of one chat request"""
+                res_data = _post_json_interruptible(chat_url, json.dumps(payload).encode("utf-8"), headers, timeout=300,
+                                                    label="AI VEX Copilot: generating (Esc / Cancel to stop)")
+                message = (res_data.get("choices") or [{}])[0].get("message") or {}
+                # llama-server may return the thinking as message.reasoning_content instead of inline <think> tags
+                return (message.get("content") or ""), (message.get("reasoning_content") or "").strip()
+
+            raw, thinking = ask(chat_payload)
+            thought, code = extract_thought_and_code(raw) if raw.strip() else ("", "")
+            if not code.strip() and tk.get("enable_thinking") is True:
+                # Thinking was asked for, the token budget went into it and no answer followed: ask once more for
+                # the answer alone. (Not for template_kwargs={}: that request is the training-format candidate
+                # and has to stay in its format; an empty answer there simply drops the candidate.) If the second
+                # request fails, the thinking of the first is still returned.
+                try:
+                    raw, _ = ask(dict(chat_payload, chat_template_kwargs={"enable_thinking": False}))
+                    more_thought, code = extract_thought_and_code(raw) if raw.strip() else ("", "")
+                    thought = thought or more_thought
+                except GenerationCancelled:
+                    raise
+                except Exception:
+                    code = ""
+            thought = thought or thinking
+            if code.strip() or thought:
+                return thought, code  # code can be "" (thinking only): callers report "no code"
+            raise EmptyModelResponse("The model returned an empty answer. Try again or rephrase the request.")
+        except (GenerationCancelled, EmptyModelResponse):
+            raise
         except Exception as exc:
             _engine_error = f"Bundled inference request failed: {exc}"
 
@@ -1625,13 +1720,33 @@ _UPSTREAM_HINTS = {
 }
 
 
+def _volume_count(geo) -> int:
+    try:
+        return geo.countPrimType(hou.primType.Volume) + geo.countPrimType(hou.primType.VDB)
+    except Exception:
+        return 0
+
+
+def _volume_prims(geo, limit: int = 2000) -> list:
+    """Volume/VDB primitives without walking huge polygon meshes when there are none."""
+    if _volume_count(geo) == 0:
+        return []
+    out = []
+    for p in geo.iterPrims():
+        if p.type() in (hou.primType.Volume, hou.primType.VDB):
+            out.append(p)
+            if len(out) >= limit:
+                break
+    return out
+
+
 def _classify_geo_type(geo, npts: int, nprims: int) -> str:
     """Classify geometry type accurately from primitive types and bounding dimensions."""
     if nprims == 0:
         return "Point Cloud (no primitives)" if npts > 0 else "Empty Geometry"
 
     # Sample up to first 50 prims for classification
-    sample = geo.prims()[:50]
+    sample = _sample_prims(geo, 50)
     prim_types = set(p.type() for p in sample)
 
     if hou.primType.Volume in prim_types or hou.primType.VDB in prim_types:
@@ -1788,8 +1903,8 @@ def introspect_geometry(node: hou.Node) -> str:
             if i not in connected_inputs:
                 connected_inputs.append(i)
 
-            npts = len(geo.points())
-            nprims = len(geo.prims())
+            npts = _point_count(geo)
+            nprims = _prim_count(geo)
             total_pts += npts
 
             node_name = in_node.name()
@@ -1801,7 +1916,7 @@ def introspect_geometry(node: hou.Node) -> str:
             input_summaries[i] = geo_type
 
             # --- Volume / VDB Primitive Handling ---
-            vol_prims = [p for p in geo.prims() if p.type() in (hou.primType.Volume, hou.primType.VDB)]
+            vol_prims = _volume_prims(geo)
             if vol_prims:
                 name_attrib = geo.findPrimAttrib("name")
                 field_names = []
@@ -1984,9 +2099,9 @@ def auto_detect_context(prompt: str, node: hou.Node = None) -> tuple[int, str]:
             if in0 is not None:
                 g0 = in0.geometry()
                 if g0:
-                    npts = len(g0.points())
-                    nprims = len(g0.prims())
-                    vols = [pr for pr in g0.prims() if pr.type() in (hou.primType.Volume, hou.primType.VDB)]
+                    npts = _point_count(g0)
+                    nprims = _prim_count(g0)
+                    vols = _volume_count(g0) > 0
                     if npts > 0 or nprims > 0 or vols:
                         has_input_0_geo = True
         except Exception:
@@ -2185,21 +2300,54 @@ def _build_init_guards(task: str, geo_context: str) -> str:
     return "\n".join(guards[:3])
 
 
-def generate_vex(task: str, context: str = "point wrangle", geo_context: str = "", reasoning_mode: bool = False, enable_rag: bool | None = None) -> tuple[str, str]:
+def generate_vex(task: str, context: str = "point wrangle", geo_context: str = "", reasoning_mode: bool = False,
+                 enable_rag: bool | None = None, temperature: float | None = None, seed: int | None = None) -> tuple[str, str]:
     """Generates pure VEX code with optional Deep Reasoning thought trace and RAG Ground Truth."""
+    full_prompt = build_generation_prompt(task, context, geo_context, enable_rag)
+    return query_llm(full_prompt, reasoning_mode=reasoning_mode, temperature=temperature, seed=seed)
+
+
+def build_generation_prompt(task: str, context: str = "point wrangle", geo_context: str = "",
+                            enable_rag: bool | None = None) -> str:
+    """The user message Generate sends (RAG examples, geometry context, hints). Training data for
+    the plugin's prompt format is built with this same function."""
     prompt_parts = []
     use_rag = enable_rag if enable_rag is not None else (os.getenv("AI_WRANGLE_ENABLE_RAG", "1") != "0")
+    # The reference block (documented signatures of the functions the task probably needs) goes after the examples
+    # and the geometry context, directly in front of the task. At the top of the prompt the models mostly ignored
+    # it (open dev prompts, v53b: 52 -> 56 of 84 when moved; the listed function was used more often).
+    # AI_WRANGLE_REFERENCE_LAST=0 restores the old position at the top.
+    reference_last = os.getenv("AI_WRANGLE_REFERENCE_LAST", "1") != "0"
+    rag_block = ""
     if use_rag and get_vex_rag_engine:
         try:
             rag = get_vex_rag_engine()
             rag_block = rag.build_rag_context_block(task, context=context)
-            if rag_block:
+            if rag_block and not reference_last:
                 prompt_parts.append(rag_block)
+        except Exception:
+            rag_block = ""
+
+    # Worked examples from the verified card bank (data/vex_card_bank.json): the most similar solved tasks.
+    # On by default (sealed suites B-F, full pipeline: 114 -> 126 of 227 with the bank of 339 cards, 132 with 262;
+    # open dev prompts 41 -> 46 of 84).
+    # AI_WRANGLE_EXAMPLES=0 turns it off,
+    # AI_WRANGLE_EXAMPLES_K sets how many (default 2).
+    if use_rag and os.getenv("AI_WRANGLE_EXAMPLES", "1") != "0":
+        try:
+            import vex_example_bank
+            # k is validated inside (1..6; anything that is not a number falls back to 2)
+            ex_block = vex_example_bank.build_examples_block(task, context=context,
+                                                             k=os.getenv("AI_WRANGLE_EXAMPLES_K", "2"))
+            if ex_block:
+                prompt_parts.append(ex_block)
         except Exception:
             pass
 
     if geo_context:
         prompt_parts.append(geo_context)
+    if rag_block and reference_last:
+        prompt_parts.append(rag_block)
     prompt_parts.append(f"Context: {context}")
 
     # --- Verb pattern hints (Phase 3: #6) ---
@@ -2217,8 +2365,7 @@ def generate_vex(task: str, context: str = "point wrangle", geo_context: str = "
     prompt_parts.append(task_block)
     prompt_parts.append("Write pure Houdini VEX code:")
 
-    full_prompt = "\n\n".join(prompt_parts)
-    return query_llm(full_prompt, reasoning_mode=reasoning_mode)
+    return "\n\n".join(prompt_parts)
 
 
 def refine_vex(refinement_task: str, existing_code: str, context: str = "point wrangle", geo_context: str = "", reasoning_mode: bool = False, enable_rag: bool | None = None) -> tuple[str, str]:
@@ -2247,34 +2394,70 @@ def refine_vex(refinement_task: str, existing_code: str, context: str = "point w
 
 def repair_vex(task: str, context: str, faulty_code: str, compiler_error: str, geo_context: str = "") -> tuple[str, str]:
     """Autonomous 1-Shot CITL Self-Repair using live compiler feedback and RAG Ground Truth."""
+    full_prompt = build_repair_prompt(task, context, faulty_code, compiler_error, geo_context)
+    return query_llm(full_prompt, max_tokens=2048, reasoning_mode=True)
+
+
+def build_repair_prompt(task: str, context: str, faulty_code: str, compiler_error: str, geo_context: str = "") -> str:
+    """The user message of a compiler-feedback repair request (training data uses the same function)."""
     prompt_parts = []
     enable_rag = os.getenv("AI_WRANGLE_ENABLE_RAG", "1") != "0"
+    reference_last = os.getenv("AI_WRANGLE_REFERENCE_LAST", "1") != "0"  # same layout as build_generation_prompt
+    rag_block = ""
     if enable_rag and get_vex_rag_engine:
         try:
             rag = get_vex_rag_engine()
-            rag_block = rag.build_rag_context_block(f"{task} {compiler_error}", context=context)
-            if rag_block:
-                prompt_parts.append(rag_block)
+            # With the function lookup the block is built from the task alone: the words of a compiler message
+            # ("error", "undefined function", type names) are not about the task and pulled in error() and other
+            # unrelated functions. The function the message is about gets its documented usage in the hint below.
+            # (The older keyword matcher keeps its task + message query.)
+            lookup_on = os.getenv("AI_WRANGLE_FUNCTION_INDEX", "1") != "0"
+            rag_block = rag.build_rag_context_block(task if lookup_on else f"{task} {compiler_error}", context=context)
         except Exception:
-            pass
+            rag_block = ""
+    if rag_block and not reference_last:
+        prompt_parts.append(rag_block)
 
     if geo_context:
         prompt_parts.append(geo_context)
+    if rag_block and reference_last:
+        prompt_parts.append(rag_block)
+
+    # Factual fix-it note for API near-misses (a function that does not exist, an unbound attribute, an
+    # ambiguous overload, wrong arguments), from the compiler's function list and the function reference
+    # (python/vex_api_hints.py). On by default since 2026-11-11 (open dev prompts: every answer of v53b compiled,
+    # v54 46 -> 51 of 84 with no prompt lost); AI_WRANGLE_API_HINTS=0 turns it off.
+    hint = ""
+    if os.getenv("AI_WRANGLE_API_HINTS", "1") != "0":
+        try:
+            import vex_api_hints
+            hint = vex_api_hints.hints_for_error(compiler_error, task=task)
+        except Exception:
+            hint = ""
+    error_block = compiler_error + (f"\nHint: {hint}" if hint else "")
 
     prompt_parts.append(
         f"Context: {context}\n"
         f"Task: {task}\n\n"
         f"Faulty VEX Code:\n{faulty_code}\n\n"
-        f"Compiler Error from previous attempt:\n{compiler_error}\n\n"
+        f"Compiler Error from previous attempt:\n{error_block}\n\n"
         f"Write the 100% correct, pure Houdini VEX code from scratch solving the task and avoiding this compiler error:"
     )
-    full_prompt = "\n\n".join(prompt_parts)
-    return query_llm(full_prompt, max_tokens=2048, reasoning_mode=True)
+    return "\n\n".join(prompt_parts)
 
 
 # ---------------------------------------------------------------------------
 # SIMD Optimizer, Profiler & Explainer
 # ---------------------------------------------------------------------------
+
+def _require_vex(code: str) -> str:
+    """Optimize and Explain replace the user's snippet with the answer: an answer without a single VEX statement
+    (the model returned only thinking, or prose) must never get there, an empty snippet "compiles" and would wipe
+    working code."""
+    if not re.search(r"[;{}]", code or ""):
+        raise EmptyModelResponse("The model returned no VEX code; the snippet was left unchanged.")
+    return code
+
 
 def optimize_vex_code(existing_code: str, context: str = "point wrangle") -> str:
     """Refactors VEX code for SIMD parallelism and execution efficiency."""
@@ -2289,7 +2472,7 @@ def optimize_vex_code(existing_code: str, context: str = "point wrangle") -> str
         f"Write pure optimized Houdini VEX code:"
     )
     _, code = query_llm(prompt, max_tokens=1536, reasoning_mode=False)
-    return code
+    return _require_vex(code)
 
 
 def profile_node_cook(node: hou.Node) -> tuple[float, int, float]:
@@ -2300,7 +2483,7 @@ def profile_node_cook(node: hou.Node) -> tuple[float, int, float]:
     cook_ms = cook_time * 1000.0
     
     g = node.geometry()
-    npts = len(g.points()) if g else 0
+    npts = _point_count(g) if g else 0
     throughput = (npts / cook_time / 1e6) if cook_time > 0 and npts > 0 else 0.0
     return cook_ms, npts, throughput
 
@@ -2318,7 +2501,7 @@ def explain_and_document_vex(existing_code: str, context: str = "point wrangle")
         f"Write the documented VEX code:"
     )
     _, code = query_llm(prompt, max_tokens=1536, reasoning_mode=False)
-    return code
+    return _require_vex(code)
 
 
 # ---------------------------------------------------------------------------
@@ -2347,6 +2530,9 @@ def get_history_stack(node: hou.Node) -> list[dict]:
         return []
 
 
+_HISTORY_LIMIT = 50
+
+
 def push_to_history_stack(node: hou.Node, prompt: str, code: str, context_str: str, cook_ms: float = 0.0, thought: str = ""):
     parm = _get_history_parm(node)
     info_parm = _get_info_parm(node)
@@ -2357,7 +2543,7 @@ def push_to_history_stack(node: hou.Node, prompt: str, code: str, context_str: s
     if history and history[-1].get("code", "").strip() == code.strip():
         return
 
-    version_num = len(history) + 1
+    version_num = (history[-1].get("version", len(history)) + 1) if history else 1
     entry = {
         "version": version_num,
         "timestamp": time.strftime("%H:%M:%S"),
@@ -2365,13 +2551,15 @@ def push_to_history_stack(node: hou.Node, prompt: str, code: str, context_str: s
         "context": context_str,
         "code": code,
         "cook_ms": cook_ms,
-        "thought": thought
+        "thought": (thought or "")[:2000],
     }
     history.append(entry)
+    # Bounded: the stack lives in a string parm saved with the .hip and copied into every undo step.
+    history = history[-_HISTORY_LIMIT:]
     parm.set(json.dumps(history))
-    
+
     if info_parm:
-        info_parm.set(f"v{version_num} / {version_num} ({entry['timestamp']})")
+        info_parm.set(f"v{version_num} / {len(history)} kept ({entry['timestamp']})")
 
 
 def navigate_history_version(node: hou.Node, direction: int):
@@ -2414,8 +2602,11 @@ def navigate_history_version(node: hou.Node, direction: int):
     target_entry = history[target_idx]
     target_code = target_entry["code"]
 
-    node.parm("snippet").set(target_code)
-    sync_spare_parameters(node, target_code)
+    with hou.undos.group(f"AI VEX History v{target_entry.get('version', target_idx + 1)}"):
+        saved = _snapshot_spare_values(node)
+        node.parm("snippet").set(target_code)
+        sync_spare_parameters(node, target_code)
+        _restore_spare_values(node, saved)
 
     if node.parm("ai_thought_trace") and "thought" in target_entry:
         node.parm("ai_thought_trace").set(target_entry["thought"] or "Turbo mode (direct execution)")
@@ -2461,11 +2652,44 @@ def parse_vex_channels(vex_code: str) -> dict[str, str]:
     return channels
 
 
-def _compute_scale_calibrated_parm(name: str, p_type: str, bbox_max: float) -> hou.ParmTemplate:
-    """Calibrates parameter defaults, minimums, and maximums based on geometry bounding box scale."""
+_NUM = r"(-?\d+(?:\.\d*)?(?:[eE]-?\d+)?|-?\.\d+)"
+
+
+def channel_default_hints(vex_code: str) -> dict:
+    """Defaults the code itself asks for. Generated code often reads a slider and falls back when it is
+    unset, e.g. `float step = chf("step"); if (step == 0.0) step = 0.1;`. An unset slider would give
+    that fallback, so the slider is created with it as its default (a generic 1.0 changed the result).
+    Divide-by-zero guards like `if (abs(x) < 1e-4) x = 1.0;` are not intent and are ignored."""
+    stripped = re.sub(r'/\*.*?\*/', '', vex_code or "", flags=re.DOTALL)
+    stripped = re.sub(r'//[^\n]*', '', stripped)
+    hints = {}
+    decl = r'\b(?:float|int)\s+(\w+)\s*=\s*(?:chf|chi|ch)\s*\(\s*["\']([^"\']+)["\']\s*\)\s*;'
+    for m in re.finditer(decl, stripped):
+        var, ch = m.group(1), m.group(2)
+        g = re.search(rf'if\s*\(\s*{var}\s*(?:==|<=|<)\s*0(?:\.0*)?\s*\)\s*\{{?\s*{var}\s*=\s*{_NUM}\s*;',
+                      stripped[m.end():])
+        if g:
+            try:
+                hints.setdefault(ch, float(g.group(1)))
+            except ValueError:
+                pass
+    return hints
+
+
+def _compute_scale_calibrated_parm(name: str, p_type: str, bbox_max: float, hint: float | None = None) -> hou.ParmTemplate:
+    """Calibrates parameter defaults, minimums, and maximums based on geometry bounding box scale.
+    hint: the default the code itself falls back to (see channel_default_hints), used when given."""
     label = name.replace("_", " ").title()
     tooltip = f"Auto-generated interactive {p_type} control for VEX channel '{name}'."
     n_lower = name.lower()
+    if hint is not None and p_type in ("float", "int"):
+        span = max(abs(hint) * 2.0, 1.0)
+        lo = min(0.0, -span) if hint < 0 else 0.0
+        if p_type == "int":
+            return hou.IntParmTemplate(name, label, 1, default_value=(int(round(hint)),), min=int(lo), max=int(max(span, 10)),
+                                       min_is_strict=False, max_is_strict=False, help=tooltip)
+        return hou.FloatParmTemplate(name, label, 1, default_value=(hint,), min=lo, max=span,
+                                     min_is_strict=False, max_is_strict=False, help=tooltip)
 
     if p_type == "float":
         if any(k in n_lower for k in ["radius", "dist", "distance", "offset", "maxdist", "thresh", "threshold", "size", "scale"]):
@@ -2541,10 +2765,13 @@ def sync_spare_parameters(node: hou.Node, vex_code: str):
     except Exception:
         pass
 
+    hints = channel_default_hints(vex_code)
+    reset = {}  # parms whose default changed and whose value was never touched -> new default
+
     if folder is None:
         folder = hou.FolderParmTemplate(folder_name, "Generated UI Parameters", folder_type=hou.folderType.Simple)
         for name, p_type in channels.items():
-            folder.addParmTemplate(_compute_scale_calibrated_parm(name, p_type, bbox_max))
+            folder.addParmTemplate(_compute_scale_calibrated_parm(name, p_type, bbox_max, hints.get(name)))
 
         snippet_parm = ptg.find("snippet")
         if snippet_parm:
@@ -2556,14 +2783,40 @@ def sync_spare_parameters(node: hou.Node, vex_code: str):
         new_folder = hou.FolderParmTemplate(folder_name, "Generated UI Parameters", folder_type=hou.folderType.Simple)
         
         for name, p_type in channels.items():
-            if name in existing_templates:
-                new_folder.addParmTemplate(existing_templates[name])
+            old_t = existing_templates.get(name)
+            hint = hints.get(name)
+            if old_t is not None and hint is not None and _untouched_default(node, old_t, hint):
+                new_folder.addParmTemplate(_compute_scale_calibrated_parm(name, p_type, bbox_max, hint))
+                reset[name] = hint
+            elif old_t is not None:
+                new_folder.addParmTemplate(old_t)
             else:
-                new_folder.addParmTemplate(_compute_scale_calibrated_parm(name, p_type, bbox_max))
-        
+                new_folder.addParmTemplate(_compute_scale_calibrated_parm(name, p_type, bbox_max, hint))
+
         ptg.replace(folder_name, new_folder)
 
     node.setParmTemplateGroup(ptg)
+    for name, val in reset.items():
+        p = node.parm(name)
+        if p is not None:
+            try:
+                p.set(int(round(val)) if p.parmTemplate().type() == hou.parmTemplateType.Int else val)
+            except Exception:
+                pass
+
+
+def _untouched_default(node, template, new_default: float) -> bool:
+    """True if a 1-component numeric slider still sits at its template default (the artist never moved
+    it) and the new code asks for a different default."""
+    try:
+        if template.numComponents() != 1 or template.type() not in (hou.parmTemplateType.Float, hou.parmTemplateType.Int):
+            return False
+        old_default = float(template.defaultValue()[0])
+        p = node.parm(template.name())
+        return (p is not None and abs(float(p.eval()) - old_default) < 1e-9
+                and abs(old_default - float(new_default)) > 1e-9)
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -2595,15 +2848,10 @@ def force_refresh_wrangle(node: hou.Node) -> None:
     except Exception:
         pass
 
-    # 3. Propagate dirty state downstream to direct outputs (e.g. switch, null, render nodes)
-    for out_node in node.outputs():
-        try:
-            out_node.cook(force=True)
-            _ = out_node.geometry()
-        except Exception:
-            pass
+    # Downstream nodes are dirtied by Houdini automatically; force-cooking them here used to re-run
+    # solvers / file caches below the wrangle on every generation attempt.
 
-    # 4. Trigger UI update & force scene viewer viewport redraw
+    # 3. Trigger UI update & force scene viewer viewport redraw
     if hou.isUIAvailable():
         try:
             hou.ui.triggerUpdate()
@@ -2621,6 +2869,37 @@ def force_refresh_wrangle(node: hou.Node) -> None:
 # Compile & Apply Safety Net
 # ---------------------------------------------------------------------------
 
+def _point_count(geo) -> int:
+    try:
+        return int(geo.intrinsicValue("pointcount"))
+    except Exception:
+        return len(geo.points())
+
+
+def _prim_count(geo) -> int:
+    try:
+        return int(geo.intrinsicValue("primitivecount"))
+    except Exception:
+        return len(geo.prims())
+
+
+def _sample_points(geo, k: int = 50) -> list:
+    """Up to k points spread evenly over the geometry, without materialising all points."""
+    n = _point_count(geo)
+    if n <= 0:
+        return []
+    step = max(1, n // k)
+    return [geo.point(i) for i in range(0, n, step)][:k]
+
+
+def _sample_prims(geo, k: int = 50) -> list:
+    n = _prim_count(geo)
+    if n <= 0:
+        return []
+    step = max(1, n // k)
+    return [geo.prim(i) for i in range(0, n, step)][:k]
+
+
 def verify_physical_invariants(node: hou.Node) -> tuple[bool, str | None]:
     """Physical & Topological Invariant Verifier.
     
@@ -2635,8 +2914,9 @@ def verify_physical_invariants(node: hou.Node) -> tuple[bool, str | None]:
         if not geo:
             return True, None
 
-        # Check NaN / Infinite Coordinates
-        sample_pts = geo.points()[:50]
+        # Check NaN / Infinite Coordinates (sample spread over the whole geometry; never build a
+        # Python list of every point: that alone takes seconds on million-point meshes)
+        sample_pts = _sample_points(geo, 50)
         for pt in sample_pts:
             pos = pt.position()
             if any(math.isnan(v) or math.isinf(v) for v in pos):
@@ -2650,8 +2930,8 @@ def verify_physical_invariants(node: hou.Node) -> tuple[bool, str | None]:
         if in0:
             g0 = in0.geometry()
             if g0:
-                n_in = len(g0.points())
-                n_out = len(geo.points())
+                n_in = _point_count(g0)
+                n_out = _point_count(geo)
                 b_in = g0.boundingBox()
                 b_out = geo.boundingBox()
                 sz_in = b_in.sizevec()
@@ -2695,7 +2975,7 @@ def verify_physical_invariants(node: hou.Node) -> tuple[bool, str | None]:
 
                 # Invariant 4: Attribute Numerical Sanity (@v, p@orient, @Cd NaNs)
                 for attr_name in ("v", "orient", "Cd"):
-                    attr = geo.findPointAttribute(attr_name)
+                    attr = geo.findPointAttrib(attr_name)
                     if attr:
                         for pt in sample_pts[:20]:
                             val = pt.attribValue(attr_name)
@@ -2706,7 +2986,7 @@ def verify_physical_invariants(node: hou.Node) -> tuple[bool, str | None]:
                                 )
 
                 # Invariant 5: Normal Vector Degeneracy / Collapse
-                n_attr = geo.findPointAttribute("N")
+                n_attr = geo.findPointAttrib("N")
                 if n_attr and len(sample_pts) > 0:
                     zero_n_count = 0
                     for pt in sample_pts[:20]:
@@ -2725,6 +3005,36 @@ def verify_physical_invariants(node: hou.Node) -> tuple[bool, str | None]:
     return True, None
 
 
+def _snapshot_spare_values(node) -> dict:
+    """Current values of the generated UI parameters (sliders, ramps), keyed by parm tuple name."""
+    out = {}
+    folder = node.parmTemplateGroup().find("ai_spare_parms")
+    if folder is None:
+        return out
+    for pt in folder.parmTemplates():
+        tup = node.parmTuple(pt.name())
+        if tup is not None:
+            try:
+                out[pt.name()] = tup.eval()
+            except Exception:
+                pass
+    return out
+
+
+def _restore_spare_values(node, values: dict) -> None:
+    for name, val in values.items():
+        tup = node.parmTuple(name)
+        if tup is None:
+            continue
+        try:
+            if isinstance(val, hou.Ramp):
+                tup.set(val)
+            else:
+                tup.set(val if isinstance(val, (tuple, list)) else (val,))
+        except Exception:
+            pass
+
+
 def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "snippet") -> tuple[bool, str | None]:
     parm = node.parm(snippet_parm_name)
     if parm is None:
@@ -2732,6 +3042,7 @@ def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "s
 
     previous_value = parm.eval()
     previous_ptg = node.parmTemplateGroup()
+    previous_spare_values = _snapshot_spare_values(node)
     parm.set(vex_code)
 
     # Synchronize spare parameters first so channel default values exist
@@ -2753,20 +3064,15 @@ def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "s
     vop_errs = [e for e in raw_vop_errs if "invalid source" not in e.lower()]
     node_errs = [e for e in raw_node_errs if "invalid source" not in e.lower()]
 
-    has_real_error = False
-    for e in list(raw_node_errs) + list(raw_vop_errs):
-        if any(k in e.lower() for k in [
-            "syntax error", "undefined", "no matching function", "ambiguous",
-            "cannot convert", "type mismatch", "undeclared", "call to undefined",
-            "error while cooking", "operation failed"
-        ]):
-            has_real_error = True
-            break
+    # Any compile/cook error counts (e.g. "Empty array index", "Invalid assignment", "Error in VOP"
+    # used to slip past a keyword whitelist and be reported as success, skipping self-repair).
+    has_real_error = bool(node_errs or vop_errs)
 
     if has_real_error:
         err_msg = "\n".join(list(raw_node_errs) + list(raw_vop_errs) + list(node.warnings()))
         parm.set(previous_value)
         node.setParmTemplateGroup(previous_ptg)
+        _restore_spare_values(node, previous_spare_values)
         force_refresh_wrangle(node)
         return False, err_msg
 
@@ -2775,6 +3081,7 @@ def try_apply_snippet(node: hou.Node, vex_code: str, snippet_parm_name: str = "s
     if not inv_ok:
         parm.set(previous_value)
         node.setParmTemplateGroup(previous_ptg)
+        _restore_spare_values(node, previous_spare_values)
         force_refresh_wrangle(node)
         return False, inv_err
 
@@ -2832,118 +3139,91 @@ def sanitize_nan_inf_vex(code: str) -> str:
     return code
 
 
+def _float_attrib_array(geo, attr):
+    """All values of a numeric (non-array) point/prim attribute as an (n, size) float64 array."""
+    import numpy as np
+    owner = attr.type()
+    if attr.isArrayType():
+        return None
+    if attr.dataType() == hou.attribData.Float:
+        raw = (geo.pointFloatAttribValuesAsString(attr.name()) if owner == hou.attribType.Point
+               else geo.primFloatAttribValuesAsString(attr.name()))
+        arr = np.frombuffer(raw, dtype=np.float32)
+    elif attr.dataType() == hou.attribData.Int:
+        raw = (geo.pointIntAttribValuesAsString(attr.name()) if owner == hou.attribType.Point
+               else geo.primIntAttribValuesAsString(attr.name()))
+        arr = np.frombuffer(raw, dtype=np.int32)
+    else:
+        return None
+    size = max(1, attr.size())
+    return arr.astype(np.float64).reshape(-1, size) if arr.size else arr.reshape(0, size).astype(np.float64)
+
+
 def scan_geometry_health(node: hou.Node) -> tuple[bool, str]:
-    """Inspects cooked geometry for any NaN or Inf floats in point/primitive attributes.
-
-    Uses stride-based sampling across the entire point cloud (up to 10,000 samples)
-    for representative coverage on high-density geometry.
-    """
-    _MAX_SAMPLES = 10000
-
+    """Checks every point and primitive float attribute for NaN / Inf (vectorised, all elements)."""
     try:
+        import numpy as np
         geo = node.geometry()
         if not geo:
             return True, "No geometry to scan."
-        
-        nan_issues = []
-        inf_issues = []
-
-        all_points = geo.points()
-        total_pts = len(all_points)
-
-        # Stride-based sampling: evenly sample across the full point cloud
-        if total_pts <= _MAX_SAMPLES:
-            sample_points = all_points
-        else:
-            stride = total_pts / _MAX_SAMPLES
-            sample_points = [all_points[int(i * stride)] for i in range(_MAX_SAMPLES)]
-
-        # Check point attributes
-        for attr in geo.pointAttribs():
-            dt = attr.dataType()
-            if dt != hou.attribData.Float:
+        nan_issues, inf_issues = [], []
+        for attr in list(geo.pointAttribs()) + list(geo.primAttribs()):
+            if attr.dataType() != hou.attribData.Float:
                 continue
-            for pt in sample_points:
-                vals = pt.attribValue(attr)
-                v_list = vals if isinstance(vals, (tuple, list)) else [vals]
-                has_nan = any(math.isnan(v) for v in v_list)
-                has_inf = any(math.isinf(v) for v in v_list)
-                if has_nan:
-                    if attr.name() not in nan_issues: nan_issues.append(attr.name())
-                    break
-                if has_inf:
-                    if attr.name() not in inf_issues: inf_issues.append(attr.name())
-                    break
-
+            vals = _float_attrib_array(geo, attr)
+            if vals is None or vals.size == 0:
+                continue
+            if np.isnan(vals).any():
+                nan_issues.append(attr.name())
+            elif np.isinf(vals).any():
+                inf_issues.append(attr.name())
+        total = f" (scanned all {_point_count(geo):,} points, {_prim_count(geo):,} prims)"
         if nan_issues or inf_issues:
-            msg_parts = []
+            parts = []
             if nan_issues:
-                msg_parts.append(f"NaN in @{', @'.join(nan_issues)}")
+                parts.append(f"NaN in @{', @'.join(nan_issues)}")
             if inf_issues:
-                msg_parts.append(f"Inf in @{', @'.join(inf_issues)}")
-            scanned_str = f" (scanned {min(total_pts, _MAX_SAMPLES)}/{total_pts} points)"
-            return False, f"⚠️ Health Alert: Detected {'; '.join(msg_parts)}!{scanned_str}"
-
-        scanned_str = f" (scanned {min(total_pts, _MAX_SAMPLES)}/{total_pts} points)"
-        return True, f"✅ Geometry Healthy: 0 NaNs / 0 Infs detected.{scanned_str}"
+                parts.append(f"Inf in @{', @'.join(inf_issues)}")
+            return False, f"⚠️ Health Alert: Detected {'; '.join(parts)}!{total}"
+        return True, f"✅ Geometry Healthy: 0 NaNs / 0 Infs detected.{total}"
     except Exception as e:
         return True, f"Scan skipped: {e}"
 
 
 def inspect_attribute_statistics(node: hou.Node) -> str:
-    """Computes comprehensive min, max, average, and NaN/Inf stats for all attributes."""
+    """min / max / average (magnitude for vectors) and NaN/Inf counts over all elements."""
+    import numpy as np
     geo = node.geometry()
     if not geo:
         return "No geometry available on this node."
-
     lines = [f"=== Attribute Health & Statistics: {node.path()} ==="]
-    npts = len(geo.points())
-    nprims = len(geo.prims())
-    lines.append(f"Total Geometry: {npts:,} points, {nprims:,} primitives.\n")
-
-    lines.append("--- Point Attributes ---")
-    for attr in geo.pointAttribs():
-        dt = attr.dataType()
-        sz = attr.size()
-        name = attr.name()
-        if dt == hou.attribData.Float:
-            sample_pts = geo.points()[:5000]
-            nan_count = 0
-            inf_count = 0
-            magnitudes = []
-            for pt in sample_pts:
-                v = pt.attribValue(attr)
-                if sz == 1:
-                    if math.isnan(v): nan_count += 1
-                    elif math.isinf(v): inf_count += 1
-                    else: magnitudes.append(v)
-                else:
-                    if any(math.isnan(x) for x in v): nan_count += 1
-                    elif any(math.isinf(x) for x in v): inf_count += 1
-                    else:
-                        mag = math.sqrt(sum(x*x for x in v))
-                        magnitudes.append(mag)
-            
-            if magnitudes:
-                min_v = min(magnitudes)
-                max_v = max(magnitudes)
-                avg_v = sum(magnitudes) / len(magnitudes)
-                status_str = f"min={min_v:.3f}, max={max_v:.3f}, avg={avg_v:.3f}"
-            else:
-                status_str = "empty"
-            
-            err_str = ""
-            if nan_count > 0: err_str += f" [🚨 {nan_count} NaNs!]"
-            if inf_count > 0: err_str += f" [⚠️ {inf_count} Infs!]"
-            type_lbl = "vector" if sz == 3 else "float" if sz == 1 else f"float[{sz}]"
-            lines.append(f"  @{name} ({type_lbl}): {status_str}{err_str}")
-        elif dt == hou.attribData.Int:
-            lines.append(f"  @{name} (int)")
-        else:
-            lines.append(f"  @{name} (string)")
-
+    lines.append(f"Total Geometry: {_point_count(geo):,} points, {_prim_count(geo):,} primitives.\n")
+    for title, attribs in (("Point", geo.pointAttribs()), ("Primitive", geo.primAttribs())):
+        if not attribs:
+            continue
+        lines.append(f"--- {title} Attributes ---")
+        for attr in attribs:
+            name, sz, dt = attr.name(), attr.size(), attr.dataType()
+            if attr.isArrayType():
+                lines.append(f"  @{name} ({dt.name().lower()} array)")
+                continue
+            if dt == hou.attribData.String:
+                lines.append(f"  @{name} (string)")
+                continue
+            vals = _float_attrib_array(geo, attr)
+            if vals is None or vals.size == 0:
+                lines.append(f"  @{name}: empty")
+                continue
+            bad_nan = int(np.isnan(vals).any(axis=1).sum())
+            bad_inf = int((np.isinf(vals).any(axis=1) & ~np.isnan(vals).any(axis=1)).sum())
+            good = vals[np.isfinite(vals).all(axis=1)]
+            mags = good[:, 0] if sz == 1 else np.sqrt((good * good).sum(axis=1))
+            stats = f"min={mags.min():.3f}, max={mags.max():.3f}, avg={mags.mean():.3f}" if mags.size else "no finite values"
+            err = (f" [🚨 {bad_nan} NaNs!]" if bad_nan else "") + (f" [⚠️ {bad_inf} Infs!]" if bad_inf else "")
+            kind = ("int" if dt == hou.attribData.Int else "float") if sz == 1 else ("vector" if sz == 3 else f"{dt.name().lower()}[{sz}]")
+            label = "magnitude " if sz > 1 else ""
+            lines.append(f"  @{name} ({kind}): {label}{stats}{err}")
     return "\n".join(lines)
-
 
 def toggle_viewport_visualizer(node: hou.Node, vis_type: str, attr_name: str, enable: bool):
     """Configures a Viewport Visualizer for vector or heatmap inspection."""
@@ -3028,13 +3308,13 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
             except Exception:
                 pass
 
+    # Only remove stale AI-layout parms (all prefixed "ai_"). Anything else - generated sliders inside
+    # ai_spare_parms, the user's own spare parms, the native bindings multiparm - is left untouched.
+    spare_folder = ptg.find("ai_spare_parms")
+    generated = {pt.name() for pt in spare_folder.parmTemplates()} if spare_folder else set()
     for e in list(ptg.entriesWithoutFolders()):
-        if e.name().startswith("ai_") and e.name() != "ai_spare_parms":
-            try:
-                ptg.remove(e)
-            except Exception:
-                pass
-        elif e.name() not in _known_base_parms:
+        name = e.name()
+        if name.startswith("ai_") and name != "ai_spare_parms" and name not in generated:
             try:
                 ptg.remove(e)
             except Exception:
@@ -3272,17 +3552,16 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         "import houdini_ai_wrangle\n"
         "return houdini_ai_wrangle.get_available_models_menu_items()\n"
     )
-    model_select_parm = hou.MenuParmTemplate(
-        name="ai_model_select",
-        label="AI Model",
-        menu_items=("auto",),
-        menu_labels=("Auto (Latest Recommended)",),
-        default_value=0,
+    # String menu: stores the model file name, so adding models later never changes a saved choice.
+    model_select_parm = hou.StringParmTemplate(
+        "ai_model_select", "AI Model", 1,
+        default_value=("auto",),
+        menu_type=hou.menuType.Normal,
         item_generator_script=model_menu_script,
         item_generator_script_language=hou.scriptLanguage.Python,
         script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_model_select_changed(kwargs)",
         script_callback_language=hou.scriptLanguage.Python,
-        help="Select which AI neural model version to use for VEX code generation."
+        help="Model weights file from models/. 'Auto' uses the newest fine-tuned model."
     )
     model_select_parm.setJoinWithNext(True)
 
@@ -3323,8 +3602,15 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         help="When enabled, injects official SideFX VEX function signatures and architectural reference patterns into the prompt. Turn off to test pure neural model weights."
     )
 
+    candidates_parm = hou.IntParmTemplate(
+        "ai_num_candidates", "AI Candidates", 1, default_value=(DEFAULT_CANDIDATES,), min=1, max=8,
+        min_is_strict=True, max_is_strict=True,
+        help="Answers generated for a new snippet; each is cooked on this node and the one most candidates "
+             "agree on is kept (1 = fastest).")
+
     adv_folder.addParmTemplate(autodetect_parm)
     adv_folder.addParmTemplate(use_rag_parm)
+    adv_folder.addParmTemplate(candidates_parm)
     adv_folder.addParmTemplate(sep_adv2)
     adv_folder.addParmTemplate(sanitize_btn)
     adv_folder.addParmTemplate(stats_btn)
@@ -3429,7 +3715,130 @@ def _extract_node(kwargs) -> hou.Node | None:
     return None
 
 
+DEFAULT_CANDIDATES = 3
+
+
+def _num_candidates(node=None) -> int:
+    """How many answers to generate for a new snippet (AI Candidates parm, else env, else 3)."""
+    try:
+        p = node.parm("ai_num_candidates") if node is not None else None
+        if p is not None:
+            return max(1, min(8, int(p.eval())))
+    except Exception:
+        pass
+    try:
+        return max(1, min(8, int(os.environ.get("AI_WRANGLE_CANDIDATES", DEFAULT_CANDIDATES))))
+    except ValueError:
+        return DEFAULT_CANDIDATES
+
+
+# The exact prompt format the fine-tuned models were trained on (see ai_model_training/ and
+# benchmarks/heldout_semantic/run_eval.py). The plugin's long prompt (geometry context, RAG examples, API
+# rules) is out of that distribution and can pull a fine-tune back to verbose base-model habits.
+TRAINING_SYSTEM_PROMPT = ("You are an expert SideFX Houdini VEX programmer and technical director. "
+                          "Write pure VEX code without explanation or markdown formatting.")
+
+
+def generate_vex_training_format(task: str, context: str = "point wrangle", temperature: float = 0.0,
+                                 seed: int = 0) -> tuple[str, str]:
+    """One answer in the training prompt format: no geometry context, no RAG, chat-template defaults."""
+    ctx = context.strip()
+    if ctx.startswith("lop") and "attribute" not in ctx:
+        ctx = "lop attribute wrangle"
+    if not ctx.endswith("wrangle"):
+        ctx += " wrangle"
+    return query_llm(f"Context: {ctx}.\nTask: {task}", temperature=temperature, seed=seed,
+                     system_prompt=TRAINING_SYSTEM_PROMPT, template_kwargs={})
+
+
+def _generate_candidates(task: str, context_str: str, geo_context: str, enable_rag, first_code: str, n: int) -> list[str]:
+    """first_code (the normal low-temperature answer), then one greedy answer in the training prompt
+    format, then sampled alternatives, n in total. Cancelling (Esc) during the extra answers keeps
+    whatever was generated so far."""
+    out = [first_code]
+    for k in range(1, n):
+        try:
+            if k == 1:
+                _, extra = generate_vex_training_format(task, context_str)
+            else:
+                _, extra = generate_vex(task, context=context_str, geo_context=geo_context, reasoning_mode=False,
+                                        enable_rag=enable_rag, temperature=0.7, seed=1000 + k)
+        except GenerationCancelled:
+            break
+        except Exception:
+            continue
+        if extra and extra.strip():
+            out.append(extra)
+    return out
+
+
+def _geometry_fingerprint(geo) -> str:
+    """Hash of what a snippet produced: element counts, attribute names/types and (rounded) values."""
+    import hashlib
+    import numpy as np
+
+    h = hashlib.sha1()
+    try:
+        nvtx = int(geo.intrinsicValue("vertexcount"))
+    except Exception:
+        nvtx = -1
+    h.update(f"{_point_count(geo)}|{_prim_count(geo)}|{nvtx}".encode())
+    for kind, attribs in (("pt", geo.pointAttribs()), ("pr", geo.primAttribs()), ("vx", geo.vertexAttribs()), ("dt", geo.globalAttribs())):
+        for a in sorted(attribs, key=lambda x: x.name()):
+            h.update(f"{kind}:{a.name()}:{a.dataType()}:{a.size()}:{a.isArrayType()}".encode())
+            try:
+                if kind in ("pt", "pr") and not a.isArrayType():
+                    if a.dataType() == hou.attribData.String:
+                        vals = geo.pointStringAttribValues(a.name()) if kind == "pt" else geo.primStringAttribValues(a.name())
+                        h.update("|".join(vals).encode("utf-8"))
+                    else:
+                        arr = _float_attrib_array(geo, a)
+                        if arr is not None:
+                            h.update(np.round(arr, 3).tobytes())
+                elif kind == "dt":
+                    h.update(repr(geo.attribValue(a.name())).encode())
+            except Exception:
+                pass
+    for g in sorted(x.name() for x in geo.pointGroups()):
+        h.update(f"g:{g}".encode())
+    return h.hexdigest()
+
+
+def _choose_by_execution(node, codes: list[str]) -> tuple[str, str]:
+    """Execution-based self-consistency: compile + cook every candidate on this node and return the
+    one whose output geometry the most candidates agree on (ties -> earliest, i.e. the low-temperature
+    answer). Candidates that do not compile are skipped; if none compile, the first is returned so the
+    normal repair path can work on it."""
+    groups: dict[str, list[int]] = {}
+    compiled = 0
+    for i, code in enumerate(codes):
+        if not re.search(r"[;{}]", code or ""):
+            continue
+        ok, _ = try_apply_snippet(node, code)
+        if not ok:
+            continue
+        compiled += 1
+        try:
+            fp = _geometry_fingerprint(node.geometry())
+        except Exception:
+            fp = f"unhashable-{i}"
+        groups.setdefault(fp, []).append(i)
+    if not groups:
+        return codes[0], f"0/{len(codes)} candidates compiled"
+    best = max(groups.values(), key=lambda idx: (len(idx), -idx[0]))
+    return codes[best[0]], f"candidate {best[0] + 1}/{len(codes)}: {compiled} compiled, {len(best)} agreed"
+
+
 def on_generate_clicked(kwargs):
+    """Generate / refine button. Everything it changes (Run Over class, snippet, generated sliders,
+    history) is one undo step."""
+    node = _extract_node(kwargs)
+    prompt = node.parm("ai_prompt").eval().strip()[:30] if node and node.parm("ai_prompt") else ""
+    with hou.undos.group(f"AI VEX: {prompt}"):
+        _on_generate_impl(kwargs)
+
+
+def _on_generate_impl(kwargs):
     node = _extract_node(kwargs)
     if not node:
         return
@@ -3446,15 +3855,17 @@ def on_generate_clicked(kwargs):
     class_parm = node.parm("class")
     snippet_parm = node.parm("snippet")
 
+    if prompt_parm is None or not prompt_parm.eval().strip():
+        if hou.isUIAvailable():
+            hou.ui.setStatusMessage("Please enter an AI prompt description first.", severity=hou.severityType.Warning)
+        if status_parm:
+            status_parm.set("Enter a prompt first.")
+        return
+
     target_model_path = resolve_selected_model_path(node)
     ensure_embedded_engine(target_model_path)
     if model_info_parm:
         model_info_parm.set(get_active_ai_model_display_string())
-
-    if prompt_parm is None or not prompt_parm.eval().strip():
-        if hou.isUIAvailable():
-            hou.ui.setStatusMessage("Please enter an AI prompt description first.", severity=hou.severityType.Warning)
-        return
 
     task = prompt_parm.eval().strip()
     is_reasoning = bool(reasoning_parm and reasoning_parm.eval())
@@ -3489,10 +3900,9 @@ def on_generate_clicked(kwargs):
     ]
     RESET_KEYWORDS = ["from scratch", "reset", "fresh", "brand new", "replace entirely", "clear existing", "ignore existing", "create", "generate", "build", "align", "displace", "sample"]
 
-    is_edit_intent = bool(
-        existing_code
-        and any(k in task.lower() for k in EDIT_KEYWORDS)
-        and not any(r in task.lower() for r in RESET_KEYWORDS)
+    is_edit_intent = bool(existing_code) and (
+        bool(kwargs.get("force_refine"))
+        or (any(k in task.lower() for k in EDIT_KEYWORDS) and not any(r in task.lower() for r in RESET_KEYWORDS))
     )
 
     if not is_edit_intent:
@@ -3518,6 +3928,10 @@ def on_generate_clicked(kwargs):
                 thought_trace, vex_code = refine_vex(task, existing_code, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning, enable_rag=enable_rag)
             else:
                 thought_trace, vex_code = generate_vex(task, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning, enable_rag=enable_rag)
+            candidates = [vex_code]
+            n_cand = _num_candidates(node)
+            if vex_code and n_cand > 1 and not is_edit_intent and not is_reasoning:
+                candidates = _generate_candidates(task, context_str, geo_context, enable_rag, vex_code, n_cand)
             gen_time = time.time() - t0
         except Exception as e:
             if status_parm:
@@ -3534,8 +3948,8 @@ def on_generate_clicked(kwargs):
                 status_parm.set("Error: Model returned empty VEX code.")
             return
 
-        # 1. Automated pre-compilation AST & regex sanitization
-        vex_code = sanitize_vex_syntax(vex_code)
+        # 1. Light, semantics-preserving cleanup (heavy regex repairs only run if Houdini rejects the code)
+        vex_code = _light_vex_cleanup(vex_code)
 
         # Context Alignment Guard: if code clearly targets primitives (@primnum/removeprim without pointprimitives),
         # ensure the node runs over primitives so @primnum does not evaluate to 0!
@@ -3555,29 +3969,20 @@ def on_generate_clicked(kwargs):
             elif curr_class in (0, "detail") and ("@P" in vex_code or "@ptnum" in vex_code or "@N" in vex_code) and "addpoint" not in vex_code and "addprim" not in vex_code and "setdetailattrib" not in vex_code:
                 try:
                     in0 = node.input(0)
-                    if in0 and in0.geometry() and len(in0.geometry().points()) > 0:
+                    if in0 and in0.geometry() and _point_count(in0.geometry()) > 0:
                         class_parm.set("point")
                 except Exception:
                     pass
 
-        # 2. Multi-Pass Autonomous CITL Self-Healing Loop (Up to 3 Retries)
-        max_citl_retries = 3
-        success = False
-        error = None
+        # 2. Several candidates: keep the one most candidates agree on when executed
+        pick_note = ""
+        if len(candidates) > 1:
+            vex_code, pick_note = _choose_by_execution(node, [_light_vex_cleanup(c) for c in candidates])
 
-        for attempt in range(max_citl_retries):
-            success, error = try_apply_snippet(node, vex_code)
-            if success:
-                error = None
-                break
-
-            # If compilation failed, attempt autonomous 1-shot repair with compiler feedback
-            if attempt < max_citl_retries - 1 and error:
-                if hou.isUIAvailable():
-                    hou.ui.setStatusMessage(f"Auto-repairing VEX syntax (Attempt {attempt+2}/{max_citl_retries})...", severity=hou.severityType.Message)
-                _, repaired_code = repair_vex(task, context_str, vex_code, error, geo_context=geo_context)
-                if repaired_code:
-                    vex_code = sanitize_vex_syntax(repaired_code)
+        # 3. Compile-first application + compiler-feedback self-repair
+        vex_code, success, error = _apply_generated_vex(node, task, context_str, vex_code, geo_context)
+        if success and pick_note and thought_parm:
+            thought_parm.set(f"Best-of-{len(candidates)}: {pick_note}\n\n" + (thought_parm.eval() or ""))
 
         # Re-fetch parm references after try_apply_snippet may have updated the PTG
         status_parm = _get_status_parm(node)
@@ -3610,141 +4015,28 @@ def on_generate_clicked(kwargs):
             if hou.isUIAvailable():
                 hou.ui.setStatusMessage("AI VEX compiled and applied successfully.", severity=hou.severityType.Message)
         else:
-            # Non-blocking status reporting (never spam modal dialogs)
-            if snippet_parm:
-                snippet_parm.set(vex_code)
-            if status_parm:
-                meaningful_lines = [l.strip() for l in (error or "").splitlines() if l.strip() and "invalid source" not in l.lower()]
-                first_line_err = meaningful_lines[0] if meaningful_lines else (error.splitlines()[0] if error else 'Syntax warning')
-                status_parm.set(f"Compile Warning: {first_line_err}")
-            if hou.isUIAvailable():
-                hou.ui.setStatusMessage(f"AI VEX Warning: {first_line_err}", severity=hou.severityType.Warning)
+            _report_failed_generation(node, vex_code, error, "Generation")
+
+
+def _report_failed_generation(node, failed_code: str, error: str | None, action: str) -> None:
+    """Keep the user's last working snippet; show the error and park the failed attempt in the
+    Reasoning Trace so it can still be inspected or copied."""
+    lines = [l.strip() for l in (error or "").splitlines() if l.strip() and "invalid source" not in l.lower()]
+    first = lines[0] if lines else "the generated code did not compile"
+    status = _get_status_parm(node)
+    if status:
+        status.set(f"{action} failed: {first} (your previous code was kept; failed attempt is in Reasoning Trace)")
+    trace = node.parm("ai_thought_trace")
+    if trace:
+        trace.set(f"--- Failed attempt (not applied) ---\n{failed_code}\n\n--- Houdini error ---\n{error or ''}")
+    if hou.isUIAvailable():
+        hou.ui.setStatusMessage(f"AI VEX {action.lower()} failed: {first}", severity=hou.severityType.Warning)
 
 
 def on_refine_clicked(kwargs):
-    node = _extract_node(kwargs)
-    if not node:
-        return
-    prompt_parm = node.parm("ai_prompt")
-    autodetect_parm = node.parm("ai_autodetect")
-    reasoning_parm = node.parm("ai_reasoning_mode")
-    thought_parm = node.parm("ai_thought_trace")
-    status_parm = _get_status_parm(node)
-    perf_parm = node.parm("ai_perf")
-    class_parm = node.parm("class")
-    snippet_parm = node.parm("snippet")
-
-    if prompt_parm is None or not prompt_parm.eval().strip():
-        if hou.isUIAvailable():
-            hou.ui.setStatusMessage("Please enter a refinement instruction in AI Prompt.", severity=hou.severityType.Warning)
-        return
-
-    existing_code = snippet_parm.eval().strip() if snippet_parm else ""
-    if not existing_code:
-        on_generate_clicked(kwargs)
-        return
-
-    refinement_task = prompt_parm.eval().strip()
-    is_reasoning = bool(reasoning_parm and reasoning_parm.eval())
-    geo_context = introspect_geometry(node) if (autodetect_parm and autodetect_parm.eval()) else ""
-    context_idx = class_parm.eval() if class_parm else 2
-    context_str = CLASS_MAP.get(context_idx, "point wrangle")
-
-    with hou.undos.group(f"AI VEX Refinement: {refinement_task[:30]}"):
-        try:
-            if hou.isUIAvailable():
-                hou.ui.setStatusMessage("Refining VEX code...", severity=hou.severityType.Message)
-            t0 = time.time()
-            thought_trace, vex_code = refine_vex(refinement_task, existing_code, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning)
-            gen_time = time.time() - t0
-        except Exception as e:
-            if status_parm:
-                status_parm.set(f"Refinement Failed: {e}")
-            if hou.isUIAvailable():
-                hou.ui.setStatusMessage(f"AI Refinement Failed: {e}", severity=hou.severityType.Error)
-            return
-
-        if thought_parm:
-            thought_parm.set(thought_trace if thought_trace else "Refinement applied.")
-
-        # 1. Automated pre-compilation AST & regex sanitization
-        vex_code = sanitize_vex_syntax(vex_code)
-
-        # Context Alignment Guard:
-        if class_parm:
-            curr_class = class_parm.eval()
-            if curr_class == 2 and ("@primnum" in vex_code or "removeprim(" in vex_code) and "pointprimitives" not in vex_code:
-                try:
-                    class_parm.set("primitive")
-                except Exception:
-                    class_parm.set(1)
-            elif curr_class == 1 and ("@ptnum" in vex_code and "@primnum" not in vex_code and "removeprim" not in vex_code):
-                if not any(k in refinement_task.lower() for k in ["face", "faces", "prim", "prims", "primitive", "primitives", "polygon", "polygons"]):
-                    try:
-                        class_parm.set("point")
-                    except Exception:
-                        class_parm.set(2)
-            elif curr_class in (0, "detail") and ("@P" in vex_code or "@ptnum" in vex_code or "@N" in vex_code) and "addpoint" not in vex_code and "addprim" not in vex_code and "setdetailattrib" not in vex_code:
-                try:
-                    in0 = node.input(0)
-                    if in0 and in0.geometry() and len(in0.geometry().points()) > 0:
-                        class_parm.set("point")
-                except Exception:
-                    pass
-
-        # 2. Multi-Pass Autonomous CITL Self-Healing Loop (Up to 3 Retries)
-        max_citl_retries = 3
-        success = False
-        error = None
-
-        for attempt in range(max_citl_retries):
-            success, error = try_apply_snippet(node, vex_code)
-            if success:
-                error = None
-                break
-
-            if attempt < max_citl_retries - 1 and error:
-                if hou.isUIAvailable():
-                    hou.ui.setStatusMessage(f"Auto-repairing VEX syntax (Attempt {attempt+2}/{max_citl_retries})...", severity=hou.severityType.Message)
-                _, repaired_code = repair_vex(refinement_task, context_str, vex_code, error, geo_context=geo_context)
-                if repaired_code:
-                    vex_code = sanitize_vex_syntax(repaired_code)
-
-        # Re-fetch parm references after try_apply_snippet may have updated the PTG
-        status_parm = _get_status_parm(node)
-        perf_parm = node.parm("ai_perf")
-        snippet_parm = node.parm("snippet")
-
-        if success:
-            cook_ms, npts, throughput = profile_node_cook(node)
-            push_to_history_stack(node, refinement_task, vex_code, context_str, cook_ms=cook_ms, thought=thought_trace)
-
-            # Sync active variant slot
-            variant_parm = node.parm("ai_variant")
-            if variant_parm:
-                slot = "ai_snippet_b" if variant_parm.eval() == 1 else "ai_snippet_a"
-                if node.parm(slot):
-                    node.parm(slot).set(vex_code)
-
-            # Geometry health scan for NaNs/Infs
-            healthy, health_msg = scan_geometry_health(node)
-
-            if status_parm:
-                if healthy:
-                    status_parm.set(f"Refined ({gen_time:.2f}s).")
-                else:
-                    status_parm.set(f"Refined ({gen_time:.2f}s). {health_msg}")
-            if perf_parm:
-                perf_parm.set(f"Cook: {cook_ms:.2f}ms ({npts:,} pts @ {throughput:.1f} Mpts/s)")
-            if hou.isUIAvailable():
-                hou.ui.setStatusMessage("AI VEX refined successfully.", severity=hou.severityType.Message)
-        else:
-            if snippet_parm:
-                snippet_parm.set(vex_code)
-            if status_parm:
-                status_parm.set(f"Refine Warning: {error.splitlines()[0] if error else 'Unknown'}")
-            if hou.isUIAvailable():
-                hou.ui.setStatusMessage(f"AI VEX Warning: {error.splitlines()[0] if error else ''}", severity=hou.severityType.Warning)
+    """Edit the existing snippet with the prompt as a refinement instruction (same pipeline as
+    Generate: RAG, compile-first apply, compiler-feedback repair, history, undo group)."""
+    on_generate_clicked(dict(kwargs, force_refine=True))
 
 
 def on_optimize_clicked(kwargs):
@@ -3934,8 +4226,11 @@ def on_variant_changed(kwargs):
             target_code = curr_code
 
     if target_code.strip():
-        snippet_parm.set(target_code)
-        sync_spare_parameters(node, target_code)
+        with hou.undos.group(f"AI VEX Variant {'B' if variant_idx == 1 else 'A'}"):
+            saved = _snapshot_spare_values(node)
+            snippet_parm.set(target_code)
+            sync_spare_parameters(node, target_code)
+            _restore_spare_values(node, saved)
         force_refresh_wrangle(node)
         status_parm = _get_status_parm(node)
         if status_parm:
@@ -4067,9 +4362,12 @@ def on_fork_branch_clicked(kwargs):
                 )
             return
 
-        fork_name = f"{node.name()}_variantB"
-        fork = parent.createNode(node.type().name(), fork_name)
-        fork.copy(node)
+        # hou.Node has no copy(); duplicate the node (parms, inputs, spare parms) with copyNodesTo
+        fork = hou.copyNodesTo((node,), parent)[0]
+        fork.setName(f"{node.name()}_variantB", unique_name=True)
+        for i, inp in enumerate(node.inputs()):
+            if inp is not None:
+                fork.setInput(i, inp)
         fork.parm("snippet").set(snip_b)
         if fork.parm("ai_variant"):
             fork.parm("ai_variant").set(1)
@@ -4302,8 +4600,8 @@ def on_generate_help_clicked(kwargs):
             try:
                 geo = inp.geometry()
                 if geo:
-                    pt_count = len(geo.points())
-                    prim_count = len(geo.prims())
+                    pt_count = _point_count(geo)
+                    prim_count = _prim_count(geo)
                     attribs = [a.name() for a in geo.pointAttribs()]
                     geo_info = f" — [{pt_count} pts, {prim_count} prims"
                     if attribs:
@@ -4396,6 +4694,14 @@ def on_export_header_clicked(kwargs):
             hou.ui.displayMessage("No VEX code to export.", severity=hou.severityType.Warning)
         return
 
+    if not hou.isUIAvailable() and not hasattr(hou, "ui"):
+        return
+    try:
+        snippet_to_vex_function(snippet, "FUNC_PLACEHOLDER")
+    except ValueError as exc:
+        hou.ui.displayMessage(f"Cannot export this snippet as a function:\n{exc}", severity=hou.severityType.Warning)
+        return
+
     default_name = re.sub(r'[^a-zA-Z0-9_]', '_', node.name().lower())
     button_idx, func_name = hou.ui.readInput(
         "Enter VEX Library Function Name (without .h):",
@@ -4411,47 +4717,80 @@ def on_export_header_clicked(kwargs):
     include_dir = os.path.join(hou.homeHoudiniDirectory(), "vex", "include")
     os.makedirs(include_dir, exist_ok=True)
     header_path = os.path.join(include_dir, f"{func_name}.h")
+    if os.path.exists(header_path):
+        if hou.ui.displayMessage(f"{header_path} already exists. Overwrite it?",
+                                 buttons=("Overwrite", "Cancel"), default_choice=1,
+                                 severity=hou.severityType.Warning) != 0:
+            return
 
+    header_body, call_line = snippet_to_vex_function(snippet, func_name)
     guard_name = f"__{func_name.upper()}_H__"
-    header_content = f"""#ifndef {guard_name}
-#define {guard_name}
-
-// ============================================================================
-//  Houdini AI VEX Library: {func_name}
-//  Generated from: {node.path()}
-//  Date: {time.strftime("%Y-%m-%d %H:%M:%S")}
-// ============================================================================
-
-void {func_name}(int input_geo) {{
-{chr(10).join('    ' + line for line in snippet.splitlines())}
-}}
-
-#endif // {guard_name}
-"""
-
+    header_content = (
+        f"#ifndef {guard_name}\n#define {guard_name}\n\n"
+        f"// Houdini AI VEX Library: {func_name}\n"
+        f"// Generated from: {node.path()} on {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"// Attributes are passed in as arguments (VEX passes arguments by reference, so writes\n"
+        f"// go back to the attributes). Use in any wrangle:\n"
+        f"//     #include <{func_name}.h>\n"
+        f"//     {call_line}\n\n"
+        f"{header_body}\n\n#endif // {guard_name}\n"
+    )
     try:
         with open(header_path, "w", encoding="utf-8") as f:
             f.write(header_content)
-        
-        include_code = f'#include <{func_name}.h>'
+        include_code = f"#include <{func_name}.h>\n{call_line}"
         try:
             hou.ui.copyTextToClipboard(include_code)
         except Exception:
             pass
-
-        msg = (
-            f"✅ Header exported successfully!\n\n"
-            f"File: {header_path}\n\n"
-            f"Usage in any wrangle:\n"
-            f"   {include_code}\n"
-            f"   {func_name}(0);\n\n"
-            f"(Include directive copied to clipboard)"
-        )
-        if hou.isUIAvailable():
-            hou.ui.displayMessage(msg, title="VEX Header Exported", severity=hou.severityType.Message)
+        hou.ui.displayMessage(
+            f"Header exported:\n{header_path}\n\nUsage in any wrangle (copied to clipboard):\n{include_code}",
+            title="VEX Header Exported", severity=hou.severityType.Message)
     except Exception as e:
-        if hou.isUIAvailable():
-            hou.ui.displayMessage(f"Failed to export header:\n{e}", severity=hou.severityType.Error)
+        hou.ui.displayMessage(f"Failed to export header:\n{e}", severity=hou.severityType.Error)
+
+
+_BINDING_TYPES = {"f": "float", "i": "int", "v": "vector", "s": "string", "p": "vector4", "u": "vector2",
+                  "2": "matrix2", "3": "matrix3", "4": "matrix", "d": "dict"}
+_KNOWN_BINDINGS = {
+    "vector": {"P", "N", "v", "Cd", "up", "uv", "rest", "force", "accel", "w", "scale", "trans", "pivot", "center"},
+    "vector4": {"orient", "rot"},
+    "int": {"ptnum", "primnum", "vtxnum", "numpt", "numprim", "numvtx", "elemnum", "numelem", "id", "Frame"},
+    "string": {"name", "path", "group", "class", "OpInput1", "OpInput2", "OpInput3", "OpInput4"},
+    "float": {"Time", "TimeInc", "pscale", "Alpha", "width", "mass", "age", "life", "density", "SimTime", "SimFrame"},
+}
+_READ_ONLY_BINDINGS = {"ptnum", "primnum", "vtxnum", "numpt", "numprim", "numvtx", "elemnum", "numelem",
+                       "Time", "TimeInc", "Frame", "SimTime", "SimFrame", "OpInput1", "OpInput2", "OpInput3", "OpInput4"}
+_BINDING_RE = re.compile(r"(?<![A-Za-z0-9_])((?:[fivspu234d](?:\[\])?)?)@([A-Za-z_][A-Za-z0-9_]*)")
+_FUNC_DEF_RE = re.compile(r"^\s*(?:void|int|float|vector[24]?|matrix[23]?|string|dict|function)\b[^;=]*\)\s*\{", re.M)
+
+
+def snippet_to_vex_function(snippet: str, func_name: str) -> tuple[str, str]:
+    """Turn a wrangle snippet into a reusable VEX function plus the call line for a wrangle.
+
+    '@' bindings are not expanded inside #include files, so every binding becomes a function
+    argument (VEX passes by reference, so writes still land on the attribute) and the call line
+    passes the bindings in.
+    """
+    if _FUNC_DEF_RE.search(snippet):
+        raise ValueError("the snippet defines its own functions; move them into the header by hand.")
+    params = {}  # binding name -> (declaration, call expression)
+    for m in _BINDING_RE.finditer(snippet):
+        prefix, name = m.group(1), m.group(2)
+        if name in params:
+            continue
+        is_array = prefix.endswith("[]")
+        base = _BINDING_TYPES.get(prefix[:1]) if prefix else None
+        if base is None:
+            base = next((t for t, names in _KNOWN_BINDINGS.items() if name in names), "float")
+        const = "const " if name in _READ_ONLY_BINDINGS else ""
+        params[name] = (f"{const}{base}{'[]' if is_array else ''} _a_{name}", f"{prefix}@{name}")
+    body = _BINDING_RE.sub(lambda m: f"_a_{m.group(2)}", snippet)
+    args = "; ".join(d for d, _ in params.values())
+    lines = "\n".join("    " + l for l in body.splitlines())
+    fn = f"void {func_name}({args})\n{{\n{lines}\n}}"
+    call = f"{func_name}({', '.join(c for _, c in params.values())});"
+    return fn, call
 
 
 # ---------------------------------------------------------------------------
@@ -4542,6 +4881,7 @@ def open_copilot_dialog(node: hou.Node = None):
 
 
 def check_model_health():
+    _eng_port = _engine_port()
     """Checks health status of all available AI inference backends."""
     status_lines = []
 
@@ -4552,23 +4892,23 @@ def check_model_health():
         headers = {}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
-        req = urllib.request.Request("http://127.0.0.1:58421/health", headers=headers)
+        req = urllib.request.Request(f"http://127.0.0.1:{_eng_port}/health", headers=headers)
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with opener.open(req, timeout=3) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             ping_ms = (time.time() - t0) * 1000
             engine_status = data.get("status", "unknown")
         if engine_status == "ok":
-            status_lines.append(f"✅ Embedded AI Engine (port 58421): ONLINE ({ping_ms:.1f}ms)")
+            status_lines.append(f"✅ Embedded AI Engine (port {_eng_port}): ONLINE ({ping_ms:.1f}ms)")
         else:
-            status_lines.append(f"⏳ Embedded AI Engine (port 58421): LOADING ({engine_status})")
+            status_lines.append(f"⏳ Embedded AI Engine (port {_eng_port}): LOADING ({engine_status})")
     except urllib.error.HTTPError as e:
         if e.code == 503:
-            status_lines.append("⏳ Embedded AI Engine (port 58421): LOADING (model warming up)")
+            status_lines.append(f"⏳ Embedded AI Engine (port {_eng_port}): LOADING (model warming up)")
         else:
-            status_lines.append(f"❌ Embedded AI Engine (port 58421): HTTP Error {e.code}")
+            status_lines.append(f"❌ Embedded AI Engine (port {_eng_port}): HTTP Error {e.code}")
     except Exception:
-        status_lines.append("❌ Embedded AI Engine (port 58421): OFFLINE")
+        status_lines.append(f"❌ Embedded AI Engine (port {_eng_port}): OFFLINE")
 
     # 2. Check Ollama Fallback Engine (Secondary — Port 11434)
     try:
