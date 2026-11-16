@@ -7,6 +7,32 @@ scripts and data, held-out benchmark suites, experiments) that is not part of th
 
 ---
 
+## [Interface: one page for the everyday loop, the rest in tabs] — 2026-11-16
+
+- The node's interface is rebuilt as five tabs. **Wrangle**: Prompt (three lines), Generate, Think First, Status,
+  Run Over with "Let the AI Choose", Group, the code and the generated controls. **History**: Previous / Next and
+  the two variants. **Tools**: presets, safety guards, attribute stats, help card, export, AI Notes. **Settings**:
+  model, answers to compare, examples and function reference, and a switch for the result check. **Bindings**: the
+  wrangle's own bindings plus its three standard options.
+- Fixed: four internal data fields (the two variants, the history data, the cook benchmark) were visible on the
+  panel, and the status field showed its internal name as its label.
+- Plain labels: Think First (was Deep Reasoning), Answers to Compare (AI Candidates), Use Examples and Function
+  Reference (SideFX Micro-RAG), Loaded Model (Active Engine); no pictographs on buttons and presets; the model menu
+  shows "v55 (recommended)" and the scores moved to the Loaded Model field.
+- **Edit Code** button next to Generate. Generate now always writes new code (it used to guess from words such as
+  "fix" whether an edit was meant). Edit Code works on the code in the node: the model is asked for the task the
+  code was written for (kept in the history; for hand-written code the model describes it first) plus the change,
+  with the current code shown as the first worked example. "add amplitude" after "add turbulent noise" becomes a
+  one-line change. When the request asks for something more ("also ...", "add ...") and that edit would take
+  anything away from the existing lines, only the new lines are generated and appended in a block of their own.
+  An edit that returns the same code says so; a Generate over existing code says that it replaced it. Asked the old way
+  ("here is code, change it") the model dropped existing lines in 4 of 5 trial edits; rewriting stays its weakest
+  skill, so the status line counts the lines added, changed and removed. An edit is one undo step and one history
+  version, and Let the AI Choose does not change Run Over during an edit.
+- Parameter names are unchanged: nodes in saved scenes keep their code, values and history.
+  `tools/hda_rebuild_ui.py` rebuilds the interface stored in the HDA from the layout in the controller
+  (`_strip_ai_layout`, `_build_ai_layout`); the rebuild is repeatable. New help page. Plugin tests: 191 checks.
+
 ## [Result check: the model warns when its result looks wrong] — 2026-11-16
 
 - **Result check** (`python/vex_result_check.py`): after a successful generation the node describes what the code

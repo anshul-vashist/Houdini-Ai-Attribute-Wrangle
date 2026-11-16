@@ -76,11 +76,11 @@ graph TD
 5. **Apply.** The snippet, the *Run Over* class and the generated parameters are set in one undo step.
 6. **Result check.** The node describes what the code did (new and changed attributes with their value ranges,
    groups, element counts) and the model answers one question: does this do what was asked? A NO appears as a
-   warning in the status line and in the *Reasoning Trace*; the code stays applied. See below for how far to
+   warning in the status line and in *AI Notes*; the code stays applied. See below for how far to
    trust it.
 
-Edits of existing code and *Deep Reasoning* requests produce a single answer, which goes straight to step 4.
-In *Deep Reasoning* mode the model thinks first; its reasoning is shown in the *Reasoning Trace* tab.
+Edits of existing code and *Think First* requests produce a single answer, which goes straight to step 4.
+With *Think First* the model plans before it writes; its plan is shown under *Tools > AI Notes*.
 
 ---
 
@@ -128,12 +128,21 @@ wrong answers. It is a warning light, not a repair: asked to correct what it fla
 ## ✨ Key Features
 
 ### 1. 🪄 Generate and edit from a prompt
-**✦ Generate** writes a new snippet. If the node already has code and the prompt asks for a change
-("fix…", "tweak…", "optimize…", "document code…", "instead of…"), the existing snippet is edited instead of
-replaced.
+**Generate** writes new code. **Edit Code** works on the code that is already in the node; type only what you
+want.
+
+- Small changes work best: "add amplitude" turns `curlnoise(@P * chf("freq"))` into
+  `curlnoise(@P * chf("freq")) * chf("amplitude")`; "use z instead of x"; "use time so it animates".
+- When you ask for something more ("also ...", "add ...") your existing lines are never reduced: if the model's
+  edit would take something away from them, only the new lines are generated and appended instead.
+- For any other change the model rewrites the code from the task it was written for plus your change. Rewriting
+  is this model's weakest skill and it may alter more than you asked: the status line counts the lines added,
+  changed and removed and says how many existing lines were rewritten.
+
+Every step is in the history and can be undone.
 
 ### 2. 🗳️ Candidates and execution vote
-*AI Candidates* (default 3) sets how many answers are generated for a new snippet. Each is cooked on the node;
+*Answers to Compare* (default 3) sets how many answers are generated for a new snippet. Each is cooked on the node;
 the result most candidates agree on is used, and the trace says how many agreed.
 
 ### 3. 🔁 Compiler-in-the-loop repair
@@ -144,7 +153,7 @@ compiler's own list of 951 function signatures (up to two passes).
 After every successful generation the model judges what its code actually did to your geometry. "Check: the
 result may not match the request" in the status line means: look at this one before you trust it.
 
-### 4. 🧠 Deep Reasoning mode
+### 4. 🧠 Think First
 For hard problems (matrices, quaternions, multi-step geometry logic) the model plans in a thinking pass first.
 Slower; one answer instead of three.
 
@@ -152,16 +161,17 @@ Slower; one answer instead of three.
 `chf("scale")`, `chv("direction")`, `chramp("falloff", d)` in the answer create the matching controls on the node.
 
 ### 6. ⏳ History and A/B variants
-Step through earlier versions (**◀ Prev** / **Next ▶**), store two variants (**Set as A** / **Set as B**) and
-swap between them.
+On the *History* tab: step through earlier versions (**Previous** / **Next**), keep two variants (**Save as A** /
+**Save as B**) and swap between them.
 
 ### 7. 🧰 Tools on the node
-*Auto-Detect Class* (point / primitive / detail / vertex from the prompt), 11 FX presets (PBD cloth, RK4
+*Let the AI Choose* next to Run Over (point / primitive / detail / vertex from the prompt). On the *Tools* tab:
+11 FX presets (PBD cloth, RK4
 advection, Verlet step, curl noise, differential growth, FABRIK IK, reaction-diffusion and others),
-**🛡 Sanitize** (zero-division and NaN guards), **📊 Stats**, **📝 Help Card** and **💾 Export .h**.
+**Add Safety Guards** (zero-division and NaN guards), **Attribute Stats**, **Help Card** and **Export .h**.
 
 ### 8. 🔀 Model menu
-*AI Model* lists the model files in `models/`, with the benchmark score of the versions that were measured.
+*Model* (on the *Settings* tab) lists the model files in `models/`, with the benchmark score of the versions that were measured.
 **Auto** uses the newest fine-tuned version; *Custom Model File* accepts any GGUF.
 
 ---
@@ -233,7 +243,7 @@ The plugin works with any of them; the newer the model, the better the answers (
 1. In a Geometry network (`/obj/geo`), press **TAB** and add an **AI Attribute Wrangle** node.
 2. Connect your geometry, then describe the result in the **Prompt** field:
    > *"Color each point by its distance along the surface to the nearest point of group `src`, blue to red."*
-3. Click **✦ Generate**.
+3. Click **Generate**.
 4. The snippet appears in **VEXpression**, already compiled and cooked; any `chf` / `chv` / `chramp` controls
    appear on the node.
 
@@ -302,9 +312,10 @@ in `houdini.env` or the package file) change the defaults:
 | `AI_WRANGLE_CHECKER` | 1 | `0`: do not load the checker add-on with the model |
 | `AI_WRANGLE_BLUEPRINTS` | 0 | `1`: the older code blueprints in the prompt (they lowered the scores) |
 
-Two settings live on the node itself, under *Advanced Options*: **AI Candidates** (number of answers, 1 to 8) and
-**SideFX Micro-RAG** (off: new requests are sent without worked examples and function reference, the geometry
-context stays; repair requests still carry the function reference and the compiler hint).
+Three settings live on the node itself, on the *Settings* tab: **Answers to Compare** (1 to 8), **Use Examples and
+Function Reference** (off: new requests are sent without worked examples and function reference, the geometry
+context stays; repair requests still carry the function reference and the compiler hint) and **Warn When the
+Result Looks Wrong**.
 
 ---
 
@@ -374,7 +385,7 @@ The plugin starts `bin/llama-server.exe` in the background (no console window) t
 hython tools/test_hda_hython.py
 ```
 
-runs 161 end-to-end checks of the node inside Houdini (no GPU and no model file needed: the model's answers are
+runs 191 end-to-end checks of the node inside Houdini (no GPU and no model file needed: the model's answers are
 mocked, everything else is real: HDA, parameters, compile and cook, repair loop, history, function lookup,
 hints, result check).
 

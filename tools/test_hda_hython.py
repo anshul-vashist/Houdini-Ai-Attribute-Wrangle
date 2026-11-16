@@ -84,7 +84,7 @@ def fake_repair(task, context, faulty, err, geo_context=""):
     return "", (LLM["repair"].pop(0) if LLM["repair"] else "")
 
 
-def fake_refine(task, existing, context="point wrangle", geo_context="", reasoning_mode=False, enable_rag=None):
+def fake_refine(task, existing, context="point wrangle", geo_context="", reasoning_mode=False, enable_rag=None, **kw):
     LLM["calls"]["refine"] += 1
     return "", LLM["refine"].pop(0)
 
@@ -292,9 +292,14 @@ def _():
     n = make_node()
     n.parm("snippet").set("@P.y += 1;")
     reset_llm(refine=["@P.y += 2;"])
-    generate(n, "modify the code to raise points by 2 instead")
-    check("edit intent routes to refine", LLM["calls"]["refine"] == 1 and n.parm("snippet").eval().strip() == "@P.y += 2;",
+    n.parm("ai_prompt").set("modify the code to raise points by 2 instead")
+    n.parm("ai_edit").pressButton()
+    check("Edit Code routes to refine", LLM["calls"]["refine"] == 1 and n.parm("snippet").eval().strip() == "@P.y += 2;",
           f"{LLM['calls']} {n.parm('snippet').eval()!r}")
+    reset_llm(generate=["@P.y += 5;"])
+    generate(n, "fix the height: raise points by 5")
+    check("Generate writes new code whatever the prompt says", LLM["calls"]["generate"] == 1 and LLM["calls"]["refine"] == 0
+          and n.parm("snippet").eval().strip() == "@P.y += 5;", f"{LLM['calls']}")
 
 
 @T("spare parameters")
@@ -884,6 +889,176 @@ try:
     check("no temporary files are left next to the reference", not leftovers, repr(leftovers))
 finally:
     shutil.rmtree(ref_root, ignore_errors=True)
+
+
+# ---- interface: one page for the everyday loop, the rest in tabs ----------------------------------------------
+@T("interface layout")
+def _():
+    d = hou.nodeType(hou.sopNodeTypeCategory(), "ai_attribwrangle").definition()
+    ptg = d.parmTemplateGroup()
+    tabs = [(e.label(), [t.name() for t in e.parmTemplates()]) for e in ptg.entries()
+            if e.type() == hou.parmTemplateType.Folder]
+    check("the node has the five tabs in order", [t[0] for t in tabs] == ["Wrangle", "History", "Tools", "Settings", "Bindings"],
+          repr([t[0] for t in tabs]))
+    main = tabs[0][1] if tabs else []
+    check("the main tab is the everyday loop: prompt, Generate, status, Run Over, Group, code",
+          main[:7] == ["ai_prompt", "ai_generate", "ai_edit", "ai_reasoning_mode", "ai_status", "class", "ai_autodetect"]
+          and main.index("group") < main.index("snippet"), repr(main))
+    hidden = [n for n in ("ai_snippet_a", "ai_snippet_b", "ai_history_json", "ai_perf") if ptg.find(n).isHidden()]
+    check("the internal data fields are hidden", len(hidden) == 4, repr(hidden))
+    check("the wrangle's standard options live on the Bindings tab",
+          all(n in tabs[-1][1] for n in ("exportlist", "vex_strict", "vex_strictvariables")), repr(tabs[-1][1]))
+    labels = [t.label() for t in ptg.entriesWithoutFolders() if t.name().startswith("ai_")]
+    check("labels are plain words (no pictographs, no internal names)",
+          all(ord(c) < 128 for lab in labels for c in lab) and "ai_status" not in labels, repr(labels))
+    presets = hou.node("/obj").createNode("geo").createNode("ai_attribwrangle").parm("ai_preset_menu").menuLabels()
+    check("preset names carry no pictographs", presets and all(ord(c) < 128 for lab in presets for c in lab), repr(presets[:3]))
+    again = d.parmTemplateGroup()
+    hw._strip_ai_layout(again)
+    check("stripping the layout gives the plain wrangle back",
+          [e.label() for e in again.entries() if e.type() == hou.parmTemplateType.Folder] == ["Code", "Bindings"]
+          and not any(t.name().startswith("ai_") for t in again.entriesWithoutFolders()))
+    hw._build_ai_layout(again)
+    check("rebuilding gives the same interface",
+          [t.name() for t in again.entriesWithoutFolders()] == [t.name() for t in ptg.entriesWithoutFolders()])
+    n = make_node()
+    reset_llm(generate=["f@w = chf('weight') * 2;"])
+    generate(n, "w is twice the weight parameter")
+    main_now = [t.name() for t in hw._tab_with(n.parmTemplateGroup(), "snippet").parmTemplates()]
+    check("generated controls sit right under the code", "ai_spare_parms" in main_now
+          and main_now.index("ai_spare_parms") == main_now.index("snippet") + 1 and n.parm("weight") is not None, repr(main_now))
+    # Edit Code: the prompt is the change, the existing code is the starting point (no keyword needed)
+    e = make_node()
+    reset_llm(generate=["f@never = 1;"])
+    e.parm("ai_prompt").set("add something")
+    e.parm("ai_edit").pressButton()
+    check("Edit Code on an empty node says so and writes nothing", e.parm("snippet").eval().strip() == ""
+          and "no code to edit" in e.parm("ai_status").eval() and LLM["calls"]["generate"] == 0, e.parm("ai_status").eval())
+    reset_llm(generate=["f@dist = length(@P);"])
+    generate(e, "distance from the origin in dist")
+    seen_edit = []
+    real_refine = hw.refine_vex
+    hw.refine_vex = lambda task, existing, **k: (seen_edit.append((task, existing, k.get("previous_task"))),
+                                                 ("", existing + "\nf@dist2 = f@dist * f@dist;"))[1]
+    try:
+        e.parm("ai_prompt").set("store the squared distance in dist2 too")
+        e.parm("ai_edit").pressButton()
+    finally:
+        hw.refine_vex = real_refine
+    code = e.parm("snippet").eval()
+    check("Edit Code hands the existing code and the change to the model and keeps the rest",
+          seen_edit == [("store the squared distance in dist2 too", "f@dist = length(@P);", "distance from the origin in dist")]
+          and "f@dist = length(@P);" in code and "f@dist2" in code, repr((seen_edit, code)))
+    check("an edit says what changed and is a step in the history", e.parm("ai_status").eval().startswith("Edited")
+          and "1 line added" in e.parm("ai_status").eval() and len(hw.get_history_stack(e)) == 2, e.parm("ai_status").eval())
+    check("the history keeps the whole task of the edited code", hw.get_history_stack(e)[-1].get("task") ==
+          "distance from the origin in dist. Additionally: store the squared distance in dist2 too",
+          repr(hw.get_history_stack(e)[-1].get("task")))
+    p = hw.build_edit_prompt("also store the squared distance in dist2", "f@dist = length(@P);", "point wrangle", "GEO",
+                             previous_task="distance from the origin in dist")
+    check("the edit request shows the current code as the first worked example and asks for the whole task",
+          "Example 1 (point wrangle): distance from the origin in dist\nf@dist = length(@P);" in p
+          and p.count("Verified examples of related tasks") == 1
+          and "Task Instruction: distance from the origin in dist. Additionally: also store the squared distance in dist2" in p, p[-400:])
+    check("the change summary counts lines", hw.edit_summary("a;\nb;\nc;", "a;\nB;\nc;\nd;") == "1 line added, 1 line changed"
+          and hw.edit_summary("a;\nb;", "a;") == "1 line removed" and hw.edit_summary("a;", " a; ") == "nothing changed")
+    reset_llm(generate=["f@other = 1;"])
+    generate(e, "also store the squared distance in dist2")
+    check("Generate with the same prompt writes new code", e.parm("snippet").eval().strip() == "f@other = 1;")
+    # an edit that adds something: only the new lines are generated, the existing code is kept by construction
+    a = make_node()
+    a.parm("snippet").set("float d = length(@P);\nf@dist = d;")
+    asked = []
+    real_gen = hw.generate_vex
+    hw.generate_vex = lambda task, **k: (asked.append((task, k.get("geo_context", ""))), ("", "float d = f@dist * f@dist;\nf@dist2 = d;"))[1]
+    reset_llm(refine=["f@dist2 = pow(length(@P), 2);"])   # the rewrite drops the existing lines ...
+    try:
+        a.parm("ai_prompt").set("Also store the squared distance in dist2")
+        a.parm("ai_edit").pressButton()   # ... so the new lines are appended instead
+    finally:
+        hw.generate_vex = real_gen
+    code = a.parm("snippet").eval()
+    check("an 'also ...' edit keeps the existing code word for word and appends the new lines in their own block",
+          code.startswith("float d = length(@P);\nf@dist = d;\n\n// added: Also store the squared distance in dist2\n{\n")
+          and "    f@dist2 = d;" in code and code.rstrip().endswith("}") and not a.errors(), code)
+    check("the model is shown the existing code as what already runs", len(asked) == 1
+          and "f@dist = d;" in asked[0][1] and "do not repeat" in asked[0][1], repr(asked)[:300])
+    check("the added block compiles next to a variable of the same name and the status counts the lines",
+          a.geometry().findPointAttrib("dist2") is not None and "added" in a.parm("ai_status").eval(), a.parm("ai_status").eval())
+    check("additions are recognised by their wording", hw.is_addition("also colour it red") and hw.is_addition("Add a pscale")
+          and hw.is_addition("make it red as well") and not hw.is_addition("use z instead of x")
+          and not hw.is_addition("fix: u is always zero"))
+    # "add amplitude" has to change an existing line: an integrated edit that keeps the code is used as it is
+    amp = make_node()
+    amp.parm("snippet").set('@P += curlnoise(@P * chf("freq"));')
+    calls_gen = []
+    hw.generate_vex = lambda task, **k: (calls_gen.append(task), ("", "@P.y += 1;"))[1]
+    reset_llm(refine=['@P += curlnoise(@P * chf("freq")) * chf("amplitude");'])
+    try:
+        amp.parm("ai_prompt").set("add amplitude")
+        amp.parm("ai_edit").pressButton()
+    finally:
+        hw.generate_vex = real_gen
+    check("'add amplitude' changes the existing line and appends nothing",
+          amp.parm("snippet").eval().strip() == '@P += curlnoise(@P * chf("freq")) * chf("amplitude");' and not calls_gen
+          and amp.parm("amplitude") is not None and "rewritten" not in amp.parm("ai_status").eval(), amp.parm("ai_status").eval())
+    check("an addition may only insert into existing lines",
+          hw.only_insertions('@P += curlnoise(@P * chf("freq"));', '@P += curlnoise(@P * chf("freq")) * chf("amp");')
+          and hw.only_insertions("f@a = 1;", "f@a = 1;\nf@b = 2;")
+          and not hw.only_insertions('@P += curlnoise(@P * 2) * chf("amp");', 'float s = curlnoise(@P * 2) * chf("amp");\n@P.y += s;')
+          and not hw.only_insertions("f@dist = length(@P);", "f@dist2 = length2(@P);"))
+    same = make_node()
+    same.parm("snippet").set("f@a = 1;")
+    reset_llm(refine=["f@a = 1;"])
+    same.parm("ai_prompt").set("make it better")
+    same.parm("ai_edit").pressButton()
+    check("an edit that returns the same code says so", "returned the same code" in same.parm("ai_status").eval(),
+          same.parm("ai_status").eval())
+    check("kept lines are recognised through small changes, not through new formulas",
+          hw.lines_kept('@P += curlnoise(@P * chf("freq"));', '@P += curlnoise(@P * chf("freq")) * chf("amp");') == (1, 1)
+          and hw.lines_kept("f@dist = length(@P);", "f@dist2 = f@dist * f@dist;")[0] == 0
+          and hw.lines_kept("f@mask = fit(d, 0, r, 1, 0);\n@Cd = f@mask;", "f@mask = 1 - smooth(r, r + 1, d);\n@Cd = f@mask;") == (1, 2))
+    rew = make_node()
+    rew.parm("snippet").set("f@a = @P.x * 2;\nf@b = @P.y * 3;")
+    reset_llm(refine=["f@a = sin(@Time);\nf@b = @P.y * 3;"])
+    rew.parm("ai_prompt").set("use the z position for a")
+    rew.parm("ai_edit").pressButton()
+    check("a change that rewrites other lines says so in the status",
+          "1 of 2 existing lines were rewritten" in rew.parm("ai_status").eval(), rew.parm("ai_status").eval())
+    reset_llm(generate=["f@c = 1;"])
+    generate(rew, "something else")
+    check("Generate over existing code says that it replaced it", "previous code was replaced" in rew.parm("ai_status").eval(),
+          rew.parm("ai_status").eval())
+    check("a repeated answer is not appended twice",
+          hw.merge_addition("f@a = 1;", "f@a = 1;\nf@b = 2;", "also b") == "f@a = 1;\nf@b = 2;")
+
+    # code typed by hand has no prompt in the history: the model describes it first
+    h = make_node()
+    h.parm("snippet").set("f@dist = length(@P);")
+    seen_edit[:] = []
+    real_describe = hw.describe_vex
+    hw.describe_vex = lambda code, context="point wrangle": "Stores the distance from the origin in dist."
+    hw.refine_vex = lambda task, existing, **k: (seen_edit.append(k.get("previous_task")), ("", existing + "\nf@d2 = 1;"))[1]
+    try:
+        h.parm("ai_prompt").set("store one in d2 instead of nothing")
+        h.parm("ai_edit").pressButton()
+    finally:
+        hw.refine_vex, hw.describe_vex = real_refine, real_describe
+    check("hand-written code is described first and edited from that description",
+          seen_edit == ["Stores the distance from the origin in dist."] and "f@dist = length(@P);" in h.parm("snippet").eval(),
+          repr(seen_edit))
+
+    n.parm("ai_result_check").set(0)
+    os.environ["AI_WRANGLE_CHECKER_LOADED"] = "1"
+    real_q, asked = hw.query_llm, []
+    hw.query_llm = lambda prompt, **k: (asked.append(1), ("", "NO. wrong"))[1]
+    try:
+        reset_llm(generate=["f@w = 1;"])
+        generate(n, "w is one")
+        check("the node's switch turns the result check off", not asked and "may not match" not in n.parm("ai_status").eval())
+    finally:
+        hw.query_llm = real_q
+        del os.environ["AI_WRANGLE_CHECKER_LOADED"]
 
 
 # ---- result check: the model judges what its code did; a NO is a warning, never a change of the code --------

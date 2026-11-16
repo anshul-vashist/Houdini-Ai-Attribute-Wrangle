@@ -378,13 +378,14 @@ def get_available_models_menu_items() -> list[str]:
     Returns a flat list of token-label pairs: [token1, label1, token2, label2, ...]
     """
     default = _default_model_path()
-    auto_label = f"Auto ({os.path.basename(default)})" if default else "Auto (no model found)"
+    dv = _model_version(default) if default else -1
+    auto_label = (f"Auto (v{dv})" if dv >= 0 else f"Auto ({os.path.basename(default)})") if default else "Auto (no model found)"
     items = ["auto", auto_label]
     for path in _discover_models():
         v = _model_version(path)
         note = _MODEL_NOTES.get(v)
         name = os.path.basename(path)
-        label = f"v{v} - {note}" if (v >= 0 and note) else (f"v{v} ({name})" if v >= 0 else name)
+        label = (f"v{v}" + (" (recommended)" if note and "recommended" in note.lower() else "")) if v >= 0 else name
         items.extend([name, label])  # token is the file name: stable when new models are added
     items.extend(["custom", "Custom Model File..."])
     return items
@@ -2379,28 +2380,196 @@ def build_generation_prompt(task: str, context: str = "point wrangle", geo_conte
     return "\n\n".join(prompt_parts)
 
 
-def refine_vex(refinement_task: str, existing_code: str, context: str = "point wrangle", geo_context: str = "", reasoning_mode: bool = False, enable_rag: bool | None = None) -> tuple[str, str]:
-    """Performs multi-turn iterative modification on existing VEX code."""
-    prompt_parts = []
+def edit_task(change: str, previous_task: str = "") -> str:
+    """The full description of the code after an edit: what it was written for, plus the change."""
+    change = (change or "").strip()
+    prev = (previous_task or "").strip()
+    return f"{prev.rstrip('. ')}. Additionally: {change}" if prev else f"Change the code of Example 1: {change}"
+
+
+def build_edit_prompt(change: str, existing_code: str, context: str = "point wrangle", geo_context: str = "",
+                      enable_rag: bool | None = None, previous_task: str = "") -> str:
+    """The user message of an Edit Code request. The model was trained to write code from a full task description
+    with worked examples in front of it, not to patch code: asked "here is code, change it" it rewrites from
+    scratch and drops lines (4 of 5 trial edits, 2026-11-16). So the current code is shown as worked example 1,
+    with the task it was written for, and the request is that task plus the change (3 to 4 of the same 5 edits
+    kept the existing lines). Editing is still the model's weakest skill: the status line says what changed."""
+    task = edit_task(change, previous_task)
+    lines = ["Verified examples of related tasks (they show correct function names and idioms; adapt, do not copy):",
+             f"Example 1 ({context}): {(previous_task or '').strip() or 'the current code of this wrangle'}\n{existing_code.strip()}"]
     use_rag = enable_rag if enable_rag is not None else (os.getenv("AI_WRANGLE_ENABLE_RAG", "1") != "0")
-    if use_rag and get_vex_rag_engine:
+    if use_rag and os.getenv("AI_WRANGLE_EXAMPLES", "1") != "0":
         try:
-            rag = get_vex_rag_engine()
-            rag_block = rag.build_rag_context_block(f"{refinement_task} {existing_code}", context=context)
-            if rag_block:
-                prompt_parts.append(rag_block)
+            import vex_example_bank
+            for i, (_, c) in enumerate(vex_example_bank.select_examples(task, context, 1, 0.16), 2):
+                kind = "volume wrangle" if c.get("context") == "volume" else f"{c.get('context', 'point')} wrangle"
+                lines.append(f"Example {i} ({kind}): {c['prompts'][0]}\n{c['code']}")
         except Exception:
             pass
+    saved = os.environ.get("AI_WRANGLE_EXAMPLES")
+    os.environ["AI_WRANGLE_EXAMPLES"] = "0"   # the examples block is the one built here
+    try:
+        rest = build_generation_prompt(task, context, geo_context, enable_rag)
+    finally:
+        if saved is None:
+            os.environ.pop("AI_WRANGLE_EXAMPLES", None)
+        else:
+            os.environ["AI_WRANGLE_EXAMPLES"] = saved
+    return "\n".join(lines) + "\n\n" + rest
 
-    if geo_context:
-        prompt_parts.append(geo_context)
-    prompt_parts.append(f"Context: {context}")
-    prompt_parts.append(f"Existing VEX Code:\n{existing_code}")
-    prompt_parts.append(f"Refinement Instruction:\n{refinement_task}")
-    prompt_parts.append("Write pure updated Houdini VEX code:")
-    
-    full_prompt = "\n\n".join(prompt_parts)
-    return query_llm(full_prompt, reasoning_mode=reasoning_mode)
+
+def refine_vex(refinement_task: str, existing_code: str, context: str = "point wrangle", geo_context: str = "",
+               reasoning_mode: bool = False, enable_rag: bool | None = None, previous_task: str = "") -> tuple[str, str]:
+    """Edit existing VEX code as the instruction says (Edit Code button)."""
+    prompt = build_edit_prompt(refinement_task, existing_code, context, geo_context, enable_rag, previous_task)
+    return query_llm(prompt, reasoning_mode=reasoning_mode)
+
+
+DESCRIBE_SYSTEM = ("You are an expert SideFX Houdini VEX programmer. Describe in one sentence what the given wrangle "
+                   "code does, naming its attributes and parameters. Do not write code.")
+
+
+def written_names(code: str) -> list[str]:
+    """Attribute names a snippet assigns to (f@dist = ..., @Cd.r += ...), in order of appearance."""
+    out = []
+    for m in re.finditer(r"(?<![\w.])(?:[a-z234]{0,2}(?:\[\])?)@([A-Za-z_]\w*)(?:\.\w+|\[[^\]]*\])?\s*(?:[-+*/]?=)(?!=)", code or ""):
+        if m.group(1) not in out:
+            out.append(m.group(1))
+    return out
+
+
+def describe_vex(code: str, context: str = "point wrangle") -> str:
+    """One sentence saying what the code does: the starting task of an Edit Code on code whose prompt is not in
+    the history. The model's own sentence when it gives one; when it only repeats the code, a plain statement of
+    what the code writes."""
+    text = ""
+    try:
+        _, text = query_llm(f"Context: {context}\n\n{code.strip()}", max_tokens=120, temperature=0.0,
+                            system_prompt=DESCRIBE_SYSTEM, template_kwargs={"enable_thinking": False})
+    except GenerationCancelled:
+        raise
+    except Exception:
+        text = ""
+    text = " ".join((text or "").split())
+
+    def squash(t):
+        return re.sub(r"\s+", "", t)
+
+    is_code = (not text or len(text) > 400 or squash(text) in squash(code) or text.endswith((";", "}"))
+               or text.count(";") >= 2 or re.search(r"^\s*(?:int|float|vector|string|if|for|foreach)\b.*[;{]", text))
+    if not is_code:
+        return text
+    names = written_names(code)
+    if names:
+        return "Example 1 sets " + ", ".join(names) + "; keep everything it does"
+    return "Keep everything the code of Example 1 does"
+
+
+_ADD_WORDS = re.compile(r"^\W*(?:and\s+|then\s+)?(?:also|add|additionally|plus|append|include)\b"
+                        r"|\b(?:as well|in addition|on top of that)\b", re.IGNORECASE)
+
+
+def is_addition(change: str) -> bool:
+    """True when an edit asks for something more ("also ...", "add ...") and not for a change of what is there."""
+    return bool(_ADD_WORDS.search(change or ""))
+
+
+def addition_context(existing_code: str, geo_context: str = "") -> str:
+    """Geometry context for writing the lines of an addition: the existing code is shown as what already runs."""
+    note = ("This wrangle already contains the following code, which stays as it is and runs before yours. "
+            "Its attributes and results exist: use them, do not repeat them.\n" + existing_code.strip())
+    return (geo_context + "\n\n" + note).strip()
+
+
+def merge_addition(existing_code: str, addition: str, change: str = "") -> str:
+    """The existing code followed by the added lines in a block of their own (so that their local variables
+    cannot clash with the existing ones). If the model repeated the existing code anyway, its answer is used."""
+    def squash(t):
+        return re.sub(r"\s+", "", t or "")
+
+    addition = (addition or "").strip()
+    if not addition:
+        return existing_code
+    if squash(existing_code) and squash(existing_code) in squash(addition):
+        return addition
+    title = " ".join((change or "").split())[:90]
+    body = "\n".join(("    " + line) if line.strip() else "" for line in addition.splitlines())
+    return f"{existing_code.rstrip()}\n\n// added: {title}\n{{\n{body}\n}}"
+
+
+def lines_kept(old_code: str, new_code: str, threshold: float = 0.7) -> tuple[int, int]:
+    """(how many lines of the old code are still recognisable in the new code, how many lines the old code has).
+    A line counts as kept when some new line shares most of its tokens (an added factor or a renamed variable
+    keeps it; a different formula does not)."""
+    import difflib
+
+    def toks(line):
+        return re.findall(r"[A-Za-z_]\w*|\d+\.?\d*|\S", line)
+
+    old = [toks(x) for x in (old_code or "").splitlines() if x.strip() and not x.strip().startswith("//")]
+    new = [toks(x) for x in (new_code or "").splitlines() if x.strip()]
+    # one new line can stand for one old line only: best pairs first
+    pairs = sorted(((difflib.SequenceMatcher(None, a, b, autojunk=False).ratio(), i, j)
+                    for i, a in enumerate(old) for j, b in enumerate(new)), reverse=True)
+    used_old, used_new = set(), set()
+    for ratio, i, j in pairs:
+        if ratio < threshold:
+            break
+        if i not in used_old and j not in used_new:
+            used_old.add(i)
+            used_new.add(j)
+    return len(used_old), len(old)
+
+
+def only_insertions(old_code: str, new_code: str) -> bool:
+    """True when the new code contains every line of the old code with nothing removed from it: each old line is
+    found in a new line of its own with, at most, tokens added (`... * chf("amplitude")` after the old expression).
+    That is what an addition may do to existing code."""
+    def toks(line):
+        return re.findall(r"[A-Za-z_]\w*|\d+\.?\d*|\S", line)
+
+    def inside(a, b):   # a is a subsequence of b
+        it = iter(b)
+        return all(t in it for t in a)
+
+    old = [toks(x) for x in (old_code or "").splitlines() if x.strip() and not x.strip().startswith("//")]
+    new = [toks(x) for x in (new_code or "").splitlines() if x.strip()]
+    used = set()
+    for a in old:
+        j = next((j for j, b in enumerate(new) if j not in used and inside(a, b)), None)
+        if j is None:
+            return False
+        used.add(j)
+    return True
+
+
+def edit_summary(old_code: str, new_code: str) -> str:
+    """'2 lines added, 1 changed, 1 removed' between two snippets (blank lines and indentation ignored)."""
+    import difflib
+    a = [x.strip() for x in (old_code or "").splitlines() if x.strip()]
+    b = [x.strip() for x in (new_code or "").splitlines() if x.strip()]
+    added = changed = removed = 0
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag == "insert":
+            added += j2 - j1
+        elif tag == "delete":
+            removed += i2 - i1
+        elif tag == "replace":
+            both = min(i2 - i1, j2 - j1)
+            changed += both
+            added += (j2 - j1) - both
+            removed += (i2 - i1) - both
+    parts = [f"{n} line{'s' if n != 1 else ''} {what}" for n, what in ((added, "added"), (changed, "changed"), (removed, "removed")) if n]
+    return ", ".join(parts) if parts else "nothing changed"
+
+
+def task_of_code(node, code: str) -> str:
+    """The full task the given code was written for, from the node's history ('' when unknown, e.g. hand-written
+    or hand-changed code)."""
+    for entry in reversed(get_history_stack(node)):
+        if (entry.get("code") or "").strip() == (code or "").strip():
+            return entry.get("task") or ""
+    return ""
 
 
 def repair_vex(task: str, context: str, faulty_code: str, compiler_error: str, geo_context: str = "") -> tuple[str, str]:
@@ -2544,7 +2713,8 @@ def get_history_stack(node: hou.Node) -> list[dict]:
 _HISTORY_LIMIT = 50
 
 
-def push_to_history_stack(node: hou.Node, prompt: str, code: str, context_str: str, cook_ms: float = 0.0, thought: str = ""):
+def push_to_history_stack(node: hou.Node, prompt: str, code: str, context_str: str, cook_ms: float = 0.0, thought: str = "",
+                          task: str = ""):
     parm = _get_history_parm(node)
     info_parm = _get_info_parm(node)
     if not parm:
@@ -2559,6 +2729,7 @@ def push_to_history_stack(node: hou.Node, prompt: str, code: str, context_str: s
         "version": version_num,
         "timestamp": time.strftime("%H:%M:%S"),
         "prompt": prompt[:40] if prompt else "Optimized/Documented",
+        "task": (task or "")[:1200],   # what this code was written for, in full: the starting point of an Edit Code
         "context": context_str,
         "code": code,
         "cook_ms": cook_ms,
@@ -2780,7 +2951,7 @@ def sync_spare_parameters(node: hou.Node, vex_code: str):
     reset = {}  # parms whose default changed and whose value was never touched -> new default
 
     if folder is None:
-        folder = hou.FolderParmTemplate(folder_name, "Generated UI Parameters", folder_type=hou.folderType.Simple)
+        folder = hou.FolderParmTemplate(folder_name, "Controls", folder_type=hou.folderType.Simple)
         for name, p_type in channels.items():
             folder.addParmTemplate(_compute_scale_calibrated_parm(name, p_type, bbox_max, hints.get(name)))
 
@@ -2791,7 +2962,7 @@ def sync_spare_parameters(node: hou.Node, vex_code: str):
             ptg.append(folder)
     else:
         existing_templates = {pt.name(): pt for pt in folder.parmTemplates()}
-        new_folder = hou.FolderParmTemplate(folder_name, "Generated UI Parameters", folder_type=hou.folderType.Simple)
+        new_folder = hou.FolderParmTemplate(folder_name, "Controls", folder_type=hou.folderType.Simple)
         
         for name, p_type in channels.items():
             old_t = existing_templates.get(name)
@@ -3270,8 +3441,270 @@ def toggle_viewport_visualizer(node: hou.Node, vis_type: str, attr_name: str, en
 
 
 # ---------------------------------------------------------------------------
-# Node Parameter Setup (v4.0 — Clean & Focused)
+# Node Parameter Setup: tabs (Wrangle / History / Tools / Settings / Bindings)
 # ---------------------------------------------------------------------------
+
+def _plain_label(label: str) -> str:
+    """A menu or button label without leading pictographs ("🎪 [Sim] PBD Cloth" -> "[Sim] PBD Cloth")."""
+    return re.sub(r"^[^\w\[(]+", "", label or "").strip()
+
+
+_CB = "import houdini_ai_wrangle; houdini_ai_wrangle.{}(kwargs)"
+
+
+def _button(name, label, callback, help="", join=False):
+    b = hou.ButtonParmTemplate(name=name, label=label, script_callback=_CB.format(callback),
+                               script_callback_language=hou.scriptLanguage.Python, help=help)
+    b.setJoinWithNext(join)
+    return b
+
+
+def _hidden_string(name, label, default):
+    p = hou.StringParmTemplate(name=name, label=label, num_components=1, default_value=[default],
+                               string_type=hou.stringParmType.Regular)
+    p.hide(True)
+    return p
+
+
+def _build_ai_layout(ptg) -> None:
+    """The node's interface, built into a wrangle's parameter template group (the AI parameters must have been
+    removed from it before).
+
+      Wrangle   the everyday loop: prompt, Generate, status, Run Over, Group, the code, the generated controls
+      History   earlier versions and the two variants
+      Tools     presets, helpers, the model's notes
+      Settings  model and how answers are produced
+      Bindings  the wrangle's own bindings and options
+
+    Parameter names are unchanged from the earlier single-page layout, so saved nodes keep their values."""
+    # ---- Wrangle tab -------------------------------------------------------------------------------------------
+    prompt = hou.StringParmTemplate(
+        name="ai_prompt", label="Prompt", num_components=1, default_value=[""], string_type=hou.stringParmType.Regular,
+        tags={"editor": "1", "editorlines": "3-8"},
+        help=("Describe what the wrangle should do, in plain words.\n\n"
+              "Examples:\n"
+              "- Displace points along their normals with noise\n"
+              "- Color points by height with a ramp\n"
+              "- Random pscale between 0.01 and 0.1\n\n"
+              "Name attributes, groups and inputs as they are called in your scene, and say where the result "
+              "goes (for example: store it in f@dist).\n\n"
+              "Generate writes new code. Edit Code changes the code that is already in the node: type only the "
+              "change you want (for example: also store the squared distance in f@dist2)."))
+    generate = _button("ai_generate", "Generate", "on_generate_clicked", join=True,
+                       help="Write NEW code for the prompt; the code in the node is replaced. To change the code that "
+                            "is already there, use Edit Code. Press Esc to cancel.")
+    edit = _button("ai_edit", "Edit Code", "on_refine_clicked", join=True,
+                   help="Change the code that is already in the node as the prompt says: fix something, add something, "
+                        "adjust a value. The rest of the code is kept. The previous version stays in History, and "
+                        "Ctrl+Z undoes the edit.")
+    think = hou.ToggleParmTemplate(
+        name="ai_reasoning_mode", label="Think First (Slower)", default_value=False,
+        help="The model plans step by step before it writes the code, and gives one answer instead of comparing "
+             "several. For hard problems: matrices, quaternions, multi-step geometry logic. Its plan is shown under "
+             "Tools > AI Notes.")
+    status = hou.StringParmTemplate(
+        name="ai_status", label="Status", num_components=1, default_value=["Ready. Type a prompt and press Generate."],
+        string_type=hou.stringParmType.Regular,
+        help="What the last request did: compiled or not, how long it took, and a warning when the model judges that "
+             "the result may not match the request.")
+    autodetect = hou.ToggleParmTemplate(
+        name="ai_autodetect", label="Let the AI Choose", default_value=True,
+        help="Run Over (points, primitives, detail, vertices) is chosen from the prompt. Turn off to keep your own choice.")
+
+    # ---- History tab -------------------------------------------------------------------------------------------
+    version_info = hou.StringParmTemplate(
+        name="ai_version_info", label="Version", num_components=1, default_value=["-"],
+        string_type=hou.stringParmType.Regular, help="Which version is shown, of how many, and when it was made.")
+    version_info.setJoinWithNext(True)
+    variant = hou.MenuParmTemplate(
+        name="ai_variant", label="Variant", menu_items=("0", "1"), menu_labels=("Variant A", "Variant B"), default_value=0,
+        script_callback=_CB.format("on_variant_changed"), script_callback_language=hou.scriptLanguage.Python,
+        help="Two versions of the code to compare. Choosing one makes it the node's code.")
+    variant.setJoinWithNext(True)
+    history_tab = hou.FolderParmTemplate("ai_history_tab", "History", folder_type=hou.folderType.Tabs, parm_templates=[
+        _button("ai_prev_version", "Previous", "on_prev_version_clicked", join=True,
+                help="Go back to the version before this one."),
+        version_info,
+        _button("ai_next_version", "Next", "on_next_version_clicked", help="Go forward to the next version."),
+        hou.SeparatorParmTemplate("sep_hist_inner"),
+        variant,
+        _button("ai_toggle_ab", "Swap A / B", "on_toggle_variants_clicked", help="Switch to the other variant."),
+        _button("ai_store_a", "Save as A", "on_store_variant_a_clicked", join=True, help="Keep the current code as variant A."),
+        _button("ai_store_b", "Save as B", "on_store_variant_b_clicked", help="Keep the current code as variant B."),
+    ])
+
+    # ---- Tools tab ---------------------------------------------------------------------------------------------
+    preset_items = list(_FX_PRESETS.keys())
+    preset_menu = hou.MenuParmTemplate(
+        name="ai_preset_menu", label="Preset", menu_items=preset_items,
+        menu_labels=[_plain_label(_FX_PRESETS[k]["label"]) for k in preset_items],
+        item_generator_script=("import houdini_ai_wrangle\n"
+                               "items = []\n"
+                               "for k, v in houdini_ai_wrangle._FX_PRESETS.items():\n"
+                               "    items.extend([k, houdini_ai_wrangle._plain_label(v['label'])])\n"
+                               "return items"),
+        item_generator_script_language=hou.scriptLanguage.Python,
+        help="Ready-made snippets to start from.")
+    preset_menu.setJoinWithNext(True)
+    notes = hou.StringParmTemplate(
+        name="ai_thought_trace", label="AI Notes", num_components=1,
+        default_value=["Nothing yet. After a generation this shows the result check and, with Think First, the model's plan."],
+        string_type=hou.stringParmType.Regular, tags={"editor": "1", "editorlines": "6-20"},
+        help="Notes from the last request: the result check, which of the answers was chosen, and the model's plan "
+             "when Think First is on.")
+    tools_tab = hou.FolderParmTemplate("ai_tools_tab", "Tools", folder_type=hou.folderType.Tabs, parm_templates=[
+        preset_menu,
+        _button("ai_load_preset", "Load", "on_load_preset_clicked", help="Put the chosen preset into the node and cook it."),
+        hou.SeparatorParmTemplate("sep_tools"),
+        _button("ai_sanitize_guards", "Add Safety Guards", "on_sanitize_guards_clicked", join=True,
+                help="Add guards against division by zero and NaN values to the code."),
+        _button("ai_inspect_stats", "Attribute Stats", "on_inspect_stats_clicked", join=True,
+                help="Show statistics of the attributes on the input geometry."),
+        _button("ai_generate_help", "Help Card", "on_generate_help_clicked", join=True,
+                help="A summary of this node to read or copy: prompt, code, parameters and inputs."),
+        _button("ai_export_header", "Export .h", "on_export_header_clicked", help="Save the code as a VEX header file."),
+        hou.SeparatorParmTemplate("sep_tools2"),
+        notes,
+    ])
+
+    # ---- Settings tab ------------------------------------------------------------------------------------------
+    model_select = hou.StringParmTemplate(
+        "ai_model_select", "Model", 1, default_value=("auto",), menu_type=hou.menuType.Normal,
+        item_generator_script=("import houdini_ai_wrangle\n"
+                               "return houdini_ai_wrangle.get_available_models_menu_items()\n"),
+        item_generator_script_language=hou.scriptLanguage.Python,
+        script_callback=_CB.format("on_model_select_changed"), script_callback_language=hou.scriptLanguage.Python,
+        help="The model file from the models folder. Auto uses the newest fine-tuned model. The choice is stored by "
+             "file name; the model loads at the next Generate.")
+    model_select.setJoinWithNext(True)
+    custom_model = hou.StringParmTemplate(
+        name="ai_custom_model_path", label="Custom Model File", num_components=1, default_value=[""],
+        string_type=hou.stringParmType.FileReference, help="Path of any .gguf (or .dat) model file.")
+    custom_model.setConditional(hou.parmCondType.HideWhen, "{ ai_model_select != custom }")
+    model_info = hou.StringParmTemplate(
+        name="ai_model_info", label="Loaded Model", num_components=1, default_value=[get_active_ai_model_display_string()],
+        string_type=hou.stringParmType.Regular,
+        help="The model in use, with its score on the held-out benchmark where it was measured.")
+    settings_tab = hou.FolderParmTemplate("ai_settings_tab", "Settings", folder_type=hou.folderType.Tabs, parm_templates=[
+        model_select,
+        _button("ai_switch_model", "Load Now", "on_switch_model_clicked",
+                help="Load the chosen model now instead of at the next Generate."),
+        custom_model,
+        model_info,
+        hou.SeparatorParmTemplate("sep_settings"),
+        hou.IntParmTemplate(
+            "ai_num_candidates", "Answers to Compare", 1, default_value=(DEFAULT_CANDIDATES,), min=1, max=8,
+            min_is_strict=True, max_is_strict=True,
+            help="For a new snippet the model answers this many times; each answer is cooked on this node and the "
+                 "result most of them agree on is kept. 1 is the fastest."),
+        hou.ToggleParmTemplate(
+            name="ai_use_rag", label="Use Examples and Function Reference", default_value=True,
+            help="Send similar verified examples and the signatures of likely VEX functions with the prompt. "
+                 "Turn off to see what the model does on its own."),
+        hou.ToggleParmTemplate(
+            name="ai_result_check", label="Warn When the Result Looks Wrong", default_value=True,
+            help="After a generation the model looks at what the code did to the geometry and warns in the status "
+                 "line when that does not seem to match the request. The code is never changed. Needs the checker "
+                 "add-on next to the model; without it nothing is checked."),
+    ])
+
+    hidden = [_hidden_string("ai_snippet_a", "Variant A", ""), _hidden_string("ai_snippet_b", "Variant B", ""),
+              _hidden_string("ai_history_json", "History Data", "[]"), _hidden_string("ai_perf", "Cook Benchmark", "-")]
+    main_new = [prompt, generate, edit, think, status]
+
+    code_tab = _tab_with(ptg, "snippet")       # Houdini names the tabs of one strip folder1, folder1_1, ...:
+    bindings_tab = _tab_with(ptg, "autobind")  # they are found by what they contain, not by name
+    standard = code_tab is not None and bindings_tab is not None
+    if not standard:
+        # a wrangle without the usual Code / Bindings tabs: the main controls go in front of the code, the tabs
+        # are appended
+        snippet = ptg.find("snippet")
+        for t in main_new + [autodetect] + hidden:
+            ptg.insertBefore(snippet, t) if snippet else ptg.append(t)
+        for tab in (history_tab, tools_tab, settings_tab):
+            ptg.append(tab)
+        return
+
+    children = {t.name(): t for t in code_tab.parmTemplates()}
+    to_bindings = [children.pop(n) for n in ("exportlist", "vex_strict", "vex_strictvariables") if n in children]
+    ordered = list(main_new)
+    if "class" in children:
+        run_over = children.pop("class")
+        run_over.setJoinWithNext(True)
+        ordered += [run_over, autodetect]
+    else:
+        ordered.append(autodetect)
+    for n in ("vex_numcount", "vex_threadjobsize", "group", "grouptype", "snippet", "ai_spare_parms"):
+        if n in children:
+            ordered.append(children.pop(n))
+    ordered += list(children.values()) + hidden   # anything else that lived on the tab (the user's own parameters)
+    new_code = hou.FolderParmTemplate(code_tab.name(), "Wrangle", folder_type=code_tab.folderType(),
+                                      parm_templates=ordered)
+    new_bindings = hou.FolderParmTemplate(bindings_tab.name(), bindings_tab.label(), folder_type=bindings_tab.folderType(),
+                                          parm_templates=list(bindings_tab.parmTemplates()) + to_bindings)
+    ptg.replace(bindings_tab.name(), new_bindings)
+    ptg.replace(code_tab.name(), new_code)
+    for tab in (settings_tab, tools_tab, history_tab):
+        ptg.insertAfter(code_tab.name(), tab)
+
+
+def _tab_with(ptg, parm_name):
+    """The top-level folder that directly contains the parameter `parm_name`, or None."""
+    for e in ptg.entries():
+        if e.type() == hou.parmTemplateType.Folder and any(t.name() == parm_name for t in e.parmTemplates()):
+            return e
+    return None
+
+
+_AI_SEPARATORS = ("sep_top", "sep_pre_hist", "sep_hist_inner", "sep_adv2", "sep_adv3", "sep_tools", "sep_tools2",
+                  "sep_settings")
+_WRANGLE_OPTIONS = ("exportlist", "vex_strict", "vex_strictvariables")
+
+
+def _strip_ai_layout(ptg) -> None:
+    """Remove every AI parameter and folder of this and the earlier layouts from a parameter template group and
+    put the wrangle's own Code tab back as it was. Generated sliders (inside ai_spare_parms), the user's own
+    parameters and the bindings stay."""
+    def is_ai(name):
+        return (name.startswith("ai_") and name != "ai_spare_parms") or name in _AI_SEPARATORS
+
+    # folders that hold nothing but AI parameters (the tabs of this layout, the folders of the earlier ones)
+    for e in list(ptg.entries()):
+        if e.type() == hou.parmTemplateType.Folder and e.parmTemplates() and all(is_ai(t.name()) for t in e.parmTemplates()):
+            ptg.remove(e.name())
+    for name in ("ai_folder", "ai_folder2", "ai_tabs", "ai_history_folder", "ai_advanced_folder", "ai_thought_folder",
+                 "folder_snip_a", "folder_snip_b"):
+        if ptg.find(name):
+            try:
+                ptg.remove(name)
+            except Exception:
+                pass
+    spare_folder = ptg.find("ai_spare_parms")
+    generated = {pt.name() for pt in spare_folder.parmTemplates()} if spare_folder else set()
+    for e in list(ptg.entriesWithoutFolders()):
+        if is_ai(e.name()) and e.name() not in generated:
+            try:
+                ptg.remove(e)
+            except Exception:
+                pass
+    # this layout moved the wrangle's standard options to the Bindings tab, renamed the Code tab and joined
+    # Run Over with a toggle: undo that, so that a rebuild starts from the plain wrangle
+    code_tab, bindings_tab = _tab_with(ptg, "snippet"), _tab_with(ptg, "autobind")
+    if code_tab is None or bindings_tab is None:
+        return
+    moved = [t for t in bindings_tab.parmTemplates() if t.name() in _WRANGLE_OPTIONS]
+    if moved:
+        keep = [t for t in bindings_tab.parmTemplates() if t.name() not in _WRANGLE_OPTIONS]
+        ptg.replace(bindings_tab.name(), hou.FolderParmTemplate(bindings_tab.name(), bindings_tab.label(),
+                                                                folder_type=bindings_tab.folderType(), parm_templates=keep))
+    code_tab = _tab_with(ptg, "snippet")
+    templates = list(code_tab.parmTemplates()) + moved
+    for t in templates:
+        if t.name() == "class":
+            t.setJoinWithNext(False)
+    ptg.replace(code_tab.name(), hou.FolderParmTemplate(code_tab.name(), "Code", folder_type=code_tab.folderType(),
+                                                        parm_templates=templates))
+
 
 def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
     if not node.type().name().endswith("wrangle"):
@@ -3286,427 +3719,11 @@ def setup_ai_parameters(node: hou.Node, force: bool = False) -> bool:
         ptg.find("ai_optimize") is not None or
         ptg.find("ai_explain") is not None
     )
-    if not force and not has_old_layout and ptg.find("ai_generate") and ptg.find("ai_folder") and ptg.find("ai_use_rag") and ptg.find("ai_model_select"):
+    if not force and not has_old_layout and ptg.find("ai_generate") and ptg.find("ai_result_check") and _tab_with(ptg, "ai_model_select"):
         return True
 
-    if has_old_layout or force:
-        if ptg.find("ai_folder"):
-            try:
-                ptg.remove("ai_folder")
-                node.setParmTemplateGroup(ptg)
-                ptg = node.parmTemplateGroup()
-            except Exception:
-                pass
-
-    _known_base_parms = {
-        "snippet", "group", "grouptype", "class", "exportlist",
-        "autobind", "bindings", "groupautobind", "groupbindings",
-        "vex_cwdpath", "vex_outputmask", "vex_updatenmls",
-        "vex_matchattrib", "vex_inplace", "vex_selectiongroup",
-        "vex_precision", "vex_numcount", "vex_threadjobsize",
-        "vex_strict", "vex_strictvariables", "ai_spare_parms",
-    }
-
-    # Strip stale spare parms and any existing AI folders/parms for a clean rebuild
-    for folder_name in (
-        "ai_folder", "ai_folder2", "ai_tabs", "ai_history_tab", "ai_tools_tab", "ai_thought_tab",
-        "ai_history_folder", "ai_advanced_folder", "ai_thought_folder", "folder_snip_a", "folder_snip_b"
-    ):
-        existing_folder = ptg.find(folder_name)
-        if existing_folder:
-            try:
-                ptg.remove(existing_folder)
-            except Exception:
-                pass
-
-    # Only remove stale AI-layout parms (all prefixed "ai_"). Anything else - generated sliders inside
-    # ai_spare_parms, the user's own spare parms, the native bindings multiparm - is left untouched.
-    spare_folder = ptg.find("ai_spare_parms")
-    generated = {pt.name() for pt in spare_folder.parmTemplates()} if spare_folder else set()
-    for e in list(ptg.entriesWithoutFolders()):
-        name = e.name()
-        if name.startswith("ai_") and name != "ai_spare_parms" and name not in generated:
-            try:
-                ptg.remove(e)
-            except Exception:
-                pass
-
-    # =========================================================================
-    # MAIN PANEL — flat Simple folder (no tabs, no clutter)
-    # =========================================================================
-    ai_folder = hou.FolderParmTemplate(
-        "ai_folder", "AI VEX Copilot",
-        folder_type=hou.folderType.Simple
-    )
-
-    # ── 1. Prompt ─────────────────────────────────────────────────────────────
-    prompt_parm = hou.StringParmTemplate(
-        name="ai_prompt",
-        label="Prompt",
-        num_components=1,
-        default_value=[""],
-        string_type=hou.stringParmType.Regular,
-        help=(
-            "Describe what you want in plain English.\n\n"
-            "Examples:\n"
-            "• 'Displace points along normals using noise'\n"
-            "• 'Color points by height with a ramp'\n"
-            "• 'Scatter pscale randomly between 0.01 and 0.1'\n\n"
-            "Supports VEX attributes (@P, @N, @Cd, @v, @pscale), "
-            "UI channels (chf, chv, chramp), and natural language task descriptions."
-        )
-    )
-    prompt_parm.setTags({"multiline": "1"})
-
-    # ── 2. Action Button & Deep Reasoning (unified single row) ────────────────
-    gen_btn = hou.ButtonParmTemplate(
-        name="ai_generate",
-        label="✦ Generate",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_generate_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Generate VEX from your prompt. Automatically generates fresh, refines existing code, optimizes for SIMD, or adds UI sliders based on your prompt."
-    )
-    gen_btn.setJoinWithNext(True)
-
-    reasoning_parm = hou.ToggleParmTemplate(
-        name="ai_reasoning_mode",
-        label="Deep Reasoning",
-        default_value=False,
-        help=(
-            "Deep Reasoning Mode: the AI thinks step-by-step before writing code. "
-            "Turn on for complex algorithms, custom physics, spatial math, or multi-input transfer. "
-            "Turn off (Turbo) for instant interactive generation."
-        )
-    )
-
-    # ── 3. Status ─────────────────────────────────────────────────────────────
-    status_parm = hou.StringParmTemplate(
-        name="ai_status",
-        label="",
-        num_components=1,
-        default_value=["Ready — type a prompt and press Generate."],
-        string_type=hou.stringParmType.Regular,
-        help="Shows the current AI engine status, compile result, and timing."
-    )
-    status_parm.setTags({"editable": "0"})
-
-    sep_top = hou.SeparatorParmTemplate("sep_top")
-
-    # ── 4. Presets (inline row) ───────────────────────────────────────────────
-    preset_items = list(_FX_PRESETS.keys())
-    preset_labels = [_FX_PRESETS[k]["label"] for k in preset_items]
-    preset_menu_script = (
-        "import houdini_ai_wrangle\n"
-        "items = []\n"
-        "for k, v in houdini_ai_wrangle._FX_PRESETS.items():\n"
-        "    items.extend([k, v['label']])\n"
-        "return items"
-    )
-    preset_menu = hou.MenuParmTemplate(
-        name="ai_preset_menu",
-        label="Preset",
-        menu_items=preset_items,
-        menu_labels=preset_labels,
-        item_generator_script=preset_menu_script,
-        item_generator_script_language=hou.scriptLanguage.Python,
-        help="Choose a built-in FX recipe to load as your starting point."
-    )
-    preset_menu.setJoinWithNext(True)
-
-    load_preset_btn = hou.ButtonParmTemplate(
-        name="ai_load_preset",
-        label="Load",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_load_preset_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Load the selected preset into the VEX snippet and cook immediately."
-    )
-
-    sep_pre_hist = hou.SeparatorParmTemplate("sep_pre_hist")
-
-    # ── 5. History & Variants (collapsible folder) ───────────────────────────
-    history_folder = hou.FolderParmTemplate(
-        name="ai_history_folder",
-        label="History",
-        folder_type=hou.folderType.Collapsible
-    )
-
-    variant_parm = hou.MenuParmTemplate(
-        name="ai_variant",
-        label="Active Variant",
-        menu_items=("0", "1"),
-        menu_labels=("Variant A", "Variant B"),
-        default_value=0,
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_variant_changed(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Switch active VEX code between Variant A and Variant B."
-    )
-    variant_parm.setJoinWithNext(True)
-
-    toggle_ab_btn = hou.ButtonParmTemplate(
-        name="ai_toggle_ab",
-        label="⇄ Swap",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_toggle_variants_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Quickly swap between Variant A and Variant B."
-    )
-
-    store_a_btn = hou.ButtonParmTemplate(
-        name="ai_store_a",
-        label="📌 Set as A",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_store_variant_a_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Save current code into Variant A."
-    )
-    store_a_btn.setJoinWithNext(True)
-
-    store_b_btn = hou.ButtonParmTemplate(
-        name="ai_store_b",
-        label="📌 Set as B",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_store_variant_b_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Save current code into Variant B."
-    )
-
-    sep_hist_inner = hou.SeparatorParmTemplate("sep_hist_inner")
-
-    prev_btn = hou.ButtonParmTemplate(
-        name="ai_prev_version",
-        label="◀ Prev",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_prev_version_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Roll back to previous generated VEX version in the history stack."
-    )
-    prev_btn.setJoinWithNext(True)
-
-    version_info_parm = hou.StringParmTemplate(
-        name="ai_version_info",
-        label="Version",
-        num_components=1,
-        default_value=["—"],
-        string_type=hou.stringParmType.Regular,
-        help="Current version / total versions and timestamp."
-    )
-    version_info_parm.setTags({"editable": "0"})
-    version_info_parm.setJoinWithNext(True)
-
-    next_btn = hou.ButtonParmTemplate(
-        name="ai_next_version",
-        label="Next ▶",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_next_version_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Step forward to next generated VEX version in the history stack."
-    )
-
-    history_folder.addParmTemplate(variant_parm)
-    history_folder.addParmTemplate(toggle_ab_btn)
-    history_folder.addParmTemplate(store_a_btn)
-    history_folder.addParmTemplate(store_b_btn)
-    history_folder.addParmTemplate(sep_hist_inner)
-    history_folder.addParmTemplate(prev_btn)
-    history_folder.addParmTemplate(version_info_parm)
-    history_folder.addParmTemplate(next_btn)
-
-    # ── 6. Advanced Options (collapsible folder) ──────────────────────────────
-    adv_folder = hou.FolderParmTemplate(
-        name="ai_advanced_folder",
-        label="Advanced Options",
-        folder_type=hou.folderType.Collapsible
-    )
-
-    autodetect_parm = hou.ToggleParmTemplate(
-        name="ai_autodetect",
-        label="Auto-Detect Class",
-        default_value=True,
-        help="Automatically infers wrangle execution class (Point, Primitive, Detail, Vertex)."
-    )
-
-    sep_adv2 = hou.SeparatorParmTemplate("sep_adv2")
-
-    sanitize_btn = hou.ButtonParmTemplate(
-        name="ai_sanitize_guards",
-        label="🛡 Sanitize",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_sanitize_guards_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Inject safety guards into VEX."
-    )
-    sanitize_btn.setJoinWithNext(True)
-
-    stats_btn = hou.ButtonParmTemplate(
-        name="ai_inspect_stats",
-        label="📊 Stats",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_inspect_stats_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Inspect attribute statistics for upstream geometry."
-    )
-    stats_btn.setJoinWithNext(True)
-
-    help_btn = hou.ButtonParmTemplate(
-        name="ai_generate_help",
-        label="📝 Help Card",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_generate_help_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Generate SideFX-style documentation and debug card (view, select, and 1-click copy prompt, VEX, parameters, and inputs)."
-    )
-    help_btn.setJoinWithNext(True)
-
-    export_btn = hou.ButtonParmTemplate(
-        name="ai_export_header",
-        label="💾 Export .h",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_export_header_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Export VEX code as .h header."
-    )
-
-    sep_adv3 = hou.SeparatorParmTemplate("sep_adv3")
-
-    model_menu_script = (
-        "import houdini_ai_wrangle\n"
-        "return houdini_ai_wrangle.get_available_models_menu_items()\n"
-    )
-    # String menu: stores the model file name, so adding models later never changes a saved choice.
-    model_select_parm = hou.StringParmTemplate(
-        "ai_model_select", "AI Model", 1,
-        default_value=("auto",),
-        menu_type=hou.menuType.Normal,
-        item_generator_script=model_menu_script,
-        item_generator_script_language=hou.scriptLanguage.Python,
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_model_select_changed(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Model weights file from models/. 'Auto' uses the newest fine-tuned model."
-    )
-    model_select_parm.setJoinWithNext(True)
-
-    switch_model_btn = hou.ButtonParmTemplate(
-        name="ai_switch_model",
-        label="Switch Model",
-        script_callback="import houdini_ai_wrangle; houdini_ai_wrangle.on_switch_model_clicked(kwargs)",
-        script_callback_language=hou.scriptLanguage.Python,
-        help="Switch and reload the embedded local inference engine with the selected model."
-    )
-
-    custom_model_parm = hou.StringParmTemplate(
-        name="ai_custom_model_path",
-        label="Custom Model File",
-        num_components=1,
-        default_value=[""],
-        string_type=hou.stringParmType.FileReference,
-        help="Absolute path to a custom .gguf or .dat model weights file on disk."
-    )
-    custom_model_parm.setConditional(
-        hou.parmCondType.HideWhen, "{ ai_model_select != custom }"
-    )
-
-    model_info_parm = hou.StringParmTemplate(
-        name="ai_model_info",
-        label="Active Engine",
-        num_components=1,
-        default_value=[get_active_ai_model_display_string()],
-        string_type=hou.stringParmType.Regular,
-        help="Active AI model loaded and serving in embedded inference engine."
-    )
-    model_info_parm.setTags({"editable": "0"})
-
-    use_rag_parm = hou.ToggleParmTemplate(
-        name="ai_use_rag",
-        label="SideFX Micro-RAG",
-        default_value=True,
-        help="When enabled, injects official SideFX VEX function signatures and architectural reference patterns into the prompt. Turn off to test pure neural model weights."
-    )
-
-    candidates_parm = hou.IntParmTemplate(
-        "ai_num_candidates", "AI Candidates", 1, default_value=(DEFAULT_CANDIDATES,), min=1, max=8,
-        min_is_strict=True, max_is_strict=True,
-        help="Answers generated for a new snippet; each is cooked on this node and the one most candidates "
-             "agree on is kept (1 = fastest).")
-
-    adv_folder.addParmTemplate(autodetect_parm)
-    adv_folder.addParmTemplate(use_rag_parm)
-    adv_folder.addParmTemplate(candidates_parm)
-    adv_folder.addParmTemplate(sep_adv2)
-    adv_folder.addParmTemplate(sanitize_btn)
-    adv_folder.addParmTemplate(stats_btn)
-    adv_folder.addParmTemplate(help_btn)
-    adv_folder.addParmTemplate(export_btn)
-    adv_folder.addParmTemplate(sep_adv3)
-    adv_folder.addParmTemplate(model_select_parm)
-    adv_folder.addParmTemplate(switch_model_btn)
-    adv_folder.addParmTemplate(custom_model_parm)
-    adv_folder.addParmTemplate(model_info_parm)
-
-    # ── 7. Reasoning Trace (collapsible folder) ───────────────────────────────
-    thought_folder = hou.FolderParmTemplate(
-        name="ai_thought_folder",
-        label="Reasoning Trace",
-        folder_type=hou.folderType.Collapsible
-    )
-
-    thought_parm = hou.StringParmTemplate(
-        name="ai_thought_trace",
-        label="Trace",
-        num_components=1,
-        default_value=["No reasoning trace yet. Enable Deep Reasoning and Generate."],
-        string_type=hou.stringParmType.Regular,
-        tags={"editor": "1", "multiline": "1"},
-        help="Chain-of-Thought reasoning from the AI."
-    )
-    thought_folder.addParmTemplate(thought_parm)
-
-    # ── 8. Hidden background data parms ──────────────────────────────────────
-    snip_a = hou.StringParmTemplate(
-        name="ai_snippet_a", label="Variant A",
-        num_components=1, default_value=[""],
-        string_type=hou.stringParmType.Regular,
-    )
-    snip_a.setTags({"hide": "1"})
-
-    snip_b = hou.StringParmTemplate(
-        name="ai_snippet_b", label="Variant B",
-        num_components=1, default_value=[""],
-        string_type=hou.stringParmType.Regular,
-    )
-    snip_b.setTags({"hide": "1"})
-
-    history_json_parm = hou.StringParmTemplate(
-        name="ai_history_json",
-        label="History Data",
-        num_components=1,
-        default_value=["[]"],
-        string_type=hou.stringParmType.Regular,
-    )
-    history_json_parm.setTags({"hide": "1"})
-
-    perf_parm = hou.StringParmTemplate(
-        name="ai_perf",
-        label="Cook Benchmark",
-        num_components=1,
-        default_value=["—"],
-        string_type=hou.stringParmType.Regular,
-    )
-    perf_parm.setTags({"hide": "1"})
-
-    # Assemble panel
-    ai_folder.addParmTemplate(prompt_parm)
-    ai_folder.addParmTemplate(gen_btn)
-    ai_folder.addParmTemplate(reasoning_parm)
-    ai_folder.addParmTemplate(status_parm)
-    ai_folder.addParmTemplate(sep_top)
-    ai_folder.addParmTemplate(preset_menu)
-    ai_folder.addParmTemplate(load_preset_btn)
-    ai_folder.addParmTemplate(sep_pre_hist)
-    ai_folder.addParmTemplate(history_folder)
-    ai_folder.addParmTemplate(adv_folder)
-    ai_folder.addParmTemplate(thought_folder)
-    ai_folder.addParmTemplate(snip_a)
-    ai_folder.addParmTemplate(snip_b)
-    ai_folder.addParmTemplate(history_json_parm)
-    ai_folder.addParmTemplate(perf_parm)
-
-    snippet_parm_tmpl = ptg.find("snippet")
-    if snippet_parm_tmpl:
-        ptg.insertBefore(snippet_parm_tmpl, ai_folder)
-    else:
-        ptg.append(ai_folder)
-
+    _strip_ai_layout(ptg)
+    _build_ai_layout(ptg)
     node.setParmTemplateGroup(ptg)
     return True
 
@@ -3850,6 +3867,9 @@ def _result_check(node, task: str, context_str: str, vex_code: str) -> tuple[boo
         active = getattr(_engine_singleton, "active_model_name", "") if _engine_singleton is not None else ""
         if not rc.enabled(_model_version(active or ""), checker_loaded=_checker_loaded()):
             return None, ""
+        switch = node.parm("ai_result_check")
+        if switch is not None and not switch.eval():
+            return None, ""
         verdict, reason, _ = rc.review(node, task, context_str, vex_code,
                                        lambda *a, **k: query_llm(*a, checker=True, **k),
                                        geo_context=introspect_geometry(node))
@@ -3902,7 +3922,7 @@ def _on_generate_impl(kwargs):
 
     CLASS_TOKEN_MAP = {0: "detail", 1: "primitive", 2: "point", 3: "vertex"}
 
-    if autodetect_parm and autodetect_parm.eval() and class_parm:
+    if autodetect_parm and autodetect_parm.eval() and class_parm and not kwargs.get("force_refine"):
         detected_idx, detected_str = auto_detect_context(task, node=node)
         token_name = CLASS_TOKEN_MAP.get(detected_idx, "point")
         try:
@@ -3929,10 +3949,12 @@ def _on_generate_impl(kwargs):
     ]
     RESET_KEYWORDS = ["from scratch", "reset", "fresh", "brand new", "replace entirely", "clear existing", "ignore existing", "create", "generate", "build", "align", "displace", "sample"]
 
-    is_edit_intent = bool(existing_code) and (
-        bool(kwargs.get("force_refine"))
-        or (any(k in task.lower() for k in EDIT_KEYWORDS) and not any(r in task.lower() for r in RESET_KEYWORDS))
-    )
+    # Generate always writes new code; Edit Code (force_refine) changes the code that is there. (Until 2026-11-16
+    # Generate guessed from words such as "fix" or "instead of" whether an edit was meant.)
+    is_edit_intent = bool(existing_code) and bool(kwargs.get("force_refine"))
+    previous_task = task_of_code(node, existing_code) if is_edit_intent else ""
+    # the result check needs the whole task: only known when the history has the prompt of this code
+    full_task = (edit_task(task, previous_task) if previous_task else "") if is_edit_intent else task
 
     if not is_edit_intent:
         action_label = "Generation"
@@ -3947,14 +3969,29 @@ def _on_generate_impl(kwargs):
     else:
         action_label = "Refinement"
 
-    status_msg = "Deep Reasoning (Thinking & Planning)..." if is_reasoning else f"{action_label} VEX..."
+    status_msg = "Thinking first..." if is_reasoning else f"{action_label} VEX..."
     with hou.undos.group(f"AI VEX {action_label}: {task[:30]}"):
         try:
             if hou.isUIAvailable():
                 hou.ui.setStatusMessage(status_msg, severity=hou.severityType.Message)
             t0 = time.time()
             if is_edit_intent:
-                thought_trace, vex_code = refine_vex(task, existing_code, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning, enable_rag=enable_rag)
+                if not previous_task:
+                    # hand-written or hand-changed code: let the model say what it does, and edit from there
+                    previous_task = describe_vex(existing_code, context_str)
+                thought_trace, vex_code = refine_vex(task, existing_code, context=context_str, geo_context=geo_context,
+                                                     reasoning_mode=is_reasoning, enable_rag=enable_rag,
+                                                     previous_task=previous_task)
+                if is_addition(task) and not only_insertions(existing_code, vex_code or ""):
+                    # The request asks for something more ("also ...", "add ...") and the rewrite took something
+                    # away from the existing code: generate only the new lines and append them, so that the
+                    # existing code stays as it is. (The integrated edit is tried first because "add amplitude"
+                    # has to extend an existing line, which only_insertions allows.)
+                    more_thought, addition = generate_vex(task, context=context_str,
+                                                          geo_context=addition_context(existing_code, geo_context),
+                                                          reasoning_mode=is_reasoning, enable_rag=enable_rag)
+                    if (addition or "").strip():
+                        thought_trace, vex_code = more_thought, merge_addition(existing_code, addition, task)
             else:
                 thought_trace, vex_code = generate_vex(task, context=context_str, geo_context=geo_context, reasoning_mode=is_reasoning, enable_rag=enable_rag)
             candidates = [vex_code]
@@ -4020,7 +4057,8 @@ def _on_generate_impl(kwargs):
 
         if success:
             cook_ms, npts, throughput = profile_node_cook(node)
-            push_to_history_stack(node, task, vex_code, context_str, cook_ms=cook_ms, thought=thought_trace)
+            push_to_history_stack(node, task, vex_code, context_str, cook_ms=cook_ms, thought=thought_trace,
+                                  task=full_task or (edit_task(task, previous_task) if previous_task else ""))
 
             # Sync active variant slot
             variant_parm = node.parm("ai_variant")
@@ -4033,7 +4071,9 @@ def _on_generate_impl(kwargs):
             healthy, health_msg = scan_geometry_health(node)
 
             # Result check: does what the code did match the request? A warning only, the code stays applied.
-            verdict, why = _result_check(node, task, context_str, vex_code)
+            # (new code only: the check was measured on freshly written code; after edits, with a task that is a
+            # chain of changes, it raised false alarms in the live trials of 2026-11-16)
+            verdict, why = (None, "") if is_edit_intent else _result_check(node, task, context_str, vex_code)
             check_msg = ""
             if verdict is False:
                 check_msg = "Check: the result may not match the request" + (f" - {why}" if why else ".")
@@ -4041,11 +4081,21 @@ def _on_generate_impl(kwargs):
                 line = "Result check: looks right." if verdict else f"Result check: may be WRONG. {why}".rstrip()
                 thought_parm.set(line + "\n\n" + (thought_parm.eval() or ""))
 
-            mode_label = "Deep Reasoning" if is_reasoning else "Turbo"
             if status_parm:
-                action_text = f"{action_label} [{mode_label}]" if is_edit_intent else f"Compiled [{mode_label}]"
-                notes = " ".join(m for m in ("" if healthy else health_msg, check_msg) if m)
-                status_parm.set(f"{action_text} ({gen_time:.2f}s)." + (f" {notes}" if notes else ""))
+                action_text = ("Edited" if is_edit_intent else "Compiled") + (" after thinking" if is_reasoning else "")
+                changed = f": {edit_summary(existing_code, vex_code)}" if is_edit_intent else ""
+                rewrote = ""
+                if is_edit_intent and edit_summary(existing_code, vex_code) == "nothing changed":
+                    rewrote = "The model returned the same code: say the change in other words, or more exactly."
+                elif is_edit_intent:
+                    kept, total = lines_kept(existing_code, vex_code)
+                    if kept < total:
+                        rewrote = (f"{total - kept} of {total} existing lines were rewritten: compare with the "
+                                   "previous version (History, or Ctrl+Z).")
+                elif existing_code:
+                    rewrote = "The previous code was replaced (it is in History); Edit Code changes code instead."
+                notes = " ".join(m for m in ("" if healthy else health_msg, rewrote, check_msg) if m)
+                status_parm.set(f"{action_text} ({gen_time:.2f}s){changed}." + (f" {notes}" if notes else ""))
             if perf_parm:
                 perf_parm.set(f"Cook: {cook_ms:.2f}ms ({npts:,} pts @ {throughput:.1f} Mpts/s)")
             if hou.isUIAvailable():
@@ -4075,6 +4125,13 @@ def _report_failed_generation(node, failed_code: str, error: str | None, action:
 def on_refine_clicked(kwargs):
     """Edit the existing snippet with the prompt as a refinement instruction (same pipeline as
     Generate: RAG, compile-first apply, compiler-feedback repair, history, undo group)."""
+    node = _extract_node(kwargs)
+    snippet = node.parm("snippet") if node else None
+    if snippet is not None and not snippet.eval().strip():
+        status = _get_status_parm(node)
+        if status:
+            status.set("There is no code to edit yet. Press Generate to write it.")
+        return
     on_generate_clicked(dict(kwargs, force_refine=True))
 
 

@@ -24,7 +24,7 @@ Option C — Studio Pipeline & Silent Batch Install:
 
 USAGE:
 In any Geometry network (/obj/geo), press TAB and type "AI Attribute Wrangle"
-(or "ai_attribwrangle"). Enter your natural language prompt and click "✦ Generate".
+(or "ai_attribwrangle"). Enter your natural language prompt and click "Generate".
 
 REQUIREMENTS
 - Windows 10/11 x64 and Houdini 21.0.x only. Other Houdini versions are not
@@ -52,8 +52,8 @@ input geometry, two similar verified examples and the signatures of the VEX
 functions the task probably needs. Three candidate snippets are generated,
 compiled and cooked on the node; the result most candidates agree on is
 applied. If no candidate compiles, the compiler's error is sent back to the
-model for up to two repairs. The "AI Candidates" field on the node sets the
-number of candidates. Edits of existing code and Deep Reasoning requests
+model for up to two repairs. The "Answers to Compare" field on the node sets the
+number of candidates. Edits of existing code and Think First requests
 produce a single answer.
 
 LIMITATIONS
