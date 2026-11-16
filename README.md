@@ -31,6 +31,8 @@ field. You describe what the wrangle should do in plain English, and a fine-tune
 - **Checked answers**: three candidate snippets are generated, each is compiled and cooked on the node, and the
   result most candidates agree on is kept. If none compiles, the compiler's error goes back to the model together
   with a hint.
+- **Honest about doubt**: after applying the code the model looks at what it did to the geometry and warns you
+  when the result does not seem to match the request.
 - **Interface included**: `chf` / `chv` / `chi` / `chramp` calls in the answer become sliders, vector fields and
   ramps on the node.
 - **Non-destructive**: every answer is one undo step, with a version history and A/B variants on the node.
@@ -72,6 +74,10 @@ graph TD
    documented signatures for a call with the wrong arguments, `@P` for a bare `P`. An answer without any VEX is
    never applied, so a working snippet cannot be wiped by a bad reply.
 5. **Apply.** The snippet, the *Run Over* class and the generated parameters are set in one undo step.
+6. **Result check.** The node describes what the code did (new and changed attributes with their value ranges,
+   groups, element counts) and the model answers one question: does this do what was asked? A NO appears as a
+   warning in the status line and in the *Reasoning Trace*; the code stays applied. See below for how far to
+   trust it.
 
 Edits of existing code and *Deep Reasoning* requests produce a single answer, which goes straight to step 4.
 In *Deep Reasoning* mode the model thinks first; its reasoning is shown in the *Reasoning Trace* tab.
@@ -103,6 +109,20 @@ How to read this:
 - Roughly three answers in ten are wrong on tasks of this kind. The usual causes are the logic of the task, the
   choice of function and argument order, not syntax.
 
+### The result check
+
+Measured on 126 further held-out prompts, with v55 writing the code and the checker add-on judging it:
+
+| The code was | Check says "looks right" | Check warns | No verdict |
+| :--- | :---: | :---: | :---: |
+| right (72) | 60 | 10 | 2 |
+| wrong (54) | 17 | 29 | 8 |
+
+So a warning is justified about three times in four (29 of 39), and code that passes the check is right about
+four times in five (60 of 77, against 72 of 126 without the check). It catches a bit more than half of the
+wrong answers. It is a warning light, not a repair: asked to correct what it flags, the model succeeds in 2 of
+54 cases, so the node does not try. A check takes about half a second.
+
 ---
 
 ## ✨ Key Features
@@ -119,6 +139,10 @@ the result most candidates agree on is used, and the trace says how many agreed.
 ### 3. 🔁 Compiler-in-the-loop repair
 When no answer compiles, the code is repaired with the live compiler message plus a hint taken from the
 compiler's own list of 951 function signatures (up to two passes).
+
+### 3b. 🚦 Result check
+After every successful generation the model judges what its code actually did to your geometry. "Check: the
+result may not match the request" in the status line means: look at this one before you trust it.
 
 ### 4. 🧠 Deep Reasoning mode
 For hard problems (matrices, quaternions, multi-step geometry logic) the model plans in a thinking pass first.
@@ -193,7 +217,11 @@ version it finds.
 | v46 | [`Qwen3-8B-Houdini-VEX-v46-Q5_K_M.gguf`](https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v46) | 5.9 GB | Newest public download |
 | v30, v11, v10 | [Hugging Face: anshulVashist](https://huggingface.co/anshulVashist) | 5.9 GB | Older versions |
 
-All versions are full merged models (no separate adapter needed), fine-tuned from
+The result check needs one more file next to the v55 model: `qwen3-vex-v55-checker-lora.gguf` (0.7 GB, also
+not uploaded yet). The engine loads it together with the model and applies it only to check requests, so code
+is written exactly as without it. Without the file the plugin works as before, without the check.
+
+All versions are full merged models (no separate adapter needed for writing code), fine-tuned from
 [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B) (Apache 2.0) with QLoRA. v55 was trained on 458 *concept cards*:
 small tasks in several phrasings whose reference code is executed in Houdini and checked before it is used.
 The plugin works with any of them; the newer the model, the better the answers (see the table above).
@@ -270,6 +298,8 @@ in `houdini.env` or the package file) change the defaults:
 | `AI_WRANGLE_BUILD_REFERENCE` | 1 | `0`: do not build the function reference from the local Houdini help |
 | `AI_WRANGLE_REFERENCE_LAST` | 1 | `0`: reference block at the top of the prompt instead of next to the task |
 | `AI_WRANGLE_API_HINTS` | 1 | `0`: repair requests without the hint |
+| `AI_WRANGLE_RESULT_CHECK` | 1 | `0`: no result check after a generation |
+| `AI_WRANGLE_CHECKER` | 1 | `0`: do not load the checker add-on with the model |
 | `AI_WRANGLE_BLUEPRINTS` | 0 | `1`: the older code blueprints in the prompt (they lowered the scores) |
 
 Two settings live on the node itself, under *Advanced Options*: **AI Candidates** (number of answers, 1 to 8) and
@@ -293,6 +323,7 @@ Houdini-Ai-Attribute-Wrangle/
 │   ├── 📄 vex_function_index.py       <- Function lookup: which functions a task needs, and their signatures
 │   ├── 📄 vex_function_reference.py   <- Builds the function reference from the local Houdini help
 │   ├── 📄 vex_api_hints.py            <- Hints for compiler errors (unknown function, wrong arguments, ...)
+│   ├── 📄 vex_result_check.py         <- Result check: what the code did to the geometry, and the model's verdict
 │   ├── 📄 vex_rag_engine.py           <- Assembles the context block; older function database
 │   ├── 📄 vex_ground_truth_signatures.py  <- Hand-checked signatures for the older database
 │   ├── 📄 license_validator.py        <- License check for encrypted model packages
@@ -343,9 +374,9 @@ The plugin starts `bin/llama-server.exe` in the background (no console window) t
 hython tools/test_hda_hython.py
 ```
 
-runs 142 end-to-end checks of the node inside Houdini (no GPU and no model file needed: the model's answers are
+runs 161 end-to-end checks of the node inside Houdini (no GPU and no model file needed: the model's answers are
 mocked, everything else is real: HDA, parameters, compile and cook, repair loop, history, function lookup,
-hints).
+hints, result check).
 
 | Script | Purpose |
 | :--- | :--- |

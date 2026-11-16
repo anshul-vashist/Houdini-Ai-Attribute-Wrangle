@@ -1259,9 +1259,17 @@ def _post_json_interruptible(url: str, data: bytes, headers: dict, timeout: floa
     return box.get("result", {})
 
 
+def _checker_loaded() -> bool:
+    """True when the engine was started with a checker adapter (engine_manager.checker_adapter_for)."""
+    if _engine_singleton is not None and getattr(_engine_singleton, "checker_adapter", None):
+        return True
+    return os.environ.get("AI_WRANGLE_CHECKER_LOADED") == "1"  # an engine started elsewhere (benchmark harness)
+
+
 def query_llm(prompt_text: str, max_tokens: int | None = None, reasoning_mode: bool = False,
               temperature: float | None = None, seed: int | None = None,
-              system_prompt: str | None = None, template_kwargs: dict | None = None) -> tuple[str, str]:
+              system_prompt: str | None = None, template_kwargs: dict | None = None,
+              checker: bool = False) -> tuple[str, str]:
     """
     Queries AI inference engine.
     Priority 1: Embedded Standalone Engine (127.0.0.1:58421 - Zero Dependencies)
@@ -1298,6 +1306,9 @@ def query_llm(prompt_text: str, max_tokens: int | None = None, reasoning_mode: b
         chat_payload["chat_template_kwargs"] = tk
     if seed is not None:
         chat_payload["seed"] = int(seed)
+    if _checker_loaded():
+        # the checker adapter is applied to result-check requests only; every other request says so explicitly
+        chat_payload["lora"] = [{"id": 0, "scale": 1.0 if checker else 0.0}]
     
     if engine_ready:
         try:
@@ -3829,6 +3840,24 @@ def _choose_by_execution(node, codes: list[str]) -> tuple[str, str]:
     return codes[best[0]], f"candidate {best[0] + 1}/{len(codes)}: {compiled} compiled, {len(best)} agreed"
 
 
+def _result_check(node, task: str, context_str: str, vex_code: str) -> tuple[bool | None, str]:
+    """Result check after a successful apply (python/vex_result_check.py): the model is shown what its code did to
+    the geometry and judges whether that is what was asked. Returns (verdict, reason): True approved, False "this
+    looks wrong" with the model's sentence, None when the check is off, the model is not trained for it (before
+    v56) or no verdict came back. Never raises: a failed check must not undo a successful generation."""
+    try:
+        import vex_result_check as rc
+        active = getattr(_engine_singleton, "active_model_name", "") if _engine_singleton is not None else ""
+        if not rc.enabled(_model_version(active or ""), checker_loaded=_checker_loaded()):
+            return None, ""
+        verdict, reason, _ = rc.review(node, task, context_str, vex_code,
+                                       lambda *a, **k: query_llm(*a, checker=True, **k),
+                                       geo_context=introspect_geometry(node))
+        return verdict, reason
+    except Exception:
+        return None, ""
+
+
 def on_generate_clicked(kwargs):
     """Generate / refine button. Everything it changes (Run Over class, snippet, generated sliders,
     history) is one undo step."""
@@ -4003,17 +4032,27 @@ def _on_generate_impl(kwargs):
             # Geometry health scan for NaNs/Infs
             healthy, health_msg = scan_geometry_health(node)
 
+            # Result check: does what the code did match the request? A warning only, the code stays applied.
+            verdict, why = _result_check(node, task, context_str, vex_code)
+            check_msg = ""
+            if verdict is False:
+                check_msg = "Check: the result may not match the request" + (f" - {why}" if why else ".")
+            if verdict is not None and thought_parm:
+                line = "Result check: looks right." if verdict else f"Result check: may be WRONG. {why}".rstrip()
+                thought_parm.set(line + "\n\n" + (thought_parm.eval() or ""))
+
             mode_label = "Deep Reasoning" if is_reasoning else "Turbo"
             if status_parm:
                 action_text = f"{action_label} [{mode_label}]" if is_edit_intent else f"Compiled [{mode_label}]"
-                if healthy:
-                    status_parm.set(f"{action_text} ({gen_time:.2f}s).")
-                else:
-                    status_parm.set(f"{action_text} ({gen_time:.2f}s). {health_msg}")
+                notes = " ".join(m for m in ("" if healthy else health_msg, check_msg) if m)
+                status_parm.set(f"{action_text} ({gen_time:.2f}s)." + (f" {notes}" if notes else ""))
             if perf_parm:
                 perf_parm.set(f"Cook: {cook_ms:.2f}ms ({npts:,} pts @ {throughput:.1f} Mpts/s)")
             if hou.isUIAvailable():
-                hou.ui.setStatusMessage("AI VEX compiled and applied successfully.", severity=hou.severityType.Message)
+                if check_msg:
+                    hou.ui.setStatusMessage("AI VEX applied. " + check_msg, severity=hou.severityType.Warning)
+                else:
+                    hou.ui.setStatusMessage("AI VEX compiled and applied successfully.", severity=hou.severityType.Message)
         else:
             _report_failed_generation(node, vex_code, error, "Generation")
 

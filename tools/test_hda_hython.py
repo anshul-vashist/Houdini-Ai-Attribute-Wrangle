@@ -886,6 +886,124 @@ finally:
     shutil.rmtree(ref_root, ignore_errors=True)
 
 
+# ---- result check: the model judges what its code did; a NO is a warning, never a change of the code --------
+import engine_manager as em  # noqa: E402
+import vex_result_check as rc  # noqa: E402
+
+
+@T("result check")
+def _():
+    n = make_node()
+    reset_llm(generate=["f@h = @P.y * 2 + 1;\n@Cd = set(1, 0, 0);"])
+    generate(n, "double the height into h and make it red")
+    lines = rc.observe(n)
+    check("the observation names a new attribute with its type and range",
+          any(x.startswith("NEW point attribute h (float): min 1.0 max 1.0") for x in lines), repr(lines))
+    check("the observation mentions the colour", any("attribute Cd" in x for x in lines), repr(lines))
+    prompt = rc.build_review_prompt("task text", "point wrangle", "code;", ["line one", "line two"], "GEO")
+    check("the verdict request has the layout the model was trained on",
+          prompt == "GEO\n\nContext: point wrangle\nTask: task text\n\nVEX code written for this task:\ncode;\n\n"
+                    "What this code did when it ran on the input geometry:\n  - line one\n  - line two\n\n" + rc.VERDICT_ASK,
+          prompt)
+    check("verdicts are parsed", rc.parse_verdict("NO. The point attribute h has wrong values.") ==
+          (False, "The point attribute h has wrong values.") and rc.parse_verdict(" yes.")[0] is True
+          and rc.parse_verdict("f@x = 1;")[0] is None)
+    check("the check is off for a model that was not trained for it",
+          not rc.enabled(55) and rc.enabled(56) and rc.enabled(55, checker_loaded=True))
+    os.environ["AI_WRANGLE_RESULT_CHECK"] = "0"
+    try:
+        check("AI_WRANGLE_RESULT_CHECK=0 switches the check off", not rc.enabled(56))
+    finally:
+        del os.environ["AI_WRANGLE_RESULT_CHECK"]
+
+    big = make_node()
+    big.input(0).parm("rows").set(300)
+    big.input(0).parm("cols").set(300)
+    reset_llm(generate=["f@h = @P.y + 1;"])
+    generate(big, "h is the height plus one")
+    t0 = time.time()
+    lines = rc.observe(big)
+    check("large geometry is described from a sample, quickly",
+          time.time() - t0 < 5 and "sample" in lines[-1] and any(x.startswith("NEW point attribute h") for x in lines),
+          f"{time.time() - t0:.1f}s {lines!r}")
+
+    real_q = hw.query_llm
+    calls = []
+
+    def fake_no(prompt, **k):
+        calls.append(k)
+        return "", "NO. The point attribute h has wrong values."
+
+    os.environ["AI_WRANGLE_CHECKER_LOADED"] = "1"
+    try:
+        hw.query_llm = fake_no
+        a = make_node()
+        reset_llm(generate=["f@h = @P.y * 3;"])
+        generate(a, "double the height into h")
+        status = a.parm("ai_status").eval()
+        check("a NO verdict is a warning in the status line", "may not match the request" in status
+              and "h has wrong values" in status, status)
+        check("the flagged code stays applied", a.parm("snippet").eval().strip() == "f@h = @P.y * 3;")
+        check("the flag is in the reasoning trace", "Result check: may be WRONG" in a.parm("ai_thought_trace").eval())
+        check("the check uses the review system prompt and the checker adapter", len(calls) == 1
+              and calls[0].get("checker") is True and calls[0].get("system_prompt") == rc.REVIEW_SYSTEM, repr(calls))
+
+        hw.query_llm = lambda prompt, **k: ("", "YES.")
+        b = make_node()
+        reset_llm(generate=["f@h = @P.y * 2;"])
+        generate(b, "double the height into h")
+        check("an approved result adds no warning", "may not match" not in b.parm("ai_status").eval()
+              and "Result check: looks right." in b.parm("ai_thought_trace").eval(), b.parm("ai_status").eval())
+
+        def boom(prompt, **k):
+            raise RuntimeError("engine gone")
+
+        hw.query_llm = boom
+        c = make_node()
+        reset_llm(generate=["f@h = @P.y * 2;"])
+        generate(c, "double the height into h")
+        check("a failing check does not disturb the generation", c.parm("snippet").eval().strip() == "f@h = @P.y * 2;"
+              and "Compiled" in c.parm("ai_status").eval(), c.parm("ai_status").eval())
+
+        hw.query_llm = real_q
+        seen = []
+        real_post = hw._post_json_interruptible
+        hw._post_json_interruptible = lambda url, data, headers, **k: (
+            seen.append(json.loads(data)), {"choices": [{"message": {"content": "YES."}}]})[1]
+        try:
+            hw.query_llm("x", checker=True)
+            hw.query_llm("x")
+            del os.environ["AI_WRANGLE_CHECKER_LOADED"]
+            hw.query_llm("x")
+        finally:
+            hw._post_json_interruptible = real_post
+        check("only the check applies the checker adapter; other requests switch it off explicitly",
+              [s.get("lora") for s in seen] == [[{"id": 0, "scale": 1.0}], [{"id": 0, "scale": 0.0}], None],
+              repr([s.get("lora") for s in seen]))
+    finally:
+        hw.query_llm = real_q
+        os.environ.pop("AI_WRANGLE_CHECKER_LOADED", None)
+
+    d = tempfile.mkdtemp(prefix="aw_chk_")
+    try:
+        model = os.path.join(d, "Qwen3-8B-Houdini-VEX-v55-nf4deq-Q6_K.gguf")
+        check("no checker adapter, no adapter argument", em.EngineManager.checker_adapter_for(model) is None)
+        open(os.path.join(d, "qwen3-vex-v55-checker-lora.gguf"), "w").close()
+        check("the checker adapter is found next to its model version",
+              (em.EngineManager.checker_adapter_for(model) or "").endswith("qwen3-vex-v55-checker-lora.gguf"))
+        check("another model version does not take it",
+              em.EngineManager.checker_adapter_for(os.path.join(d, "Qwen3-8B-Houdini-VEX-v53b-nf4deq-Q6_K.gguf")) is None)
+        os.environ["AI_WRANGLE_CHECKER"] = "0"
+        try:
+            check("AI_WRANGLE_CHECKER=0 leaves the adapter out", em.EngineManager.checker_adapter_for(model) is None)
+        finally:
+            del os.environ["AI_WRANGLE_CHECKER"]
+        check("the model menu does not list the adapter as a model",
+              not any("checker" in t for t in hw.get_available_models_menu_items()[0::2]))
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 print()
 failed = [r for r in RESULTS if not r[1]]
 print(f"{len(RESULTS) - len(failed)}/{len(RESULTS)} checks passed")

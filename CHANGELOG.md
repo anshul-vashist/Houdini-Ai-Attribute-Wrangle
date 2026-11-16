@@ -7,6 +7,33 @@ scripts and data, held-out benchmark suites, experiments) that is not part of th
 
 ---
 
+## [Result check: the model warns when its result looks wrong] — 2026-11-16
+
+- **Result check** (`python/vex_result_check.py`): after a successful generation the node describes what the code
+  did to the geometry (new and changed attributes with value ranges, groups, counts; sampled above 5,000
+  elements) and the model answers YES or NO to "does this do what the task asks for?". A NO is a warning in the
+  status line and the Reasoning Trace; the code is never changed. `AI_WRANGLE_RESULT_CHECK=0` switches it off.
+- **Checker add-on** (`models/qwen3-vex-v55-checker-lora.gguf`, built by `ai_model_training/build_checker_adapter.py`):
+  v55 keeps writing the code; the engine loads the add-on next to it without applying it, and only check requests
+  switch it on (`"lora"` field of the request). With the add-on loaded but off, all 126 dev answers are identical
+  to v55's. `AI_WRANGLE_CHECKER=0` leaves it out.
+- **Measured** on the 126 open dev prompts (v55 writes, add-on judges): of 54 wrong answers 29 are flagged, 17
+  approved, 8 get no verdict; of 72 right answers 10 are flagged. Before training, v55 approved 35 of 44 wrong
+  answers. A check takes about 0.5 s.
+- **Where it comes from: v56**, a training round without new tasks (4,509 rows derived from the 458 existing cards:
+  1,181 rewordings verified by a blind solver in Houdini, restating rows, 1,500 result-check rows from the model's
+  own graded answers and from reference programs with one verified bug). What it taught: judging a result
+  transfers to unseen tasks. What it did not teach: fixing from a stated finding (2 of 54, unchanged),
+  understanding loose wording (72 of 126, unchanged), restating before coding. As the code-writing model v56 is
+  not better than v55 (suites A-F 188 against 199; sealed suites 140 against 145, 14 tasks gained, 19 lost),
+  so only its checking skill is shipped, as the add-on.
+- **Why not more**: on the same 126 prompts untrained self-checks, thinking first, 8 candidates instead of 3 and
+  restating gained nothing; the model is right or wrong consistently (no correct answer in 8 tries for 45
+  prompts), and 38 of 42 tasks are solved in at least one of their three wordings. A strong reference model
+  solves 117 of the 126 from the plugin's prompts in one attempt: the tasks and the pipeline are sound, the
+  limit is the 8B model.
+- Plugin tests: 161 checks.
+
 ## [v55 shipped, function lookup, prompt layout, review fixes] — 2026-11-12
 
 - **Function lookup on by default** (`python/vex_function_index.py`): for a task the prompt lists the documented

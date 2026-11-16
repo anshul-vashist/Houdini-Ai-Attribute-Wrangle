@@ -154,6 +154,7 @@ class EngineManager:
         self.last_error = ""
         self.active_model_name = ""
         self.active_lora_name = None
+        self.checker_adapter = None
         self.active_gpu_layers = 0
 
     def get_model_info_string(self) -> str:
@@ -302,6 +303,14 @@ class EngineManager:
                     command.extend(["--lora", lora_path])
                     self.active_lora_name = os.path.basename(lora_path)
                     break
+        # Checker adapter (models/qwen3-vex-v<N>-checker-lora.gguf for model version N): loaded but not applied, so
+        # the model writes code as itself; only a request that asks for it ("lora" field) gets the adapter, which is
+        # what the result check does (python/vex_result_check.py). AI_WRANGLE_CHECKER=0 leaves it out.
+        self.checker_adapter = None
+        checker = self.checker_adapter_for(vault_model_path)
+        if checker and not self.active_lora_name:
+            command.extend(["--lora", checker, "--lora-init-without-apply"])
+            self.checker_adapter = os.path.basename(checker)
         if vault_model_path.endswith(".dat"):
             # decrypted vault weights: load fully into memory so the staged plaintext copy can be
             # deleted right after startup (a memory-mapped file cannot be removed on Windows)
@@ -341,6 +350,19 @@ class EngineManager:
             self.last_error = f"Could not start the AI engine: {error}"
             self.cleanup_cache()
             return False
+
+    @staticmethod
+    def checker_adapter_for(model_path: str) -> str | None:
+        """The checker adapter that belongs to this model file, or None."""
+        import re
+        if os.getenv("AI_WRANGLE_CHECKER", "1") == "0":
+            return None
+        m = re.search(r"houdini-vex-v(\d+)", os.path.basename(model_path), re.IGNORECASE)
+        if not m:
+            return None
+        path = os.path.join(os.path.dirname(os.path.abspath(model_path)), f"qwen3-vex-v{m.group(1)}-checker-lora.gguf")
+        # llama-server takes several adapters as a comma-separated list: a comma in the path would split it
+        return path if os.path.isfile(path) and "," not in path else None
 
     def _use_port(self, port: int) -> None:
         self.port = port
