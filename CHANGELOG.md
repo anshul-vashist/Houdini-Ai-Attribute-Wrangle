@@ -7,10 +7,31 @@ scripts and data, held-out benchmark suites, experiments) that is not part of th
 
 ---
 
+## [Everyday test set, Understood As, 5 answers] — 2026-11-24
+
+- **Everyday test set** (private, never trained): 48 tasks modelled on the wrangles shipped with Houdini 21, each in
+  a precise, a compact and a casual wording, verified in Houdini and screened against the sealed suites. v55 alone
+  99 of 144, through the plugin 108 (precise 43, compact 37, casual 28 of 48), with 8 answers 116; 47 of the 48
+  tasks are solved in at least one wording.
+- **Understood As** field under Status: after each generation the model says in one sentence what the code does,
+  so a misunderstood casual request is seen at once (`AI_WRANGLE_UNDERSTOOD=0` switches it off; about a second).
+- **GPU layers**: the engine estimates how many layers fit from the real model size, the context cache and the
+  checker add-on (it assumed a 5.45 GB model and offloaded everything from 5.2 GB free, too little for the 6.7 GB
+  models); when nothing fits it runs on the CPU instead of failing.
+- **Answers to Compare: 5 by default** (was 3; 8 answers gained 8 of 144 on the everyday set; 5 not measured).
+- Parameter panel fitted to a normal-width pane: Think First on its own row, Auto next to Run Over, the Tools
+  buttons on two rows, shorter Settings labels. Plugin tests: 200 checks.
+- Measured and not adopted (126 dev tasks and the everyday set, paired): ideal worked examples chosen with the
+  answer known (70 against 72): better retrieval cannot help; the checker choosing among 3 or 8 answers (+1 to
+  +2); the old keyword hints switched off (no change, `AI_WRANGLE_VERB_HINTS` / `AI_WRANGLE_INIT_GUARDS` added);
+  a glossary of casual phrases in the prompt (`python/vex_wording_notes.py`, `AI_WRANGLE_WORDING_NOTES=1`): casual
+  dev tasks 15 against 15; v56 trained on 1,181 verified casual rewordings: casual +3 to +4 on each set, precise
+  -2 to -3, not significant.
+
 ## [Interface: one page for the everyday loop, the rest in tabs] — 2026-11-16
 
 - The node's interface is rebuilt as five tabs. **Wrangle**: Prompt (three lines), Generate, Think First, Status,
-  Run Over with "Let the AI Choose", Group, the code and the generated controls. **History**: Previous / Next and
+  Run Over with "Auto", Group, the code and the generated controls. **History**: Previous / Next and
   the two variants. **Tools**: presets, safety guards, attribute stats, help card, export, AI Notes. **Settings**:
   model, answers to compare, examples and function reference, and a switch for the result check. **Bindings**: the
   wrangle's own bindings plus its three standard options.
@@ -28,7 +49,7 @@ scripts and data, held-out benchmark suites, experiments) that is not part of th
   An edit that returns the same code says so; a Generate over existing code says that it replaced it. Asked the old way
   ("here is code, change it") the model dropped existing lines in 4 of 5 trial edits; rewriting stays its weakest
   skill, so the status line counts the lines added, changed and removed. An edit is one undo step and one history
-  version, and Let the AI Choose does not change Run Over during an edit.
+  version, and Auto does not change Run Over during an edit.
 - Parameter names are unchanged: nodes in saved scenes keep their code, values and history.
   `tools/hda_rebuild_ui.py` rebuilds the interface stored in the HDA from the layout in the controller
   (`_strip_ai_layout`, `_build_ai_layout`); the rebuild is repeatable. New help page. Plugin tests: 191 checks.

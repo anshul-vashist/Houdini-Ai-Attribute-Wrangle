@@ -18,6 +18,7 @@ import hou
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(ROOT, "python"))
 os.environ.setdefault("AI_WRANGLE_ROOT", ROOT)
+os.environ["AI_WRANGLE_UNDERSTOOD"] = "0"   # the "Understood As" request is tested on its own below
 hou.hda.installFile(os.path.join(ROOT, "otls", "ai_attribwrangle.hda"))
 
 import houdini_ai_wrangle as hw  # noqa: E402
@@ -902,7 +903,8 @@ def _():
           repr([t[0] for t in tabs]))
     main = tabs[0][1] if tabs else []
     check("the main tab is the everyday loop: prompt, Generate, status, Run Over, Group, code",
-          main[:7] == ["ai_prompt", "ai_generate", "ai_edit", "ai_reasoning_mode", "ai_status", "class", "ai_autodetect"]
+          main[:8] == ["ai_prompt", "ai_generate", "ai_edit", "ai_reasoning_mode", "ai_status", "ai_understood", "class",
+                       "ai_autodetect"]
           and main.index("group") < main.index("snippet"), repr(main))
     hidden = [n for n in ("ai_snippet_a", "ai_snippet_b", "ai_history_json", "ai_perf") if ptg.find(n).isHidden()]
     check("the internal data fields are hidden", len(hidden) == 4, repr(hidden))
@@ -1061,6 +1063,36 @@ def _():
         del os.environ["AI_WRANGLE_CHECKER_LOADED"]
 
 
+@T("understood as")
+def _():
+    n = make_node()
+    check("five answers are compared by default",   # (make_node sets 1 for the other tests)
+          n.parm("ai_num_candidates").parmTemplate().defaultValue()[0] == 5 and hw.DEFAULT_CANDIDATES == 5)
+    real_q, asked = hw.query_llm, []
+    os.environ["AI_WRANGLE_UNDERSTOOD"] = "1"
+    hw.query_llm = lambda prompt, **k: (asked.append((prompt, k.get("system_prompt"))),
+                                        ("", "Stores in dist the distance of each point from the origin, which is a "
+                                             "sentence long enough to be wrapped onto a second line."))[1]
+    try:
+        reset_llm(generate=["f@dist = length(@P);"])
+        generate(n, "how far is everything from the middle")
+    finally:
+        hw.query_llm = real_q
+        os.environ["AI_WRANGLE_UNDERSTOOD"] = "0"
+    text = n.parm("ai_understood").eval()
+    check("after a generation the node says what the code does", text.startswith("Stores in dist") and "\n" in text
+          and all(len(line) <= 46 for line in text.splitlines()), repr(text))
+    check("the description is asked for with the code and the describe instruction",
+          len(asked) == 1 and "f@dist = length(@P);" in asked[0][0] and asked[0][1] == hw.DESCRIBE_SYSTEM, repr(asked)[:200])
+    check("the description is also the first line of AI Notes",
+          n.parm("ai_thought_trace").eval().startswith("Understood as: Stores"))
+    hw.query_llm = lambda prompt, **k: ("", "f@dist = length(@P);")
+    try:
+        check("an answer that is code is not shown as a description", hw.understood_sentence("f@dist = length(@P);") == "")
+    finally:
+        hw.query_llm = real_q
+
+
 # ---- result check: the model judges what its code did; a NO is a warning, never a change of the code --------
 import engine_manager as em  # noqa: E402
 import vex_result_check as rc  # noqa: E402
@@ -1158,6 +1190,17 @@ def _():
     finally:
         hw.query_llm = real_q
         os.environ.pop("AI_WRANGLE_CHECKER_LOADED", None)
+
+    # GPU layers: real model size + context cache + adapter must fit next to Houdini
+    est = em.get_recommended_gpu_layers
+    check("a 6.7 GB model with the checker gets every layer on a free 10 GB card", est(6.26, 666, free_mb=9200) == 99)
+    check("with 8 GB free it is split between GPU and CPU instead of failing to load", 0 < est(6.26, 666, free_mb=8000) < 36)
+    check("less free memory means fewer layers", est(6.26, 666, free_mb=4000) < est(6.26, 666, free_mb=6000) < 36)
+    os.environ["AI_WRANGLE_GPU_LAYERS"] = "12"
+    try:
+        check("AI_WRANGLE_GPU_LAYERS overrides the estimate", est(6.26, 666, free_mb=9200) == 12)
+    finally:
+        del os.environ["AI_WRANGLE_GPU_LAYERS"]
 
     d = tempfile.mkdtemp(prefix="aw_chk_")
     try:

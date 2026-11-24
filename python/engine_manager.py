@@ -49,14 +49,13 @@ DEFAULT_HOST = "127.0.0.1"
 _STAGING_ROOT = os.path.join(tempfile.gettempdir(), "ai_wrangle_runtime")
 
 
-def get_recommended_gpu_layers(model_size_gb: float = 5.45) -> int:
-    """Dynamically detects available GPU VRAM to prevent OutOfDeviceMemory crashes."""
-    override = os.getenv("AI_WRANGLE_GPU_LAYERS")
-    if override is not None:
-        try:
-            return int(override)
-        except ValueError:
-            pass
+N_LAYERS = 36          # Qwen3-8B transformer blocks
+KV_MB_8K = 1152        # f16 K/V cache at --ctx-size 8192: 36 layers x 8 KV heads x 128 dims x 2 (K, V) x 2 bytes x 8192
+FIXED_MB = 900         # compute buffers (~500 MB) + headroom for the Houdini viewport, UI and compositor (~400 MB)
+
+
+def _free_vram_mb() -> int | None:
+    """Free video memory of the first NVIDIA GPU in MB, None when it cannot be read (no nvidia-smi, other vendor)."""
     try:
         creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         cmd = ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,nounits,noheader"]
@@ -65,24 +64,35 @@ def get_recommended_gpu_layers(model_size_gb: float = 5.45) -> int:
                 if os.path.isfile(cand):
                     cmd[0] = cand
                     break
-        out = subprocess.check_output(
-            cmd,
-            text=True, stderr=subprocess.DEVNULL, timeout=5.0,
-            creationflags=creation_flags
-        ).strip()
-        free_vram_mb = int(out.splitlines()[0])
-        # Model has ~36 transformer layers; estimate per-layer VRAM requirements:
-        layer_size_mb = max(80, int((model_size_gb * 1024) / 36))
-        # Keep 800 MB safe headroom for Houdini OpenGL/Vulkan viewport, UI, and OS compositor
-        safe_vram_budget = max(0, free_vram_mb - 800)
-        max_layers = min(36, safe_vram_budget // layer_size_mb)
-        # Avoid split CPU-GPU bottleneck: if >= 28 layers fit, offload all 36
-        if max_layers >= 28 or free_vram_mb >= 5200:
-            return 36
-        return max(0, max_layers)
+        out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL, timeout=5.0,
+                                      creationflags=creation_flags).strip()
+        return int(float(out.splitlines()[0]))
     except Exception:
-        # High-performance default: offload all 36 layers
-        return 36
+        return None
+
+
+def get_recommended_gpu_layers(model_size_gb: float = 5.45, adapter_mb: float = 0.0, free_mb: int | None = None) -> int:
+    """How many of the model's layers to put on the GPU so that it fits next to Houdini.
+
+    Each layer costs its share of the weights, of the context cache and of a loaded adapter; compute buffers and
+    headroom for Houdini's own drawing are reserved. Everything fits -> all layers (99: the output layer too).
+    Until 2026-11-24 the estimate assumed a 5.45 GB model and gave all layers as soon as 5.2 GB were free, which
+    is too little for the 6.7 GB models. AI_WRANGLE_GPU_LAYERS overrides the estimate."""
+    override = os.getenv("AI_WRANGLE_GPU_LAYERS")
+    if override is not None:
+        try:
+            return int(override)
+        except ValueError:
+            pass
+    if free_mb is None:
+        free_mb = _free_vram_mb()
+    if free_mb is None:
+        return 99  # unknown GPU: let llama.cpp try everything (it reports a failed load)
+    per_layer = (model_size_gb * 1024 + KV_MB_8K + adapter_mb) / N_LAYERS
+    layers = int((free_mb - FIXED_MB) // per_layer)
+    if layers >= N_LAYERS:
+        return 99
+    return max(0, layers)
 
 
 def _kill_with_parent(process):
@@ -280,7 +290,13 @@ class EngineManager:
             self.last_error = str(error)
             return False
 
-        gpu_layers = str(get_recommended_gpu_layers())
+        checker_path = self.checker_adapter_for(vault_model_path)
+        try:
+            model_gb = os.path.getsize(vault_model_path) / 1024 ** 3
+        except OSError:
+            model_gb = 6.3
+        adapter_mb = (os.path.getsize(checker_path) / 1024 ** 2) if checker_path else 0.0
+        gpu_layers = str(get_recommended_gpu_layers(model_gb, adapter_mb))
         self.active_gpu_layers = int(gpu_layers)
         self.active_model_name = os.path.basename(vault_model_path)
         self.active_lora_name = None
@@ -307,7 +323,7 @@ class EngineManager:
         # the model writes code as itself; only a request that asks for it ("lora" field) gets the adapter, which is
         # what the result check does (python/vex_result_check.py). AI_WRANGLE_CHECKER=0 leaves it out.
         self.checker_adapter = None
-        checker = self.checker_adapter_for(vault_model_path)
+        checker = checker_path
         if checker and not self.active_lora_name:
             command.extend(["--lora", checker, "--lora-init-without-apply"])
             self.checker_adapter = os.path.basename(checker)

@@ -34,6 +34,8 @@ The model runs on this machine; nothing leaves it.
 
 # Describe the result in *Prompt*. Name attributes, groups and inputs as they are called in your scene.
 # Press *Generate*. The code is compiled and cooked on this node before you see it.
+# Read *Understood As*: one sentence from the model about what the code does. If it is not what you meant,
+  the request was misunderstood: say it more exactly, or correct it with *Edit Code*.
 # Read *Status*. "Check: the result may not match the request" means the model itself doubts the result:
   look at that one before you trust it.
 # To work on code that is already there, type only what you want and press *Edit Code*. *Generate* always
@@ -69,7 +71,7 @@ Bindings:
 Think First (Slower):
     The model plans step by step before writing the code and gives one answer. For hard problems.
 
-Let the AI Choose:
+Auto (next to Run Over):
     Run Over is chosen from the prompt. Turn off to keep your own choice.
 
 Model:
@@ -79,10 +81,10 @@ Answers to Compare:
     For a new snippet the model answers this many times; each answer is cooked here and the result most of
     them agree on is kept.
 
-Use Examples and Function Reference:
+Use Examples and Reference:
     Sends similar verified examples and the signatures of likely VEX functions with the prompt.
 
-Warn When the Result Looks Wrong:
+Warn If Result Looks Wrong:
     After a generation the model judges what the code did to the geometry. A warning is right about three
     times in four; code that passes is right about four times in five. The code is never changed.
 

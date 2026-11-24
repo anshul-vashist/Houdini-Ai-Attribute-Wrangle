@@ -2362,13 +2362,21 @@ def build_generation_prompt(task: str, context: str = "point wrangle", geo_conte
         prompt_parts.append(rag_block)
     prompt_parts.append(f"Context: {context}")
 
-    # --- Verb pattern hints (Phase 3: #6) ---
-    verb_hints = _build_verb_hints(task)
-
-    # --- Attribute initialization guards (Phase 3: #9 + #12) ---
-    init_guards = _build_init_guards(task, geo_context)
+    # --- Verb pattern hints and attribute guards (early keyword heuristics). AI_WRANGLE_VERB_HINTS=0 /
+    # AI_WRANGLE_INIT_GUARDS=0 switch them off. They match words inside other words ("slider" -> "id") and
+    # carry outdated advice ("velocity" -> v@vel), which casual requests trigger most (under test 2026-11-24).
+    verb_hints = _build_verb_hints(task) if os.getenv("AI_WRANGLE_VERB_HINTS", "1") != "0" else ""
+    init_guards = _build_init_guards(task, geo_context) if os.getenv("AI_WRANGLE_INIT_GUARDS", "1") != "0" else ""
 
     task_block = f"Task Instruction: {task}"
+    # Wording notes: what everyday artist phrases mean (python/vex_wording_notes.py; AI_WRANGLE_WORDING_NOTES=1)
+    try:
+        import vex_wording_notes
+        wording = vex_wording_notes.block(task) if vex_wording_notes.enabled() else ""
+    except Exception:
+        wording = ""
+    if wording:
+        task_block += f"\n{wording}"
     if verb_hints:
         task_block += f"\n{verb_hints}"
     if init_guards:
@@ -2425,8 +2433,37 @@ def refine_vex(refinement_task: str, existing_code: str, context: str = "point w
     return query_llm(prompt, reasoning_mode=reasoning_mode)
 
 
-DESCRIBE_SYSTEM = ("You are an expert SideFX Houdini VEX programmer. Describe in one sentence what the given wrangle "
-                   "code does, naming its attributes and parameters. Do not write code.")
+# One plain sentence about what a snippet does. With these two examples v55 answered all 48 everyday reference
+# programs with a sentence and never with code (without them it echoed code for 2 of 48), 2026-11-24.
+DESCRIBE_SYSTEM = ("You explain Houdini wrangle code to artists. Answer with ONE plain English sentence that starts with a "
+                   "verb and says what the code does to the geometry: which attribute it writes, from what, and which "
+                   "parameters control it. Never repeat or write code.\n\n"
+                   "Example code: f@h = fit(@P.y, chf(\"lo\"), chf(\"hi\"), 0, 1);\n"
+                   "Example answer: Stores in h the point height mapped from the range lo..hi to 0..1.\n\n"
+                   "Example code: if (@P.y < 0) removepoint(0, @ptnum);\n"
+                   "Example answer: Deletes the points below the ground plane.")
+
+
+def understood_sentence(code: str, context: str = "point wrangle") -> str:
+    """What the model says the code does, in one sentence ('' when it gives no plain sentence or fails). Shown on
+    the node after each generation so that a misunderstood request is seen at once."""
+    try:
+        _, text = query_llm(f"Context: {context}\n\nCode:\n{code.strip()}", max_tokens=90, temperature=0.0,
+                            system_prompt=DESCRIBE_SYSTEM, template_kwargs={"enable_thinking": False})
+    except Exception:
+        return ""
+    text = " ".join((text or "").split())
+    squashed = re.sub(r"\s+", "", text)
+    if (not text or len(text) > 320 or squashed in re.sub(r"\s+", "", code) or text.endswith((";", "}"))
+            or text.count(";") >= 2):
+        return ""
+    return text
+
+
+def _wrap(text: str, width: int = 46) -> str:
+    """Line breaks for a field that does not wrap by itself."""
+    import textwrap
+    return "\n".join(textwrap.wrap(text, width)) if text else ""
 
 
 def written_names(code: str) -> list[str]:
@@ -3493,7 +3530,7 @@ def _build_ai_layout(ptg) -> None:
     generate = _button("ai_generate", "Generate", "on_generate_clicked", join=True,
                        help="Write NEW code for the prompt; the code in the node is replaced. To change the code that "
                             "is already there, use Edit Code. Press Esc to cancel.")
-    edit = _button("ai_edit", "Edit Code", "on_refine_clicked", join=True,
+    edit = _button("ai_edit", "Edit Code", "on_refine_clicked",
                    help="Change the code that is already in the node as the prompt says: fix something, add something, "
                         "adjust a value. The rest of the code is kept. The previous version stays in History, and "
                         "Ctrl+Z undoes the edit.")
@@ -3507,8 +3544,13 @@ def _build_ai_layout(ptg) -> None:
         string_type=hou.stringParmType.Regular,
         help="What the last request did: compiled or not, how long it took, and a warning when the model judges that "
              "the result may not match the request.")
+    understood = hou.StringParmTemplate(
+        name="ai_understood", label="Understood As", num_components=1, default_value=[""],
+        string_type=hou.stringParmType.Regular, tags={"editor": "1", "editorlines": "2-4"},
+        help="What the model says the code does, in one sentence, written after each generation. If this is not "
+             "what you meant, the request was misunderstood: say it more exactly, or correct it with Edit Code.")
     autodetect = hou.ToggleParmTemplate(
-        name="ai_autodetect", label="Let the AI Choose", default_value=True,
+        name="ai_autodetect", label="Auto", default_value=True,
         help="Run Over (points, primitives, detail, vertices) is chosen from the prompt. Turn off to keep your own choice.")
 
     # ---- History tab -------------------------------------------------------------------------------------------
@@ -3556,9 +3598,9 @@ def _build_ai_layout(ptg) -> None:
         preset_menu,
         _button("ai_load_preset", "Load", "on_load_preset_clicked", help="Put the chosen preset into the node and cook it."),
         hou.SeparatorParmTemplate("sep_tools"),
-        _button("ai_sanitize_guards", "Add Safety Guards", "on_sanitize_guards_clicked", join=True,
+        _button("ai_sanitize_guards", "Safety Guards", "on_sanitize_guards_clicked", join=True,
                 help="Add guards against division by zero and NaN values to the code."),
-        _button("ai_inspect_stats", "Attribute Stats", "on_inspect_stats_clicked", join=True,
+        _button("ai_inspect_stats", "Attribute Stats", "on_inspect_stats_clicked",
                 help="Show statistics of the attributes on the input geometry."),
         _button("ai_generate_help", "Help Card", "on_generate_help_clicked", join=True,
                 help="A summary of this node to read or copy: prompt, code, parameters and inputs."),
@@ -3598,11 +3640,11 @@ def _build_ai_layout(ptg) -> None:
             help="For a new snippet the model answers this many times; each answer is cooked on this node and the "
                  "result most of them agree on is kept. 1 is the fastest."),
         hou.ToggleParmTemplate(
-            name="ai_use_rag", label="Use Examples and Function Reference", default_value=True,
+            name="ai_use_rag", label="Use Examples and Reference", default_value=True,
             help="Send similar verified examples and the signatures of likely VEX functions with the prompt. "
                  "Turn off to see what the model does on its own."),
         hou.ToggleParmTemplate(
-            name="ai_result_check", label="Warn When the Result Looks Wrong", default_value=True,
+            name="ai_result_check", label="Warn If Result Looks Wrong", default_value=True,
             help="After a generation the model looks at what the code did to the geometry and warns in the status "
                  "line when that does not seem to match the request. The code is never changed. Needs the checker "
                  "add-on next to the model; without it nothing is checked."),
@@ -3610,7 +3652,7 @@ def _build_ai_layout(ptg) -> None:
 
     hidden = [_hidden_string("ai_snippet_a", "Variant A", ""), _hidden_string("ai_snippet_b", "Variant B", ""),
               _hidden_string("ai_history_json", "History Data", "[]"), _hidden_string("ai_perf", "Cook Benchmark", "-")]
-    main_new = [prompt, generate, edit, think, status]
+    main_new = [prompt, generate, edit, think, status, understood]
 
     code_tab = _tab_with(ptg, "snippet")       # Houdini names the tabs of one strip folder1, folder1_1, ...:
     bindings_tab = _tab_with(ptg, "autobind")  # they are found by what they contain, not by name
@@ -3743,7 +3785,7 @@ def _extract_node(kwargs) -> hou.Node | None:
     return None
 
 
-DEFAULT_CANDIDATES = 3
+DEFAULT_CANDIDATES = 5   # everyday test set, 2026-11-24: 3 answers 108 of 144, 8 answers 116 (5 not measured)
 
 
 def _num_candidates(node=None) -> int:
@@ -4074,6 +4116,12 @@ def _on_generate_impl(kwargs):
             # (new code only: the check was measured on freshly written code; after edits, with a task that is a
             # chain of changes, it raised false alarms in the live trials of 2026-11-16)
             verdict, why = (None, "") if is_edit_intent else _result_check(node, task, context_str, vex_code)
+            understood_parm = node.parm("ai_understood")
+            if understood_parm is not None:
+                said = understood_sentence(vex_code, context_str) if os.getenv("AI_WRANGLE_UNDERSTOOD", "1") != "0" else ""
+                understood_parm.set(_wrap(said))
+                if said and thought_parm:
+                    thought_parm.set(f"Understood as: {said}\n\n" + (thought_parm.eval() or ""))
             check_msg = ""
             if verdict is False:
                 check_msg = "Check: the result may not match the request" + (f" - {why}" if why else ".")

@@ -142,12 +142,19 @@ want.
 Every step is in the history and can be undone.
 
 ### 2. 🗳️ Candidates and execution vote
-*Answers to Compare* (default 3) sets how many answers are generated for a new snippet. Each is cooked on the node;
+*Answers to Compare* (default 5) sets how many answers are generated for a new snippet. Each is cooked on the node;
 the result most candidates agree on is used, and the trace says how many agreed.
 
 ### 3. 🔁 Compiler-in-the-loop repair
 When no answer compiles, the code is repaired with the live compiler message plus a hint taken from the
 compiler's own list of 951 function signatures (up to two passes).
+
+### 3a. 💬 Understood As
+After every generation the model says in one sentence what the code does ("Colors the point with a vertical height
+ramp from the bounding box"). If that is not what you meant, you see it at once and can say it more exactly or
+correct it with Edit Code. This matters most for casually worded requests: on 48 everyday tasks the model gets
+43 right when they are asked precisely and 28 when they are asked casually, although it solves 47 of the 48 in
+some wording.
 
 ### 3b. 🚦 Result check
 After every successful generation the model judges what its code actually did to your geometry. "Check: the
@@ -165,10 +172,10 @@ On the *History* tab: step through earlier versions (**Previous** / **Next**), k
 **Save as B**) and swap between them.
 
 ### 7. 🧰 Tools on the node
-*Let the AI Choose* next to Run Over (point / primitive / detail / vertex from the prompt). On the *Tools* tab:
+*Auto* next to Run Over (point / primitive / detail / vertex from the prompt). On the *Tools* tab:
 11 FX presets (PBD cloth, RK4
 advection, Verlet step, curl noise, differential growth, FABRIK IK, reaction-diffusion and others),
-**Add Safety Guards** (zero-division and NaN guards), **Attribute Stats**, **Help Card** and **Export .h**.
+**Safety Guards** (zero-division and NaN guards), **Attribute Stats**, **Help Card** and **Export .h**.
 
 ### 8. 🔀 Model menu
 *Model* (on the *Settings* tab) lists the model files in `models/`, with the benchmark score of the versions that were measured.
@@ -180,10 +187,10 @@ advection, Verlet step, curl noise, differential growth, FABRIK IK, reaction-dif
 
 **Requirements**: Windows 10/11 x64, SideFX Houdini 21.0 (developed and tested on 21.0.440; Houdini 20.0 and
 20.5 were listed for earlier releases and have not been tested with this one), a Vulkan-capable GPU.
-The current model is 6.7 GB; it was developed on an RTX 3080 (10 GB), where it runs fully on the GPU. The engine
-puts the whole model on the GPU when about 5 GB of video memory are free, an estimate made for the older 5.9 GB
-models: on cards with 6 to 8 GB, set `AI_WRANGLE_GPU_LAYERS` (for example to 24) if loading fails or generation
-is slow. The rest of the model then runs on the CPU.
+The current model is 6.7 GB; it was developed on an RTX 3080 (10 GB), where it runs fully on the GPU. Before it
+loads, the engine reads the free video memory and puts as many of the model's 36 layers on the GPU as fit next to
+Houdini (model size, context cache and checker add-on included, about 9 GB for everything); the rest runs on the
+CPU, which works but is slower. `AI_WRANGLE_GPU_LAYERS` sets the number by hand.
 
 ### Option 1: Setup wizard (recommended)
 1. Clone or download this repository to a permanent folder.
@@ -313,9 +320,9 @@ in `houdini.env` or the package file) change the defaults:
 | `AI_WRANGLE_BLUEPRINTS` | 0 | `1`: the older code blueprints in the prompt (they lowered the scores) |
 
 Three settings live on the node itself, on the *Settings* tab: **Answers to Compare** (1 to 8), **Use Examples and
-Function Reference** (off: new requests are sent without worked examples and function reference, the geometry
-context stays; repair requests still carry the function reference and the compiler hint) and **Warn When the
-Result Looks Wrong**.
+Reference** (off: new requests are sent without worked examples and function reference, the geometry context
+stays; repair requests still carry the function reference and the compiler hint) and **Warn If Result Looks
+Wrong**.
 
 ---
 
@@ -385,7 +392,7 @@ The plugin starts `bin/llama-server.exe` in the background (no console window) t
 hython tools/test_hda_hython.py
 ```
 
-runs 191 end-to-end checks of the node inside Houdini (no GPU and no model file needed: the model's answers are
+runs 200 end-to-end checks of the node inside Houdini (no GPU and no model file needed: the model's answers are
 mocked, everything else is real: HDA, parameters, compile and cook, repair loop, history, function lookup,
 hints, result check).
 
