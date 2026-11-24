@@ -34,9 +34,10 @@ def load_1115_catalog():
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "vex_1115_compact.json"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "data", "vex_1115_compact.json"),
         os.path.join(os.getcwd(), "data", "vex_1115_compact.json"),
-        r"C:\Users\Anshul\Documents\houdini21.0\scripts\data\vex_1115_compact.json",
-        r"E:\#AI#\Houdini Attribute Wrangle\data\vex_1115_compact.json",
     ]
+    root_env = os.environ.get("AI_WRANGLE_ROOT")
+    if root_env:
+        candidate_paths.append(os.path.join(root_env, "data", "vex_1115_compact.json"))
     catalog = {}
     for p in candidate_paths:
         if os.path.exists(p):
@@ -1746,9 +1747,9 @@ class VEXRAGEngine:
             ("quaternion", "orient", "rotation", "rotate", "lookat", "slerp", "dihedral"): 
                 ["quaternion", "qrotate", "qmultiply", "slerp", "dihedral", "lookat", "maketransform"],
             ("eigen", "eigenvalues", "covariance", "decomposition", "svd", "polar", "pca"): 
-                ["svd", "polardecomp", "eigenvalues"],
+                ["svddecomp", "polardecomp", "eigenvalues"],
             ("volume", "sdf", "vdb", "gradient", "density", "sample volume"): 
-                ["volumesample", "volumesamplev", "volumegradient", "volumeindex", "volumeres", "volumevoxelsize"],
+                ["volumesample", "volumesamplev", "volumegradient", "volumeindex", "volumeres", "volumevoxeldiameter"],
             ("ray", "raycast", "ray trace", "ray intersect", "shoot ray", "reflection"): 
                 ["intersect", "intersect_all"],
             ("create points", "generate curve", "add points", "from scratch"): 
@@ -1795,7 +1796,12 @@ class VEXRAGEngine:
 
     def build_rag_context_block(self, prompt: str, context: str = "point wrangle") -> str:
         blocks = []
-        recipes = self.retrieve_recipes_for_task(prompt, context=context)
+        # Blueprints: one hand-written code pattern chosen by trigger words (the oldest part of the reference
+        # block). Off by default since 2026-11-11: the pattern is often unrelated to the task (a Bishop-frame curve
+        # for "group the kinks", bounding-box culling for "scale about the centre"), and on the 18 open dev prompts
+        # that trigger one, leaving it out gained 2 and lost 0 for both models. AI_WRANGLE_BLUEPRINTS=1 restores them.
+        recipes = (self.retrieve_recipes_for_task(prompt, context=context)
+                   if os.getenv("AI_WRANGLE_BLUEPRINTS", "0") != "0" else [])
         if recipes:
             for rec in recipes:
                 blocks.append(
@@ -1804,12 +1810,29 @@ class VEXRAGEngine:
                     "Note: Use the structural architecture above as a blueprint. Adapt equations and channels to the user's specific prompt."
                 )
 
-        sigs = self.retrieve_signatures_for_task(prompt, context=context)
-        if sigs:
-            lines = ["Official SideFX VEX Function Signatures (Ground Truth Reference):"]
-            for s in sigs:
-                lines.append(f"  - {s}")
-            blocks.append("\n".join(lines))
+        # Function lookup (python/vex_function_index.py): the functions a task probably needs, found through the
+        # Houdini function reference, plain-language search phrases and the verified card bank, with their real
+        # signatures. On the open concept cards its ten functions contain 71% of the functions a solution needs;
+        # the keyword matcher below shows 13%. On by default since 2026-11-11 (sealed suites B-F with v53b:
+        # 127 -> 136 of 227). AI_WRANGLE_FUNCTION_INDEX=0 falls back to the keyword matcher;
+        # AI_WRANGLE_FUNCTION_INDEX_K sets how many functions are listed (default 10).
+        sig_block = ""
+        if os.getenv("AI_WRANGLE_FUNCTION_INDEX", "1") != "0":
+            try:
+                import vex_function_index
+                sig_block = vex_function_index.build_signature_block(
+                    prompt, context=context, k=os.getenv("AI_WRANGLE_FUNCTION_INDEX_K", "10"))
+            except Exception:
+                sig_block = ""
+        if sig_block:
+            blocks.append(sig_block)
+        else:
+            sigs = self.retrieve_signatures_for_task(prompt, context=context)
+            if sigs:
+                lines = ["Official SideFX VEX Function Signatures (Ground Truth Reference):"]
+                for s in sigs:
+                    lines.append(f"  - {s}")
+                blocks.append("\n".join(lines))
 
         return "\n\n".join(blocks)
 

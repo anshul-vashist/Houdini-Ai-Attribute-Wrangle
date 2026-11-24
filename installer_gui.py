@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import tkinter as tk
@@ -216,7 +217,7 @@ class SetupWizardApp:
             hf_btn = tk.Button(
                 model_row, text="📥 Download from Hugging Face", font=("Segoe UI", 8, "bold"),
                 bg="#ff6600", fg="#ffffff", relief="flat", padx=6, pady=1, cursor="hand2",
-                command=lambda: webbrowser.open("https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v10")
+                command=lambda: webbrowser.open("https://huggingface.co/anshulVashist/Qwen3-8B-Houdini-VEX-v46")
             )
             hf_btn.pack(side="right")
 
@@ -347,7 +348,7 @@ class SetupWizardApp:
                 "Next Steps:\n"
                 "1. Start / Restart SideFX Houdini.\n"
                 "2. In any Geometry Network (/obj/geo), press TAB and type 'AI Attribute Wrangle' or 'ai_attribwrangle'.\n"
-                "3. Type your prompt and click 🪄 Generate VEX!"
+                "3. Type your prompt and click ✦ Generate."
             )
             messagebox.showinfo("Installation Complete", msg)
         else:

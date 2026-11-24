@@ -1,20 +1,20 @@
 {
-  "hpath": "$HOUDINI_PACKAGE_PATH/Houdini-Ai-Attribute-Wrangle",
   "env": [
+    {
+      "AI_WRANGLE_ROOT": "$HOUDINI_USER_PREF_DIR/packages/Houdini-Ai-Attribute-Wrangle"
+    },
     {
       "PYTHONPATH": {
         "method": "prepend",
-        "value": "$HOUDINI_PACKAGE_PATH/Houdini-Ai-Attribute-Wrangle/python"
+        "value": "$AI_WRANGLE_ROOT/python"
       }
-    },
-    {
-      "AI_WRANGLE_ROOT": "$HOUDINI_PACKAGE_PATH/Houdini-Ai-Attribute-Wrangle"
     },
     {
       "PATH": {
         "method": "prepend",
-        "value": "$HOUDINI_PACKAGE_PATH/Houdini-Ai-Attribute-Wrangle/bin"
+        "value": "$AI_WRANGLE_ROOT/bin"
       }
     }
-  ]
+  ],
+  "hpath": "$AI_WRANGLE_ROOT"
 }

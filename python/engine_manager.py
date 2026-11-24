@@ -15,34 +15,47 @@ import urllib.error
 import urllib.request
 
 
+def _can_bind(port: int) -> bool:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(("127.0.0.1", port))
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
 def get_working_port(preferred: int = 58421, fallback: int = 58321) -> int:
+    """AI_WRANGLE_PORT if set, else the first bindable of preferred / fallback, else an OS-assigned
+    free port. (Windows Hyper-V/WSL can reserve whole ranges, e.g. 58385-58484 covers 58421.)"""
     env_port = os.getenv("AI_WRANGLE_PORT")
     if env_port:
         try:
             return int(env_port)
         except ValueError:
             pass
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(("127.0.0.1", preferred))
-        s.close()
-        return preferred
-    except OSError:
-        return fallback
+    for port in (preferred, fallback):
+        if _can_bind(port):
+            return port
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
 
 DEFAULT_PORT = get_working_port()
 DEFAULT_HOST = "127.0.0.1"
 _STAGING_ROOT = os.path.join(tempfile.gettempdir(), "ai_wrangle_runtime")
 
 
-def get_recommended_gpu_layers(model_size_gb: float = 5.45) -> int:
-    """Dynamically detects available GPU VRAM to prevent OutOfDeviceMemory crashes."""
-    override = os.getenv("AI_WRANGLE_GPU_LAYERS")
-    if override is not None:
-        try:
-            return int(override)
-        except ValueError:
-            pass
+N_LAYERS = 36          # Qwen3-8B transformer blocks
+KV_MB_8K = 1152        # f16 K/V cache at --ctx-size 8192: 36 layers x 8 KV heads x 128 dims x 2 (K, V) x 2 bytes x 8192
+FIXED_MB = 900         # compute buffers (~500 MB) + headroom for the Houdini viewport, UI and compositor (~400 MB)
+
+
+def _free_vram_mb() -> int | None:
+    """Free video memory of the first NVIDIA GPU in MB, None when it cannot be read (no nvidia-smi, other vendor)."""
     try:
         creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         cmd = ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,nounits,noheader"]
@@ -51,24 +64,88 @@ def get_recommended_gpu_layers(model_size_gb: float = 5.45) -> int:
                 if os.path.isfile(cand):
                     cmd[0] = cand
                     break
-        out = subprocess.check_output(
-            cmd,
-            text=True, stderr=subprocess.DEVNULL, timeout=5.0,
-            creationflags=creation_flags
-        ).strip()
-        free_vram_mb = int(out.splitlines()[0])
-        # Model has ~36 transformer layers; estimate per-layer VRAM requirements:
-        layer_size_mb = max(80, int((model_size_gb * 1024) / 36))
-        # Keep 800 MB safe headroom for Houdini OpenGL/Vulkan viewport, UI, and OS compositor
-        safe_vram_budget = max(0, free_vram_mb - 800)
-        max_layers = min(36, safe_vram_budget // layer_size_mb)
-        # Avoid split CPU-GPU bottleneck: if >= 28 layers fit, offload all 36
-        if max_layers >= 28 or free_vram_mb >= 5200:
-            return 36
-        return max(0, max_layers)
+        out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL, timeout=5.0,
+                                      creationflags=creation_flags).strip()
+        return int(float(out.splitlines()[0]))
     except Exception:
-        # High-performance default: offload all 36 layers
-        return 36
+        return None
+
+
+def get_recommended_gpu_layers(model_size_gb: float = 5.45, adapter_mb: float = 0.0, free_mb: int | None = None) -> int:
+    """How many of the model's layers to put on the GPU so that it fits next to Houdini.
+
+    Each layer costs its share of the weights, of the context cache and of a loaded adapter; compute buffers and
+    headroom for Houdini's own drawing are reserved. Everything fits -> all layers (99: the output layer too).
+    Until 2026-11-24 the estimate assumed a 5.45 GB model and gave all layers as soon as 5.2 GB were free, which
+    is too little for the 6.7 GB models. AI_WRANGLE_GPU_LAYERS overrides the estimate."""
+    override = os.getenv("AI_WRANGLE_GPU_LAYERS")
+    if override is not None:
+        try:
+            return int(override)
+        except ValueError:
+            pass
+    if free_mb is None:
+        free_mb = _free_vram_mb()
+    if free_mb is None:
+        return 99  # unknown GPU: let llama.cpp try everything (it reports a failed load)
+    per_layer = (model_size_gb * 1024 + KV_MB_8K + adapter_mb) / N_LAYERS
+    layers = int((free_mb - FIXED_MB) // per_layer)
+    if layers >= N_LAYERS:
+        return 99
+    return max(0, layers)
+
+
+def _kill_with_parent(process):
+    """Windows: put the engine in a job object that is killed when Houdini exits, even on a crash or
+    End Task (atexit alone left ~6 GB VRAM orphans). Returns the job handle; keep it alive."""
+    if sys.platform != "win32" or process is None:
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateJobObjectW.restype = wintypes.HANDLE
+        k32.OpenProcess.restype = wintypes.HANDLE
+
+        class IO_COUNTERS(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_ulonglong) for n in ("ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                                                           "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
+
+        class BASIC(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                        ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD), ("SchedulingClass", wintypes.DWORD)]
+
+        class EXTENDED(ctypes.Structure):
+            _fields_ = [("BasicLimitInformation", BASIC), ("IoInfo", IO_COUNTERS), ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t), ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                        ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+        JobObjectExtendedLimitInformation = 9
+        job = k32.CreateJobObjectW(None, None)
+        if not job:
+            return None
+        info = EXTENDED()
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not k32.SetInformationJobObject(job, JobObjectExtendedLimitInformation, ctypes.byref(info), ctypes.sizeof(info)):
+            k32.CloseHandle(job)
+            return None
+        PROCESS_SET_QUOTA, PROCESS_TERMINATE = 0x0100, 0x0001
+        h = k32.OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, False, process.pid)
+        if not h:
+            k32.CloseHandle(job)
+            return None
+        ok = k32.AssignProcessToJobObject(job, h)
+        k32.CloseHandle(h)
+        if not ok:
+            k32.CloseHandle(job)
+            return None
+        return job  # handle closes when Houdini exits -> engine is killed
+    except Exception:
+        return None
 
 
 class EngineManager:
@@ -78,13 +155,16 @@ class EngineManager:
         self.host = host
         self.port = port
         self.base_url = f"http://{host}:{port}"
-        self.api_key = None
+        # Random per-session key: other local programs cannot drive this Houdini's engine.
+        self.api_key = secrets.token_hex(16)
         self.process = None
+        self._job = None
         self._staging_dir = None
         self._staging_model_path = None
         self.last_error = ""
         self.active_model_name = ""
         self.active_lora_name = None
+        self.checker_adapter = None
         self.active_gpu_layers = 0
 
     def get_model_info_string(self) -> str:
@@ -102,75 +182,8 @@ class EngineManager:
                 pass
         model = self.active_model_name or "qwen3-vex.gguf"
         if self.active_lora_name:
-            extra = " (v11 Grandmaster)" if "v11" in self.active_lora_name else (" (v10 Grandmaster - Sept 8)" if "v10" in self.active_lora_name else "")
-            return f"{model} + LoRA: {self.active_lora_name}{extra}"
-        if "v42" in model:
-            return f"{model} (Standalone Merged v42 Master - Organic CITL Self-Repair)"
-        if "v41" in model:
-            return f"{model} (Standalone Merged v41 Master - SFT-Grounded RLVR)"
-        if "v39" in model:
-            return f"{model} (Standalone Merged v39 Master - Bulletproof Intelligence)"
-        if "v38" in model:
-            return f"{model} (Standalone Merged v38 Master - Axiomatic Reasoning)"
-        if "v37" in model:
-            return f"{model} (Standalone Merged v37 Master)"
-        if "v36" in model:
-            return f"{model} (Standalone Merged v36 Master)"
-        if "v35" in model:
-            return f"{model} (Standalone Merged v35 Master)"
-        if "v34" in model:
-            return f"{model} (Standalone Merged v34 Master)"
-        if "v33" in model:
-            return f"{model} (Standalone Merged v33 Master)"
-        if "v32" in model:
-            return f"{model} (Standalone Merged v32 Master)"
-        if "v31" in model:
-            return f"{model} (Standalone Merged v31 Master)"
-        if "v30" in model:
-            return f"{model} (Standalone Merged v30 Master)"
-        if "v29" in model:
-            return f"{model} (Standalone Merged v29 Master)"
-        if "v28" in model:
-            return f"{model} (Standalone Merged v28 Master)"
-        if "v27" in model:
-            return f"{model} (Standalone Merged v27 Master)"
-        if "v26" in model:
-            return f"{model} (Standalone Merged v26 Master)"
-        if "v25" in model:
-            return f"{model} (Standalone Merged v25 Master)"
-        if "v24" in model:
-            return f"{model} (Standalone Merged v24 Master)"
-        if "v23" in model:
-            return f"{model} (Standalone Merged v23 Master)"
-        if "v22" in model:
-            return f"{model} (Standalone Merged v22 Master)"
-        if "v21" in model:
-            return f"{model} (Standalone Merged v21 Master)"
-        if "v20" in model:
-            return f"{model} (Standalone Merged v20 Master)"
-        if "v19" in model:
-            return f"{model} (Standalone Merged v19 Master)"
-        if "v18" in model:
-            return f"{model} (Standalone Merged v18 Master)"
-        if "v17" in model:
-            return f"{model} (Standalone Merged v17 Master)"
-        if "v16" in model:
-            return f"{model} (Standalone Merged v16 Master)"
-        if "v15" in model:
-            return f"{model} (Standalone Merged v15 Master)"
-        if "v14" in model:
-            return f"{model} (Standalone Merged v14 Master)"
-        if "v13" in model:
-            return f"{model} (Standalone Merged v13 Master)"
-        if "v11" in model:
-            return f"{model} (Standalone Merged v11 Grandmaster)"
-        import re
-        v_match = re.search(r"v(\d+)", model)
-        if v_match:
-            return f"{model} (Standalone Merged v{v_match.group(1)} Master)"
-        if "Houdini-VEX" in model:
-            return f"{model} (Standalone Merged v10.1)"
-        return f"{model} (Base)"
+            return f"{model} + LoRA: {self.active_lora_name}"
+        return model
 
     def get_api_key(self) -> str | None:
         return self.api_key
@@ -185,14 +198,14 @@ class EngineManager:
         finally:
             sock.close()
 
-    def is_healthy(self) -> bool:
+    def is_healthy(self, timeout: float = 1.0) -> bool:
         if not self.is_port_open():
             return False
         try:
             headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
             request = urllib.request.Request(f"{self.base_url}/health", headers=headers)
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-            with opener.open(request, timeout=1.0) as response:
+            with opener.open(request, timeout=timeout) as response:
                 return json.loads(response.read().decode("utf-8")).get("status") == "ok"
         except urllib.error.HTTPError:
             return False
@@ -251,7 +264,9 @@ class EngineManager:
             self.cleanup_cache()
             raise
 
-    def start_embedded_engine(self, engine_bin_path: str, vault_model_path: str) -> bool:
+    def start_embedded_engine(self, engine_bin_path: str, vault_model_path: str, wait_callback=None) -> bool:
+        """Start llama-server and wait until it serves. `wait_callback()` is called while waiting
+        (about every 0.25 s); it may raise to cancel, which stops the engine and re-raises."""
         self.last_error = ""
         target_model = os.path.basename(vault_model_path)
         if self.is_healthy():
@@ -260,15 +275,10 @@ class EngineManager:
                 return True
             # Model mismatch: stop running instance and switch to requested model
             self.stop_engine()
-            if sys.platform == "win32":
-                try:
-                    subprocess.run(
-                        ["powershell", "-Command", "Stop-Process -Name 'llama-server' -Force -ErrorAction SilentlyContinue"],
-                        creationflags=subprocess.CREATE_NO_WINDOW
-                    )
-                except Exception:
-                    pass
-                time.sleep(1.0)
+            if self.is_healthy():
+                # A server we do not own (e.g. another tool's llama-server) holds the port: never kill
+                # foreign processes, run ours on a free port instead.
+                self._use_port(get_working_port(preferred=self.port + 1, fallback=self.port + 2))
 
         self.active_model_name = target_model
         if not os.path.isfile(engine_bin_path):
@@ -280,14 +290,20 @@ class EngineManager:
             self.last_error = str(error)
             return False
 
-        gpu_layers = str(get_recommended_gpu_layers())
+        checker_path = self.checker_adapter_for(vault_model_path)
+        try:
+            model_gb = os.path.getsize(vault_model_path) / 1024 ** 3
+        except OSError:
+            model_gb = 6.3
+        adapter_mb = (os.path.getsize(checker_path) / 1024 ** 2) if checker_path else 0.0
+        gpu_layers = str(get_recommended_gpu_layers(model_gb, adapter_mb))
         self.active_gpu_layers = int(gpu_layers)
         self.active_model_name = os.path.basename(vault_model_path)
         self.active_lora_name = None
 
         command = [
             engine_bin_path, "--model", resolved_model_path, "--port", str(self.port),
-            "--host", self.host, "--ctx-size", "4096", "--n-gpu-layers",
+            "--host", self.host, "--ctx-size", "8192", "--n-gpu-layers",
             gpu_layers, "--no-warmup", "--parallel", "1",
         ]
         # Check for fine-tuned LoRA adapter (only if the model is not already standalone merged)
@@ -303,7 +319,17 @@ class EngineManager:
                     command.extend(["--lora", lora_path])
                     self.active_lora_name = os.path.basename(lora_path)
                     break
-        if resolved_model_path.endswith(".dat"):
+        # Checker adapter (models/qwen3-vex-v<N>-checker-lora.gguf for model version N): loaded but not applied, so
+        # the model writes code as itself; only a request that asks for it ("lora" field) gets the adapter, which is
+        # what the result check does (python/vex_result_check.py). AI_WRANGLE_CHECKER=0 leaves it out.
+        self.checker_adapter = None
+        checker = checker_path
+        if checker and not self.active_lora_name:
+            command.extend(["--lora", checker, "--lora-init-without-apply"])
+            self.checker_adapter = os.path.basename(checker)
+        if vault_model_path.endswith(".dat"):
+            # decrypted vault weights: load fully into memory so the staged plaintext copy can be
+            # deleted right after startup (a memory-mapped file cannot be removed on Windows)
             command.append("--no-mmap")
         if self.api_key:
             command.extend(["--api-key", self.api_key])
@@ -312,9 +338,19 @@ class EngineManager:
             self.process = subprocess.Popen(
                 command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creation_flags
             )
-            for _ in range(180):
-                time.sleep(0.5)
-                if self.is_healthy():
+            self._job = _kill_with_parent(self.process)
+            deadline = time.time() + 180.0
+            while time.time() < deadline:
+                for _ in range(2):
+                    time.sleep(0.25)
+                    if wait_callback is not None:
+                        try:
+                            wait_callback()
+                        except BaseException:
+                            self.stop_engine()
+                            self.last_error = "Model loading cancelled."
+                            return False
+                if self.is_healthy(timeout=0.4):
                     # --no-mmap makes llama load the model into process memory; remove the
                     # staging artifact as soon as load has completed.
                     self.cleanup_cache()
@@ -331,6 +367,23 @@ class EngineManager:
             self.cleanup_cache()
             return False
 
+    @staticmethod
+    def checker_adapter_for(model_path: str) -> str | None:
+        """The checker adapter that belongs to this model file, or None."""
+        import re
+        if os.getenv("AI_WRANGLE_CHECKER", "1") == "0":
+            return None
+        m = re.search(r"houdini-vex-v(\d+)", os.path.basename(model_path), re.IGNORECASE)
+        if not m:
+            return None
+        path = os.path.join(os.path.dirname(os.path.abspath(model_path)), f"qwen3-vex-v{m.group(1)}-checker-lora.gguf")
+        # llama-server takes several adapters as a comma-separated list: a comma in the path would split it
+        return path if os.path.isfile(path) and "," not in path else None
+
+    def _use_port(self, port: int) -> None:
+        self.port = port
+        self.base_url = f"http://{self.host}:{port}"
+
     def stop_engine(self) -> None:
         if self.process:
             try:
@@ -342,6 +395,7 @@ class EngineManager:
                 except Exception:
                     pass
             self.process = None
+        self._job = None
         self.cleanup_cache()
 
     def cleanup_cache(self) -> None:
@@ -351,17 +405,10 @@ class EngineManager:
         if staging_dir:
             shutil.rmtree(staging_dir, ignore_errors=True)
 
-    def switch_model(self, engine_bin_path: str, vault_model_path: str) -> bool:
+    def switch_model(self, engine_bin_path: str, vault_model_path: str, wait_callback=None) -> bool:
         """Gracefully switch active engine to a different model weights file."""
         self.stop_engine()
-        if sys.platform == "win32":
-            try:
-                subprocess.run(
-                    ["powershell", "-Command", "Stop-Process -Name 'llama-server' -Force -ErrorAction SilentlyContinue"],
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-            except Exception:
-                pass
-            time.sleep(1.0)
-        return self.start_embedded_engine(engine_bin_path, vault_model_path)
+        if self.is_healthy():
+            self._use_port(get_working_port(preferred=self.port + 1, fallback=self.port + 2))
+        return self.start_embedded_engine(engine_bin_path, vault_model_path, wait_callback=wait_callback)
 
